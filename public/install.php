@@ -16,6 +16,8 @@ if (file_exists(__DIR__ . '/../src/config.generated.php')) {
 $step = $_GET['step'] ?? 1;
 $error = null;
 $success = null;
+$debugMode = isset($_GET['debug']) && $_GET['debug'] == '1';
+$debugInfo = [];
 
 // Auto-detect base path
 function detectBasePath() {
@@ -48,8 +50,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
             $dsn = "mysql:host=" . $dbHost . ";charset=utf8mb4";
             $pdo = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             
-            // Create database if not exists (using backticks for safety)
-            $pdo->exec("CREATE DATABASE IF NOT EXISTS `" . $dbName . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            // Create database with fallback for compatibility
+            try {
+                $pdo->exec("CREATE DATABASE IF NOT EXISTS `" . $dbName . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+                if ($debugMode) $debugInfo[] = "Database created with utf8mb4";
+            } catch (PDOException $e) {
+                // Fallback to utf8 for compatibility
+                $pdo->exec("CREATE DATABASE IF NOT EXISTS `" . $dbName . "` CHARACTER SET utf8 COLLATE utf8_general_ci");
+                if ($debugMode) $debugInfo[] = "Database created with utf8 (fallback)";
+            }
+            
             $pdo->exec("USE `" . $dbName . "`");
             
             // Read schema and apply prefix
@@ -63,25 +73,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
                 $schema = preg_replace('/INSERT INTO (\w+)/i', 'INSERT INTO ' . $dbPrefix . '$1', $schema);
             }
             
-            // Execute schema
+            // Execute schema with individual error handling
             $statements = array_filter(array_map('trim', explode(';', $schema)));
+            $executedStatements = [];
+            $failedStatements = [];
+            
             foreach ($statements as $statement) {
                 if (!empty($statement) && !preg_match('/^--/', $statement)) {
-                    $pdo->exec($statement);
+                    try {
+                        $pdo->exec($statement);
+                        $executedStatements[] = $statement;
+                        if ($debugMode) {
+                            $debugInfo[] = "✓ Executed: " . substr($statement, 0, 100) . "...";
+                        }
+                    } catch (PDOException $e) {
+                        // Try fallback without ENGINE=InnoDB for compatibility
+                        if (stripos($statement, 'ENGINE=InnoDB') !== false) {
+                            $fallbackStatement = preg_replace('/ENGINE=InnoDB\s*/i', '', $statement);
+                            try {
+                                $pdo->exec($fallbackStatement);
+                                $executedStatements[] = $fallbackStatement;
+                                if ($debugMode) {
+                                    $debugInfo[] = "✓ Executed (no InnoDB): " . substr($fallbackStatement, 0, 100) . "...";
+                                }
+                            } catch (PDOException $e2) {
+                                $failedStatements[] = [
+                                    'statement' => substr($statement, 0, 200),
+                                    'error' => $e2->getMessage()
+                                ];
+                                if ($debugMode) {
+                                    $debugInfo[] = "✗ Failed: " . $e2->getMessage();
+                                }
+                            }
+                        } else {
+                            $failedStatements[] = [
+                                'statement' => substr($statement, 0, 200),
+                                'error' => $e->getMessage()
+                            ];
+                            if ($debugMode) {
+                                $debugInfo[] = "✗ Failed: " . $e->getMessage();
+                            }
+                        }
+                    }
                 }
             }
             
-            // Store database credentials in session
-            $_SESSION['install_db'] = [
-                'host' => $dbHost,
-                'name' => $dbName,
-                'user' => $dbUser,
-                'pass' => $dbPass,
-                'prefix' => $dbPrefix
-            ];
+            // Verify tables were created
+            $requiredTables = ['users', 'members', 'social_years', 'income_categories', 'expense_categories', 'income', 'expenses'];
+            $missingTables = [];
             
-            header('Location: install.php?step=2');
-            exit;
+            foreach ($requiredTables as $table) {
+                $tableName = $dbPrefix . $table;
+                $result = $pdo->query("SHOW TABLES LIKE '$tableName'");
+                if ($result->rowCount() === 0) {
+                    $missingTables[] = $tableName;
+                } else {
+                    if ($debugMode) {
+                        $debugInfo[] = "✓ Table exists: $tableName";
+                    }
+                }
+            }
+            
+            // Check if installation was successful
+            if (!empty($missingTables)) {
+                $error = "Errore: le seguenti tabelle non sono state create: " . implode(', ', $missingTables);
+                if (!empty($failedStatements)) {
+                    $error .= "<br><br><strong>Errori SQL:</strong><ul>";
+                    foreach ($failedStatements as $failed) {
+                        $error .= "<li><code>" . htmlspecialchars($failed['statement']) . "</code><br>";
+                        $error .= "<small>Errore: " . htmlspecialchars($failed['error']) . "</small></li>";
+                    }
+                    $error .= "</ul>";
+                }
+            } else {
+                // All tables created successfully
+                $_SESSION['install_db'] = [
+                    'host' => $dbHost,
+                    'name' => $dbName,
+                    'user' => $dbUser,
+                    'pass' => $dbPass,
+                    'prefix' => $dbPrefix
+                ];
+                
+                $redirectUrl = 'install.php?step=2';
+                if ($debugMode) {
+                    $redirectUrl .= '&debug=1';
+                }
+                header('Location: ' . $redirectUrl);
+                exit;
+            }
             
         } catch (PDOException $e) {
             $error = "Errore database: " . $e->getMessage();
@@ -265,7 +345,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 3) {
                             
                             <?php if ($error): ?>
                                 <div class="alert alert-danger">
-                                    <i class="bi bi-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
+                                    <i class="bi bi-exclamation-triangle"></i> <?php echo $error; ?>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <?php if ($debugMode && !empty($debugInfo)): ?>
+                                <div class="alert alert-info">
+                                    <strong><i class="bi bi-bug"></i> Debug Mode</strong>
+                                    <ul class="mt-2 mb-0">
+                                        <?php foreach ($debugInfo as $info): ?>
+                                            <li><small><?php echo htmlspecialchars($info); ?></small></li>
+                                        <?php endforeach; ?>
+                                    </ul>
                                 </div>
                             <?php endif; ?>
                             
@@ -302,6 +393,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 3) {
                                 <button type="submit" class="btn btn-primary w-100">
                                     <i class="bi bi-arrow-right"></i> Avanti
                                 </button>
+                                
+                                <?php if (!$debugMode): ?>
+                                    <div class="text-center mt-2">
+                                        <small><a href="install.php?step=1&debug=1" class="text-muted"><i class="bi bi-bug"></i> Modalità debug</a></small>
+                                    </div>
+                                <?php endif; ?>
                             </form>
                         
                         <?php elseif ($step == 2): ?>
