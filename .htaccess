@@ -13,6 +13,9 @@ Options -Indexes
     
     # Prevent access to sensitive files
     RewriteRule ^src/config\.php$ - [F,L]
+    RewriteRule ^src/config\.generated\.php$ - [F,L]
+    RewriteRule ^src/config_local\.php$ - [F,L]
+    RewriteRule ^schema\.sql$ - [F,L]
     RewriteRule ^\.git - [F,L]
 </IfModule>
 

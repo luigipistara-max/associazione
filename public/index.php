@@ -143,63 +143,115 @@ include __DIR__ . '/inc/header.php';
 </div>
 <?php endif; ?>
 
-<!-- Recent Movements -->
-<div class="card mt-4">
-    <div class="card-header">
-        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Ultimi Movimenti</h5>
+<!-- Recent Members and Movements -->
+<div class="row mt-4">
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-people"></i> Ultimi Soci Registrati</h5>
+            </div>
+            <div class="card-body">
+                <?php if (empty($recentMembers)): ?>
+                    <p class="text-muted">Nessun socio registrato.</p>
+                <?php else: ?>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Stato</th>
+                                    <th>Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($recentMembers as $member): ?>
+                                <tr>
+                                    <td><?php echo h($member['first_name'] . ' ' . $member['last_name']); ?></td>
+                                    <td>
+                                        <span class="badge bg-<?php echo $member['status'] === 'attivo' ? 'success' : 'secondary'; ?>">
+                                            <?php echo h(ucfirst($member['status'])); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo formatDate($member['registration_date']); ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-center mt-2">
+                        <a href="/members.php" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-list"></i> Vedi Tutti i Soci
+                        </a>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
-    <div class="card-body">
-        <?php if (empty($recentMovements)): ?>
-            <p class="text-muted">Nessun movimento registrato.</p>
-        <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Data</th>
-                            <th>Tipo</th>
-                            <th>Categoria</th>
-                            <th>Descrizione</th>
-                            <th>Socio</th>
-                            <th class="text-end">Importo</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($recentMovements as $mov): ?>
-                        <tr>
-                            <td><?php echo formatDate($mov['paid_at']); ?></td>
-                            <td>
-                                <?php if ($mov['type'] === 'income'): ?>
-                                    <span class="badge bg-success">Entrata</span>
-                                <?php else: ?>
-                                    <span class="badge bg-danger">Uscita</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><?php echo e($mov['category_name']); ?></td>
-                            <td><?php echo e($mov['description']); ?></td>
-                            <td>
-                                <?php if ($mov['member_id']): ?>
-                                    <?php echo e($mov['first_name'] . ' ' . $mov['last_name']); ?>
-                                <?php else: ?>
-                                    -
-                                <?php endif; ?>
-                            </td>
-                            <td class="text-end">
-                                <strong class="text-<?php echo $mov['type'] === 'income' ? 'success' : 'danger'; ?>">
-                                    <?php echo formatAmount($mov['amount']); ?>
-                                </strong>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-cash-coin"></i> Ultimi Movimenti</h5>
             </div>
-            <div class="text-center">
-                <a href="/finance.php" class="btn btn-outline-primary">
-                    <i class="bi bi-list"></i> Vedi Tutti i Movimenti
-                </a>
+            <div class="card-body">
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#recent-income">Entrate</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#recent-expenses">Uscite</a>
+                    </li>
+                </ul>
+                
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="recent-income">
+                        <?php if (empty($recentIncome)): ?>
+                            <p class="text-muted">Nessuna entrata registrata.</p>
+                        <?php else: ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <?php foreach ($recentIncome as $inc): ?>
+                                        <tr>
+                                            <td><?php echo formatDate($inc['transaction_date']); ?></td>
+                                            <td><?php echo h($inc['category_name']); ?></td>
+                                            <td class="text-end text-success fw-bold">+<?php echo formatAmount($inc['amount']); ?></td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="recent-expenses">
+                        <?php if (empty($recentExpenses)): ?>
+                            <p class="text-muted">Nessuna uscita registrata.</p>
+                        <?php else: ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <?php foreach ($recentExpenses as $exp): ?>
+                                        <tr>
+                                            <td><?php echo formatDate($exp['transaction_date']); ?></td>
+                                            <td><?php echo h($exp['category_name']); ?></td>
+                                            <td class="text-end text-danger fw-bold">-<?php echo formatAmount($exp['amount']); ?></td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-2">
+                    <a href="/finance.php" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-list"></i> Vedi Tutti i Movimenti
+                    </a>
+                </div>
             </div>
-        <?php endif; ?>
+        </div>
     </div>
 </div>
 
