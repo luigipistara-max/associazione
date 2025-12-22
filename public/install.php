@@ -75,7 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
             
             // Execute schema with individual error handling
             $statements = array_filter(array_map('trim', explode(';', $schema)));
-            $executedStatements = [];
             $failedStatements = [];
             
             foreach ($statements as $statement) {
@@ -102,17 +101,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
                 
                 try {
                     $pdo->exec($cleanStatement);
-                    $executedStatements[] = $cleanStatement;
                     if ($debugMode) {
                         $debugInfo[] = "✓ Executed: " . substr($cleanStatement, 0, 100) . "...";
                     }
                 } catch (PDOException $e) {
                     // Try fallback without ENGINE=InnoDB for compatibility
-                    if (stripos($cleanStatement, 'ENGINE=InnoDB') !== false) {
-                        $fallbackStatement = preg_replace('/ENGINE=InnoDB\s*/i', '', $cleanStatement);
+                    if (stripos($cleanStatement, 'ENGINE=InnoDB') !== false || stripos($cleanStatement, 'ENGINE = InnoDB') !== false) {
+                        $fallbackStatement = preg_replace('/ENGINE\s*=\s*InnoDB/i', '', $cleanStatement);
                         try {
                             $pdo->exec($fallbackStatement);
-                            $executedStatements[] = $fallbackStatement;
                             if ($debugMode) {
                                 $debugInfo[] = "✓ Executed (no InnoDB): " . substr($fallbackStatement, 0, 100) . "...";
                             }
@@ -143,8 +140,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
             
             foreach ($requiredTables as $table) {
                 $tableName = $dbPrefix . $table;
-                $result = $pdo->query("SHOW TABLES LIKE '$tableName'");
-                if ($result->rowCount() === 0) {
+                $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+                $stmt->execute([$tableName]);
+                if ($stmt->rowCount() === 0) {
                     $missingTables[] = $tableName;
                 } else {
                     if ($debugMode) {
@@ -155,7 +153,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
             
             // Check if installation was successful
             if (!empty($missingTables)) {
-                $error = "Errore: le seguenti tabelle non sono state create: " . implode(', ', $missingTables);
+                $escapedTables = array_map('htmlspecialchars', $missingTables);
+                $error = "Errore: le seguenti tabelle non sono state create: " . implode(', ', $escapedTables);
                 if (!empty($failedStatements)) {
                     $error .= "<br><br><strong>Errori SQL:</strong><ul>";
                     foreach ($failedStatements as $failed) {
