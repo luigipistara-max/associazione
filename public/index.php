@@ -8,10 +8,10 @@ requireLogin();
 $pageTitle = 'Dashboard';
 
 // Get statistics
-$pdo = getDbConnection();
+
 
 // Count members by status
-$stmt = $pdo->query("SELECT status, COUNT(*) as count FROM members GROUP BY status");
+$stmt = $pdo->query("SELECT status, COUNT(*) as count FROM " . table('members') . " GROUP BY status");
 $memberStats = [];
 while ($row = $stmt->fetch()) {
     $memberStats[$row['status']] = $row['count'];
@@ -24,32 +24,44 @@ $activeMembers = $memberStats['attivo'] ?? 0;
 $currentYear = getCurrentSocialYear();
 
 // Get financial summary for current year
-$yearFilter = $currentYear ? "AND social_year_id = " . $currentYear['id'] : "";
+$yearFilter = $currentYear ? "WHERE social_year_id = " . $currentYear['id'] : "";
 
-$stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM movements WHERE type = 'income' $yearFilter");
+$stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM " . table('income') . " $yearFilter");
 $totalIncome = $stmt->fetch()['total'];
 
-$stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM movements WHERE type = 'expense' $yearFilter");
+$stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM " . table('expenses') . " $yearFilter");
 $totalExpense = $stmt->fetch()['total'];
 
 $balance = $totalIncome - $totalExpense;
 
-// Get recent movements
+// Get recent members
 $stmt = $pdo->query("
-    SELECT m.*, 
-           CASE 
-               WHEN m.type = 'income' THEN ic.name
-               WHEN m.type = 'expense' THEN ec.name
-           END as category_name,
-           mem.first_name, mem.last_name
-    FROM movements m
-    LEFT JOIN income_categories ic ON m.type = 'income' AND m.category_id = ic.id
-    LEFT JOIN expense_categories ec ON m.type = 'expense' AND m.category_id = ec.id
-    LEFT JOIN members mem ON m.member_id = mem.id
-    ORDER BY m.paid_at DESC, m.id DESC
-    LIMIT 10
+    SELECT * FROM " . table('members') . "
+    ORDER BY created_at DESC
+    LIMIT 5
 ");
-$recentMovements = $stmt->fetchAll();
+$recentMembers = $stmt->fetchAll();
+
+// Get recent income
+$stmt = $pdo->query("
+    SELECT i.*, ic.name as category_name, m.first_name, m.last_name
+    FROM " . table('income') . " i
+    LEFT JOIN " . table('income_categories') . " ic ON i.category_id = ic.id
+    LEFT JOIN " . table('members') . " m ON i.member_id = m.id
+    ORDER BY i.transaction_date DESC, i.id DESC
+    LIMIT 5
+");
+$recentIncome = $stmt->fetchAll();
+
+// Get recent expenses
+$stmt = $pdo->query("
+    SELECT e.*, ec.name as category_name
+    FROM " . table('expenses') . " e
+    LEFT JOIN " . table('expense_categories') . " ec ON e.category_id = ec.id
+    ORDER BY e.transaction_date DESC, e.id DESC
+    LIMIT 5
+");
+$recentExpenses = $stmt->fetchAll();
 
 include __DIR__ . '/inc/header.php';
 ?>

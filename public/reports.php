@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 requireLogin();
 
 $pageTitle = 'Rendiconto';
-$pdo = getDbConnection();
+
 
 // Get year filter
 $yearId = $_GET['year'] ?? '';
@@ -28,7 +28,7 @@ if ($yearId) {
 // Get income by category
 $stmt = $pdo->query("
     SELECT ic.name, COALESCE(SUM(m.amount), 0) as total, COUNT(m.id) as count
-    FROM income_categories ic
+    FROM " . table('income_categories') . " ic
     LEFT JOIN movements m ON ic.id = m.category_id AND m.type = 'income' $yearFilter
     WHERE ic.is_active = 1
     GROUP BY ic.id, ic.name, ic.sort_order
@@ -40,7 +40,7 @@ $totalIncome = array_sum(array_column($incomeByCategory, 'total'));
 // Get expense by category
 $stmt = $pdo->query("
     SELECT ec.name, COALESCE(SUM(m.amount), 0) as total, COUNT(m.id) as count
-    FROM expense_categories ec
+    FROM " . table('expense_categories') . " ec
     LEFT JOIN movements m ON ec.id = m.category_id AND m.type = 'expense' $yearFilter
     WHERE ec.is_active = 1
     GROUP BY ec.id, ec.name, ec.sort_order

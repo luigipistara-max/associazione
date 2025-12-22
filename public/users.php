@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 requireAdmin();
 
 $pageTitle = 'Gestione Utenti';
-$pdo = getDbConnection();
+
 $errors = [];
 
 // Handle delete
@@ -17,7 +17,7 @@ if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (verifyCsrfToken($token)) {
         // Prevent deleting own account
         if ($id != $_SESSION['user_id']) {
-            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+            $stmt = $pdo->prepare("DELETE FROM " . table('users') . " WHERE id = ?");
             $stmt->execute([$id]);
             setFlashMessage('Utente eliminato con successo');
         } else {
@@ -50,11 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $errors[] = 'La password deve essere di almeno 8 caratteri';
                 } else {
                     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, role = ? WHERE id = ?");
+                    $stmt = $pdo->prepare("UPDATE " . table('users') . " SET username = ?, password = ?, role = ? WHERE id = ?");
                     $stmt->execute([$username, $hashedPassword, $role, $userId]);
                 }
             } else {
-                $stmt = $pdo->prepare("UPDATE users SET username = ?, role = ? WHERE id = ?");
+                $stmt = $pdo->prepare("UPDATE " . table('users') . " SET username = ?, role = ? WHERE id = ?");
                 $stmt->execute([$username, $role, $userId]);
             }
             if (empty($errors)) {
@@ -71,8 +71,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             
             if (empty($errors)) {
                 $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
-                $stmt->execute([$username, $hashedPassword, $role]);
+                $stmt = $pdo->prepare("INSERT INTO " . table('users') . " (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
+                $fullName = trim($_POST['full_name'] ?? '');
+                $email = trim($_POST['email'] ?? '');
+                $stmt->execute([$username, $hashedPassword, $fullName, $email, $role]);
                 setFlashMessage('Utente creato con successo');
                 redirect('/users.php');
             }
@@ -81,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Get all users
-$stmt = $pdo->query("SELECT * FROM users ORDER BY username");
+$stmt = $pdo->query("SELECT * FROM " . table('users') . " ORDER BY username");
 $users = $stmt->fetchAll();
 
 include __DIR__ . '/inc/header.php';

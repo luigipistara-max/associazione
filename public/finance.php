@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 requireLogin();
 
 $pageTitle = 'Movimenti Finanziari';
-$pdo = getDbConnection();
+
 $errors = [];
 
 $action = $_GET['action'] ?? 'list';
@@ -125,10 +125,10 @@ if ($action === 'list') {
                sy.name as year_name,
                mem.first_name, mem.last_name
         FROM movements m
-        LEFT JOIN income_categories ic ON m.type = 'income' AND m.category_id = ic.id
-        LEFT JOIN expense_categories ec ON m.type = 'expense' AND m.category_id = ec.id
-        LEFT JOIN social_years sy ON m.social_year_id = sy.id
-        LEFT JOIN members mem ON m.member_id = mem.id
+        LEFT JOIN " . table('income_categories') . " ic ON m.type = 'income' AND m.category_id = ic.id
+        LEFT JOIN " . table('expense_categories') . " ec ON m.type = 'expense' AND m.category_id = ec.id
+        LEFT JOIN " . table('social_years') . " sy ON m.social_year_id = sy.id
+        LEFT JOIN " . table('members') . " mem ON m.member_id = mem.id
         WHERE 1=1
     ";
     $params = [];
@@ -170,7 +170,7 @@ $incomeCategories = getIncomeCategories();
 $expenseCategories = getExpenseCategories();
 
 // Get members for dropdown
-$stmt = $pdo->query("SELECT id, first_name, last_name FROM members WHERE status = 'attivo' ORDER BY last_name, first_name");
+$stmt = $pdo->query("SELECT id, first_name, last_name FROM " . table('members') . " WHERE status = 'attivo' ORDER BY last_name, first_name");
 $members = $stmt->fetchAll();
 
 include __DIR__ . '/inc/header.php';
