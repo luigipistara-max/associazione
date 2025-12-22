@@ -1,129 +1,116 @@
 <?php
 require_once __DIR__ . '/../src/auth.php';
-require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/functions.php';
+require_once __DIR__ . '/../src/db.php';
 
 requireAdmin();
 
 $pageTitle = 'Gestione Utenti';
+$pdo = getDbConnection();
+$errors = [];
 
-// Handle actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    checkCsrf();
+// Handle delete
+if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id = (int)$_GET['delete'];
+    $token = $_POST['csrf_token'] ?? '';
     
-    $action = $_POST['action'] ?? '';
-    
-    if ($action === 'create' || $action === 'update') {
-        $userId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : null;
-        $username = trim($_POST['username'] ?? '');
-        $fullName = trim($_POST['full_name'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $role = $_POST['role'] ?? 'operatore';
-        $password = $_POST['password'] ?? '';
-        
-        $errors = [];
-        
-        if (empty($username)) $errors[] = "Username obbligatorio";
-        if (empty($fullName)) $errors[] = "Nome completo obbligatorio";
-        if (empty($email)) $errors[] = "Email obbligatoria";
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Email non valida";
-        
-        if ($action === 'create' && strlen($password) < 8) {
-            $errors[] = "Password deve contenere almeno 8 caratteri";
-        }
-        if ($action === 'update' && $password && strlen($password) < 8) {
-            $errors[] = "Password deve contenere almeno 8 caratteri";
-        }
-        
-        // Check unique username
-        if ($action === 'create') {
-            $stmt = $pdo->prepare("SELECT id FROM " . table('users') . " WHERE username = ?");
-            $stmt->execute([$username]);
+    if (verifyCsrfToken($token)) {
+        // Prevent deleting own account
+        if ($id != $_SESSION['user_id']) {
+            $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+            $stmt->execute([$id]);
+            setFlashMessage('Utente eliminato con successo');
         } else {
-            $stmt = $pdo->prepare("SELECT id FROM " . table('users') . " WHERE username = ? AND id != ?");
-            $stmt->execute([$username, $userId]);
+            setFlashMessage('Non puoi eliminare il tuo account', 'danger');
         }
-        if ($stmt->fetch()) {
-            $errors[] = "Username già esistente";
-        }
-        
-        if (empty($errors)) {
-            try {
-                if ($action === 'create') {
-                    $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-                    $stmt = $pdo->prepare("INSERT INTO " . table('users') . " (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->execute([$username, $passwordHash, $fullName, $email, $role]);
-                    setFlash('success', 'Utente creato con successo');
-                } else {
-                    if ($password) {
-                        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
-                        $stmt = $pdo->prepare("UPDATE " . table('users') . " SET username = ?, password = ?, full_name = ?, email = ?, role = ? WHERE id = ?");
-                        $stmt->execute([$username, $passwordHash, $fullName, $email, $role, $userId]);
-                    } else {
-                        $stmt = $pdo->prepare("UPDATE " . table('users') . " SET username = ?, full_name = ?, email = ?, role = ? WHERE id = ?");
-                        $stmt->execute([$username, $fullName, $email, $role, $userId]);
-                    }
-                    setFlash('success', 'Utente aggiornato con successo');
-                }
-                redirect('users.php');
-            } catch (PDOException $e) {
-                setFlash('error', 'Errore database: ' . $e->getMessage());
-            }
-        } else {
-            setFlash('error', implode(', ', $errors));
-        }
-    } elseif ($action === 'delete') {
-        $userId = (int)$_POST['user_id'];
-        
-        // Prevent deleting yourself
-        if ($userId === getCurrentUserId()) {
-            setFlash('error', 'Non puoi eliminare il tuo account');
-        } else {
-            try {
-                $stmt = $pdo->prepare("DELETE FROM " . table('users') . " WHERE id = ?");
-                $stmt->execute([$userId]);
-                setFlash('success', 'Utente eliminato con successo');
-            } catch (PDOException $e) {
-                setFlash('error', 'Errore durante l\'eliminazione: ' . $e->getMessage());
-            }
-        }
-        redirect('users.php');
+        redirect('/users.php');
     }
 }
 
-// Load users
-try {
-    $stmt = $pdo->query("SELECT * FROM " . table('users') . " ORDER BY username");
-    $users = $stmt->fetchAll();
-} catch (PDOException $e) {
-    die("Errore database: " . htmlspecialchars($e->getMessage()));
+// Handle add/edit
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $token = $_POST['csrf_token'] ?? '';
+    
+    if (!verifyCsrfToken($token)) {
+        $errors[] = 'Token di sicurezza non valido';
+    } else {
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $role = $_POST['role'] ?? 'operatore';
+        $userId = $_POST['user_id'] ?? null;
+        
+        if (empty($username)) {
+            $errors[] = 'Username obbligatorio';
+        }
+        
+        if ($userId) {
+            // Update
+            if (!empty($password)) {
+                if (strlen($password) < 8) {
+                    $errors[] = 'La password deve essere di almeno 8 caratteri';
+                } else {
+                    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                    $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, role = ? WHERE id = ?");
+                    $stmt->execute([$username, $hashedPassword, $role, $userId]);
+                }
+            } else {
+                $stmt = $pdo->prepare("UPDATE users SET username = ?, role = ? WHERE id = ?");
+                $stmt->execute([$username, $role, $userId]);
+            }
+            if (empty($errors)) {
+                setFlashMessage('Utente aggiornato con successo');
+                redirect('/users.php');
+            }
+        } else {
+            // Create
+            if (empty($password)) {
+                $errors[] = 'Password obbligatoria per nuovo utente';
+            } elseif (strlen($password) < 8) {
+                $errors[] = 'La password deve essere di almeno 8 caratteri';
+            }
+            
+            if (empty($errors)) {
+                $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
+                $stmt->execute([$username, $hashedPassword, $role]);
+                setFlashMessage('Utente creato con successo');
+                redirect('/users.php');
+            }
+        }
+    }
 }
+
+// Get all users
+$stmt = $pdo->query("SELECT * FROM users ORDER BY username");
+$users = $stmt->fetchAll();
 
 include __DIR__ . '/inc/header.php';
 ?>
 
-<?php displayFlash(); ?>
-
-<div class="row mb-3">
-    <div class="col-md-6">
-        <h2><i class="bi bi-person-badge me-2"></i>Gestione Utenti</h2>
-    </div>
-    <div class="col-md-6 text-end">
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userModal" onclick="resetUserForm()">
-            <i class="bi bi-plus-circle me-1"></i>Nuovo Utente
-        </button>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-person-gear"></i> Gestione Utenti</h2>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userModal" onclick="resetUserForm()">
+        <i class="bi bi-plus"></i> Nuovo Utente
+    </button>
 </div>
 
-<div class="card shadow-sm">
+<?php if (!empty($errors)): ?>
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+            <?php foreach ($errors as $error): ?>
+                <li><?php echo e($error); ?></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+<?php endif; ?>
+
+<div class="card">
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-striped table-hover">
+            <table class="table table-hover">
                 <thead>
                     <tr>
                         <th>Username</th>
-                        <th>Nome Completo</th>
-                        <th>Email</th>
                         <th>Ruolo</th>
                         <th>Creato il</th>
                         <th class="text-end">Azioni</th>
@@ -132,21 +119,26 @@ include __DIR__ . '/inc/header.php';
                 <tbody>
                     <?php foreach ($users as $user): ?>
                     <tr>
-                        <td><?= h($user['username']) ?></td>
-                        <td><?= h($user['full_name']) ?></td>
-                        <td><?= h($user['email']) ?></td>
                         <td>
-                            <span class="badge bg-<?= $user['role'] === 'admin' ? 'danger' : 'primary' ?>">
-                                <?= h($user['role']) ?>
+                            <strong><?php echo e($user['username']); ?></strong>
+                            <?php if ($user['id'] == $_SESSION['user_id']): ?>
+                                <span class="badge bg-info">Tu</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <span class="badge bg-<?php echo $user['role'] === 'admin' ? 'danger' : 'primary'; ?>">
+                                <?php echo e(ucfirst($user['role'])); ?>
                             </span>
                         </td>
-                        <td><?= formatDate($user['created_at'], 'd/m/Y H:i') ?></td>
+                        <td><?php echo formatDate($user['created_at']); ?></td>
                         <td class="text-end">
-                            <button type="button" class="btn btn-sm btn-primary" onclick="editUser(<?= htmlspecialchars(json_encode($user)) ?>)">
+                            <button type="button" class="btn btn-sm btn-outline-primary" 
+                                    onclick="editUser(<?php echo htmlspecialchars(json_encode($user)); ?>)">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <?php if ($user['id'] !== getCurrentUserId()): ?>
-                            <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete(<?= $user['id'] ?>, '<?= h($user['username']) ?>')">
+                            <?php if ($user['id'] != $_SESSION['user_id']): ?>
+                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                    onclick="confirmDelete(<?php echo $user['id']; ?>, '<?php echo e($user['username']); ?>')">
                                 <i class="bi bi-trash"></i>
                             </button>
                             <?php endif; ?>
@@ -164,37 +156,32 @@ include __DIR__ . '/inc/header.php';
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" id="formAction" value="create">
-                <input type="hidden" name="user_id" id="userId">
-                
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Nuovo Utente</h5>
+                    <h5 class="modal-title" id="userModalTitle">Nuovo Utente</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo e(generateCsrfToken()); ?>">
+                    <input type="hidden" name="action" value="save">
+                    <input type="hidden" name="user_id" id="userId">
+                    
                     <div class="mb-3">
-                        <label class="form-label">Username *</label>
+                        <label class="form-label">Username</label>
                         <input type="text" name="username" id="username" class="form-control" required>
                     </div>
+                    
                     <div class="mb-3">
-                        <label class="form-label">Nome Completo *</label>
-                        <input type="text" name="full_name" id="fullName" class="form-control" required>
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password" id="password" class="form-control" minlength="8">
+                        <small class="text-muted" id="passwordHelp">Minimo 8 caratteri. Lascia vuoto per non modificare.</small>
                     </div>
+                    
                     <div class="mb-3">
-                        <label class="form-label">Email *</label>
-                        <input type="email" name="email" id="email" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Ruolo *</label>
+                        <label class="form-label">Ruolo</label>
                         <select name="role" id="role" class="form-select" required>
                             <option value="operatore">Operatore</option>
-                            <option value="admin">Admin</option>
+                            <option value="admin">Amministratore</option>
                         </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password <span id="passwordHint">(min 8 caratteri)</span></label>
-                        <input type="password" name="password" id="password" class="form-control" minlength="8">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -210,63 +197,50 @@ include __DIR__ . '/inc/header.php';
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="POST">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="user_id" id="deleteUserId">
-                
-                <div class="modal-header">
-                    <h5 class="modal-title">Conferma Eliminazione</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    Sei sicuro di voler eliminare l'utente <strong id="deleteUsername"></strong>?
-                </div>
-                <div class="modal-footer">
+            <div class="modal-header">
+                <h5 class="modal-title">Conferma Eliminazione</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Sei sicuro di voler eliminare l'utente <strong id="deleteUserName"></strong>?
+            </div>
+            <div class="modal-footer">
+                <form method="POST" id="deleteForm">
+                    <input type="hidden" name="csrf_token" value="<?php echo e(generateCsrfToken()); ?>">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-danger">Elimina</button>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
 function resetUserForm() {
-    document.getElementById('formAction').value = 'create';
-    document.getElementById('modalTitle').textContent = 'Nuovo Utente';
+    document.getElementById('userModalTitle').textContent = 'Nuovo Utente';
     document.getElementById('userId').value = '';
     document.getElementById('username').value = '';
-    document.getElementById('fullName').value = '';
-    document.getElementById('email').value = '';
-    document.getElementById('role').value = 'operatore';
     document.getElementById('password').value = '';
     document.getElementById('password').required = true;
-    document.getElementById('passwordHint').textContent = '(min 8 caratteri) *';
+    document.getElementById('passwordHelp').textContent = 'Minimo 8 caratteri';
+    document.getElementById('role').value = 'operatore';
 }
 
 function editUser(user) {
-    document.getElementById('formAction').value = 'update';
-    document.getElementById('modalTitle').textContent = 'Modifica Utente';
+    document.getElementById('userModalTitle').textContent = 'Modifica Utente';
     document.getElementById('userId').value = user.id;
     document.getElementById('username').value = user.username;
-    document.getElementById('fullName').value = user.full_name;
-    document.getElementById('email').value = user.email;
-    document.getElementById('role').value = user.role;
     document.getElementById('password').value = '';
     document.getElementById('password').required = false;
-    document.getElementById('passwordHint').textContent = '(lascia vuoto per non modificare)';
-    
-    const modal = new bootstrap.Modal(document.getElementById('userModal'));
-    modal.show();
+    document.getElementById('passwordHelp').textContent = 'Minimo 8 caratteri. Lascia vuoto per non modificare.';
+    document.getElementById('role').value = user.role;
+    new bootstrap.Modal(document.getElementById('userModal')).show();
 }
 
 function confirmDelete(id, username) {
-    document.getElementById('deleteUserId').value = id;
-    document.getElementById('deleteUsername').textContent = username;
-    
-    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    modal.show();
+    document.getElementById('deleteUserName').textContent = username;
+    document.getElementById('deleteForm').action = '/users.php?delete=' + id;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
 </script>
 

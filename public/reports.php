@@ -1,338 +1,299 @@
 <?php
 require_once __DIR__ . '/../src/auth.php';
-require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/functions.php';
+require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
 $pageTitle = 'Rendiconto';
+$pdo = getDbConnection();
 
-// Get selected year
-$selectedYearId = isset($_GET['year']) ? (int)$_GET['year'] : null;
+// Get year filter
+$yearId = $_GET['year'] ?? '';
+$socialYears = getSocialYears();
 
-// Load social years
-try {
-    $stmt = $pdo->query("SELECT * FROM " . table('social_years') . " ORDER BY start_date DESC");
-    $socialYears = $stmt->fetchAll();
-    
-    // If no year selected, use current year
-    if (!$selectedYearId && !empty($socialYears)) {
-        foreach ($socialYears as $year) {
-            if ($year['is_current']) {
-                $selectedYearId = $year['id'];
-                break;
-            }
-        }
-        // If no current year, use first one
-        if (!$selectedYearId) {
-            $selectedYearId = $socialYears[0]['id'];
+// Build query
+$yearFilter = '';
+$yearName = 'Tutti gli anni';
+if ($yearId) {
+    $yearFilter = "AND m.social_year_id = " . (int)$yearId;
+    foreach ($socialYears as $y) {
+        if ($y['id'] == $yearId) {
+            $yearName = $y['name'];
+            break;
         }
     }
-    
-    $selectedYear = null;
-    if ($selectedYearId) {
-        $stmt = $pdo->prepare("SELECT * FROM " . table('social_years') . " WHERE id = ?");
-        $stmt->execute([$selectedYearId]);
-        $selectedYear = $stmt->fetch();
-    }
-    
-    // Load income by category
-    $incomeByCategory = [];
-    $totalIncome = 0;
-    if ($selectedYearId) {
-        $stmt = $pdo->prepare("
-            SELECT c.name, COALESCE(SUM(i.amount), 0) as total, COUNT(i.id) as count
-            FROM " . table('income_categories') . " c
-            LEFT JOIN " . table('income') . " i ON c.id = i.category_id AND i.social_year_id = ?
-            WHERE c.is_active = 1
-            GROUP BY c.id, c.name, c.sort_order
-            ORDER BY c.sort_order, c.name
-        ");
-        $stmt->execute([$selectedYearId]);
-        $incomeByCategory = $stmt->fetchAll();
-        
-        foreach ($incomeByCategory as $cat) {
-            $totalIncome += $cat['total'];
-        }
-    }
-    
-    // Load expenses by category
-    $expenseByCategory = [];
-    $totalExpense = 0;
-    if ($selectedYearId) {
-        $stmt = $pdo->prepare("
-            SELECT c.name, COALESCE(SUM(e.amount), 0) as total, COUNT(e.id) as count
-            FROM " . table('expense_categories') . " c
-            LEFT JOIN " . table('expenses') . " e ON c.id = e.category_id AND e.social_year_id = ?
-            WHERE c.is_active = 1
-            GROUP BY c.id, c.name, c.sort_order
-            ORDER BY c.sort_order, c.name
-        ");
-        $stmt->execute([$selectedYearId]);
-        $expenseByCategory = $stmt->fetchAll();
-        
-        foreach ($expenseByCategory as $cat) {
-            $totalExpense += $cat['total'];
-        }
-    }
-    
-    $balance = $totalIncome - $totalExpense;
-    
-} catch (PDOException $e) {
-    die("Errore database: " . htmlspecialchars($e->getMessage()));
 }
+
+// Get income by category
+$stmt = $pdo->query("
+    SELECT ic.name, COALESCE(SUM(m.amount), 0) as total, COUNT(m.id) as count
+    FROM income_categories ic
+    LEFT JOIN movements m ON ic.id = m.category_id AND m.type = 'income' $yearFilter
+    WHERE ic.is_active = 1
+    GROUP BY ic.id, ic.name, ic.sort_order
+    ORDER BY ic.sort_order, ic.name
+");
+$incomeByCategory = $stmt->fetchAll();
+$totalIncome = array_sum(array_column($incomeByCategory, 'total'));
+
+// Get expense by category
+$stmt = $pdo->query("
+    SELECT ec.name, COALESCE(SUM(m.amount), 0) as total, COUNT(m.id) as count
+    FROM expense_categories ec
+    LEFT JOIN movements m ON ec.id = m.category_id AND m.type = 'expense' $yearFilter
+    WHERE ec.is_active = 1
+    GROUP BY ec.id, ec.name, ec.sort_order
+    ORDER BY ec.sort_order, ec.name
+");
+$expenseByCategory = $stmt->fetchAll();
+$totalExpense = array_sum(array_column($expenseByCategory, 'total'));
+
+$balance = $totalIncome - $totalExpense;
 
 include __DIR__ . '/inc/header.php';
 ?>
 
-<?php displayFlash(); ?>
-
-<div class="row mb-3">
-    <div class="col-md-6">
-        <h2><i class="bi bi-bar-chart me-2"></i>Rendiconto Finanziario</h2>
-    </div>
-    <div class="col-md-6 text-end">
-        <?php if ($selectedYearId): ?>
-        <a href="export_excel.php?year=<?= $selectedYearId ?>" class="btn btn-success">
-            <i class="bi bi-file-earmark-excel me-1"></i>Esporta Excel
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-file-earmark-bar-graph"></i> Rendiconto</h2>
+    <div>
+        <a href="/export_excel.php?year=<?php echo $yearId; ?>" class="btn btn-success">
+            <i class="bi bi-file-earmark-excel"></i> Esporta Excel
         </a>
-        <?php endif; ?>
     </div>
 </div>
 
-<!-- Year Selector -->
-<div class="card shadow-sm mb-4">
+<!-- Year Filter -->
+<div class="card mb-3">
     <div class="card-body">
         <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-8">
-                <label class="form-label"><strong>Seleziona Anno Sociale</strong></label>
-                <select name="year" class="form-select" onchange="this.form.submit()">
+            <div class="col-md-4">
+                <label class="form-label">Anno Sociale</label>
+                <select name="year" class="form-select">
+                    <option value="">Tutti gli anni</option>
                     <?php foreach ($socialYears as $year): ?>
-                        <option value="<?= $year['id'] ?>" <?= $selectedYearId == $year['id'] ? 'selected' : '' ?>>
-                            <?= h($year['name']) ?> (<?= formatDate($year['start_date']) ?> - <?= formatDate($year['end_date']) ?>)
-                            <?= $year['is_current'] ? ' - CORRENTE' : '' ?>
+                        <option value="<?php echo $year['id']; ?>" <?php echo $yearId == $year['id'] ? 'selected' : ''; ?>>
+                            <?php echo e($year['name']); ?>
+                            <?php if ($year['is_current']): ?>(Corrente)<?php endif; ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Visualizza
+                </button>
             </div>
         </form>
     </div>
 </div>
 
-<?php if (!$selectedYear): ?>
-    <div class="alert alert-warning">
-        <i class="bi bi-exclamation-triangle me-2"></i>Nessun anno sociale configurato. 
-        <a href="years.php">Crea un anno sociale</a> per visualizzare il rendiconto.
+<!-- Report Header -->
+<div class="card mb-3">
+    <div class="card-body text-center">
+        <h3>Rendiconto Economico/Finanziario</h3>
+        <h5><?php echo e($yearName); ?></h5>
+        <p class="text-muted mb-0">Generato il <?php echo date('d/m/Y H:i'); ?></p>
     </div>
-<?php else: ?>
-    <!-- Summary Cards -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="card border-success shadow-sm">
-                <div class="card-body text-center">
-                    <h6 class="text-muted">Entrate Totali</h6>
-                    <h2 class="text-success mb-0"><?= formatCurrency($totalIncome) ?></h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-danger shadow-sm">
-                <div class="card-body text-center">
-                    <h6 class="text-muted">Uscite Totali</h6>
-                    <h2 class="text-danger mb-0"><?= formatCurrency($totalExpense) ?></h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-<?= $balance >= 0 ? 'primary' : 'warning' ?> shadow-sm">
-                <div class="card-body text-center">
-                    <h6 class="text-muted">Risultato d'Esercizio</h6>
-                    <h2 class="text-<?= $balance >= 0 ? 'primary' : 'warning' ?> mb-0">
-                        <?= formatCurrency($balance) ?>
-                    </h2>
-                </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-3">
+    <div class="col-md-4">
+        <div class="card border-success h-100">
+            <div class="card-body text-center">
+                <h6 class="text-success">TOTALE ENTRATE</h6>
+                <h2 class="text-success"><?php echo formatAmount($totalIncome); ?></h2>
             </div>
         </div>
     </div>
-    
-    <div class="row">
-        <!-- Income Report -->
-        <div class="col-md-6 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="bi bi-arrow-up-circle me-2"></i>Entrate per Categoria</h5>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($incomeByCategory) || $totalIncome == 0): ?>
-                        <p class="text-muted text-center py-4">Nessuna entrata registrata</p>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Categoria</th>
-                                        <th class="text-center">N. Movimenti</th>
-                                        <th class="text-end">Importo</th>
-                                        <th class="text-end">%</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($incomeByCategory as $cat): ?>
-                                        <?php if ($cat['total'] > 0): ?>
-                                        <tr>
-                                            <td><?= h($cat['name']) ?></td>
-                                            <td class="text-center"><?= $cat['count'] ?></td>
-                                            <td class="text-end"><?= formatCurrency($cat['total']) ?></td>
-                                            <td class="text-end"><?= number_format(($cat['total'] / $totalIncome) * 100, 1) ?>%</td>
-                                        </tr>
-                                        <?php endif; ?>
-                                    <?php endforeach; ?>
-                                </tbody>
-                                <tfoot class="table-success fw-bold">
-                                    <tr>
-                                        <td colspan="2">TOTALE ENTRATE</td>
-                                        <td class="text-end"><?= formatCurrency($totalIncome) ?></td>
-                                        <td class="text-end">100%</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                        
-                        <!-- Income Chart -->
-                        <div class="mt-3">
-                            <?php foreach ($incomeByCategory as $cat): ?>
-                                <?php if ($cat['total'] > 0): ?>
-                                    <?php $percentage = ($cat['total'] / $totalIncome) * 100; ?>
-                                    <div class="mb-2">
-                                        <div class="d-flex justify-content-between mb-1">
-                                            <small><?= h($cat['name']) ?></small>
-                                            <small class="text-muted"><?= formatCurrency($cat['total']) ?></small>
-                                        </div>
-                                        <div class="progress" style="height: 20px;">
-                                            <div class="progress-bar bg-success" role="progressbar" 
-                                                 style="width: <?= $percentage ?>%;" 
-                                                 aria-valuenow="<?= $percentage ?>" aria-valuemin="0" aria-valuemax="100">
-                                                <?= number_format($percentage, 1) ?>%
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
+    <div class="col-md-4">
+        <div class="card border-danger h-100">
+            <div class="card-body text-center">
+                <h6 class="text-danger">TOTALE USCITE</h6>
+                <h2 class="text-danger"><?php echo formatAmount($totalExpense); ?></h2>
             </div>
         </div>
-        
-        <!-- Expense Report -->
-        <div class="col-md-6 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0"><i class="bi bi-arrow-down-circle me-2"></i>Uscite per Categoria</h5>
-                </div>
-                <div class="card-body">
-                    <?php if (empty($expenseByCategory) || $totalExpense == 0): ?>
-                        <p class="text-muted text-center py-4">Nessuna uscita registrata</p>
-                    <?php else: ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Categoria</th>
-                                        <th class="text-center">N. Movimenti</th>
-                                        <th class="text-end">Importo</th>
-                                        <th class="text-end">%</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($expenseByCategory as $cat): ?>
-                                        <?php if ($cat['total'] > 0): ?>
-                                        <tr>
-                                            <td><?= h($cat['name']) ?></td>
-                                            <td class="text-center"><?= $cat['count'] ?></td>
-                                            <td class="text-end"><?= formatCurrency($cat['total']) ?></td>
-                                            <td class="text-end"><?= number_format(($cat['total'] / $totalExpense) * 100, 1) ?>%</td>
-                                        </tr>
-                                        <?php endif; ?>
-                                    <?php endforeach; ?>
-                                </tbody>
-                                <tfoot class="table-danger fw-bold">
-                                    <tr>
-                                        <td colspan="2">TOTALE USCITE</td>
-                                        <td class="text-end"><?= formatCurrency($totalExpense) ?></td>
-                                        <td class="text-end">100%</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                        
-                        <!-- Expense Chart -->
-                        <div class="mt-3">
-                            <?php foreach ($expenseByCategory as $cat): ?>
-                                <?php if ($cat['total'] > 0): ?>
-                                    <?php $percentage = ($cat['total'] / $totalExpense) * 100; ?>
-                                    <div class="mb-2">
-                                        <div class="d-flex justify-content-between mb-1">
-                                            <small><?= h($cat['name']) ?></small>
-                                            <small class="text-muted"><?= formatCurrency($cat['total']) ?></small>
-                                        </div>
-                                        <div class="progress" style="height: 20px;">
-                                            <div class="progress-bar bg-danger" role="progressbar" 
-                                                 style="width: <?= $percentage ?>%;" 
-                                                 aria-valuenow="<?= $percentage ?>" aria-valuemin="0" aria-valuemax="100">
-                                                <?= number_format($percentage, 1) ?>%
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-<?php echo $balance >= 0 ? 'success' : 'danger'; ?> h-100">
+            <div class="card-body text-center">
+                <h6>RISULTATO D'ESERCIZIO</h6>
+                <h2 class="text-<?php echo $balance >= 0 ? 'success' : 'danger'; ?>">
+                    <?php echo formatAmount($balance); ?>
+                </h2>
+                <?php if ($balance >= 0): ?>
+                    <small class="text-success">Avanzo di gestione</small>
+                <?php else: ?>
+                    <small class="text-danger">Disavanzo di gestione</small>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Report -->
+<div class="row">
+    <!-- Income Details -->
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-arrow-down-circle"></i> Dettaglio Entrate</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Categoria</th>
+                            <th class="text-center">N°</th>
+                            <th class="text-end">Importo</th>
+                            <th class="text-end">%</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($incomeByCategory as $cat): ?>
+                        <?php 
+                        $percentage = $totalIncome > 0 ? ($cat['total'] / $totalIncome * 100) : 0;
+                        ?>
+                        <tr>
+                            <td><?php echo e($cat['name']); ?></td>
+                            <td class="text-center"><?php echo $cat['count']; ?></td>
+                            <td class="text-end"><?php echo formatAmount($cat['total']); ?></td>
+                            <td class="text-end"><?php echo number_format($percentage, 1); ?>%</td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th>TOTALE</th>
+                            <th class="text-center">
+                                <?php echo array_sum(array_column($incomeByCategory, 'count')); ?>
+                            </th>
+                            <th class="text-end"><?php echo formatAmount($totalIncome); ?></th>
+                            <th class="text-end">100%</th>
+                        </tr>
+                    </tfoot>
+                </table>
             </div>
         </div>
     </div>
     
-    <!-- Final Balance -->
-    <div class="card shadow-sm border-<?= $balance >= 0 ? 'primary' : 'warning' ?>">
-        <div class="card-header bg-<?= $balance >= 0 ? 'primary' : 'warning' ?> text-white">
-            <h5 class="mb-0"><i class="bi bi-calculator me-2"></i>Riepilogo Finale</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <table class="table table-borderless mb-0">
+    <!-- Expense Details -->
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-arrow-up-circle"></i> Dettaglio Uscite</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <thead>
                         <tr>
-                            <td><strong>Anno Sociale:</strong></td>
-                            <td><?= h($selectedYear['name']) ?></td>
+                            <th>Categoria</th>
+                            <th class="text-center">N°</th>
+                            <th class="text-end">Importo</th>
+                            <th class="text-end">%</th>
                         </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($expenseByCategory as $cat): ?>
+                        <?php 
+                        $percentage = $totalExpense > 0 ? ($cat['total'] / $totalExpense * 100) : 0;
+                        ?>
                         <tr>
-                            <td><strong>Periodo:</strong></td>
-                            <td><?= formatDate($selectedYear['start_date']) ?> - <?= formatDate($selectedYear['end_date']) ?></td>
+                            <td><?php echo e($cat['name']); ?></td>
+                            <td class="text-center"><?php echo $cat['count']; ?></td>
+                            <td class="text-end"><?php echo formatAmount($cat['total']); ?></td>
+                            <td class="text-end"><?php echo number_format($percentage, 1); ?>%</td>
                         </tr>
-                    </table>
-                </div>
-                <div class="col-md-6">
-                    <table class="table table-sm mb-0">
+                        <?php endforeach; ?>
+                    </tbody>
+                    <tfoot class="table-light">
                         <tr>
-                            <td>Totale Entrate:</td>
-                            <td class="text-end text-success"><strong><?= formatCurrency($totalIncome) ?></strong></td>
+                            <th>TOTALE</th>
+                            <th class="text-center">
+                                <?php echo array_sum(array_column($expenseByCategory, 'count')); ?>
+                            </th>
+                            <th class="text-end"><?php echo formatAmount($totalExpense); ?></th>
+                            <th class="text-end">100%</th>
                         </tr>
-                        <tr>
-                            <td>Totale Uscite:</td>
-                            <td class="text-end text-danger"><strong><?= formatCurrency($totalExpense) ?></strong></td>
-                        </tr>
-                        <tr class="border-top">
-                            <td><strong>Risultato d'Esercizio:</strong></td>
-                            <td class="text-end text-<?= $balance >= 0 ? 'primary' : 'warning' ?>">
-                                <h4 class="mb-0"><?= formatCurrency($balance) ?></h4>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
+                    </tfoot>
+                </table>
             </div>
         </div>
     </div>
-<?php endif; ?>
+</div>
+
+<!-- Charts Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5><i class="bi bi-bar-chart"></i> Visualizzazione Grafica</h5>
+                
+                <!-- Income Chart -->
+                <h6 class="mt-3">Entrate per Categoria</h6>
+                <?php foreach ($incomeByCategory as $cat): ?>
+                <?php if ($cat['total'] > 0): ?>
+                <?php $percentage = $totalIncome > 0 ? ($cat['total'] / $totalIncome * 100) : 0; ?>
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small><?php echo e($cat['name']); ?></small>
+                        <small><strong><?php echo formatAmount($cat['total']); ?></strong> (<?php echo number_format($percentage, 1); ?>%)</small>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-success" role="progressbar" 
+                             style="width: <?php echo $percentage; ?>%"
+                             aria-valuenow="<?php echo $percentage; ?>" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                <?php endforeach; ?>
+                
+                <!-- Expense Chart -->
+                <h6 class="mt-4">Uscite per Categoria</h6>
+                <?php foreach ($expenseByCategory as $cat): ?>
+                <?php if ($cat['total'] > 0): ?>
+                <?php $percentage = $totalExpense > 0 ? ($cat['total'] / $totalExpense * 100) : 0; ?>
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small><?php echo e($cat['name']); ?></small>
+                        <small><strong><?php echo formatAmount($cat['total']); ?></strong> (<?php echo number_format($percentage, 1); ?>%)</small>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-danger" role="progressbar" 
+                             style="width: <?php echo $percentage; ?>%"
+                             aria-valuenow="<?php echo $percentage; ?>" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Print Button -->
+<div class="text-center mb-4 d-print-none">
+    <button onclick="window.print()" class="btn btn-outline-primary">
+        <i class="bi bi-printer"></i> Stampa Rendiconto
+    </button>
+</div>
+
+<style>
+@media print {
+    .sidebar, .navbar, .d-print-none, .card-header { 
+        display: none !important; 
+    }
+    .col-md-9 {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    body {
+        font-size: 12px;
+    }
+}
+</style>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>

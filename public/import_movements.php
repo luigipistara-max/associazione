@@ -1,268 +1,292 @@
 <?php
 require_once __DIR__ . '/../src/auth.php';
-require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/functions.php';
+require_once __DIR__ . '/../src/db.php';
 
-requireAdmin();
+requireLogin();
 
-$pageTitle = 'Importa Movimenti';
-
+$pageTitle = 'Importa Movimenti da CSV';
+$pdo = getDbConnection();
 $errors = [];
 $imported = 0;
 $skipped = 0;
+$results = [];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
-    checkCsrf();
+// Get data for form
+$socialYears = getSocialYears();
+$incomeCategories = getIncomeCategories();
+$expenseCategories = getExpenseCategories();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $token = $_POST['csrf_token'] ?? '';
     
-    $file = $_FILES['csv_file'];
-    $type = $_POST['movement_type'] ?? 'income';
-    
-    if ($file['error'] === UPLOAD_ERR_OK) {
-        $delimiter = $_POST['delimiter'] ?? ';';
-        $skipFirstRow = isset($_POST['skip_first_row']);
+    if (!verifyCsrfToken($token)) {
+        $errors[] = 'Token di sicurezza non valido';
+    } elseif (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+        $errors[] = 'Errore nel caricamento del file';
+    } else {
+        $file = $_FILES['csv_file']['tmp_name'];
+        $separator = $_POST['separator'] ?? ';';
+        $defaultYearId = !empty($_POST['social_year_id']) ? (int)$_POST['social_year_id'] : null;
         
-        $rows = parseCsvFile($file['tmp_name'], $delimiter);
+        // Build category maps
+        $incomeCategoryMap = [];
+        foreach ($incomeCategories as $cat) {
+            $incomeCategoryMap[strtolower($cat['name'])] = $cat['id'];
+        }
+        $expenseCategoryMap = [];
+        foreach ($expenseCategories as $cat) {
+            $expenseCategoryMap[strtolower($cat['name'])] = $cat['id'];
+        }
         
-        if (empty($rows)) {
-            $errors[] = "File CSV vuoto o non valido";
-        } else {
-            $startRow = $skipFirstRow ? 1 : 0;
+        if (($handle = fopen($file, 'r')) !== false) {
+            // Skip header row
+            $header = fgetcsv($handle, 0, $separator);
             
-            for ($i = $startRow; $i < count($rows); $i++) {
-                $row = $rows[$i];
+            $line = 1;
+            while (($data = fgetcsv($handle, 0, $separator)) !== false) {
+                $line++;
                 
-                // Expected format for income: social_year_id, category_id, member_fiscal_code, amount, payment_method, receipt_number, transaction_date, notes
-                // Expected format for expense: social_year_id, category_id, amount, payment_method, receipt_number, transaction_date, notes
-                
-                if (count($row) < 4) {
+                // Expected format: type;paid_at;category;description;amount;member_tax_code
+                if (count($data) < 5) {
+                    $results[] = ['line' => $line, 'status' => 'error', 'message' => 'Formato non valido'];
                     $skipped++;
                     continue;
                 }
                 
-                $socialYearId = (int)($row[0] ?? 0);
-                $categoryId = (int)($row[1] ?? 0);
+                $type = strtolower(trim($data[0] ?? ''));
+                $paidAt = trim($data[1] ?? '');
+                $categoryName = trim($data[2] ?? '');
+                $description = trim($data[3] ?? '');
+                $amount = str_replace(',', '.', trim($data[4] ?? '0'));
+                $memberTaxCode = isset($data[5]) ? strtoupper(trim($data[5])) : '';
                 
-                if ($type === 'income') {
-                    $memberFiscalCode = strtoupper(trim($row[2] ?? ''));
-                    $amount = (float)str_replace(',', '.', trim($row[3] ?? '0'));
-                    $paymentMethod = trim($row[4] ?? '');
-                    $receiptNumber = trim($row[5] ?? '');
-                    $transactionDate = trim($row[6] ?? '');
-                    $notes = trim($row[7] ?? '');
-                } else {
-                    $amount = (float)str_replace(',', '.', trim($row[2] ?? '0'));
-                    $paymentMethod = trim($row[3] ?? '');
-                    $receiptNumber = trim($row[4] ?? '');
-                    $transactionDate = trim($row[5] ?? '');
-                    $notes = trim($row[6] ?? '');
-                }
-                
-                // Validate
-                if ($socialYearId <= 0 || $categoryId <= 0 || $amount <= 0 || empty($transactionDate)) {
+                // Validation
+                if (!in_array($type, ['income', 'expense'])) {
+                    $results[] = ['line' => $line, 'status' => 'error', 'message' => "Tipo non valido: $type"];
                     $skipped++;
                     continue;
+                }
+                
+                if (empty($description) || empty($amount) || $amount <= 0) {
+                    $results[] = ['line' => $line, 'status' => 'error', 'message' => 'Campi obbligatori mancanti o non validi'];
+                    $skipped++;
+                    continue;
+                }
+                
+                // Find category ID
+                $categoryMap = $type === 'income' ? $incomeCategoryMap : $expenseCategoryMap;
+                $categoryId = $categoryMap[strtolower($categoryName)] ?? null;
+                
+                if (!$categoryId) {
+                    $results[] = ['line' => $line, 'status' => 'error', 'message' => "Categoria non trovata: $categoryName"];
+                    $skipped++;
+                    continue;
+                }
+                
+                // Convert date format if needed (d/m/Y to Y-m-d)
+                if ($paidAt && strpos($paidAt, '/') !== false) {
+                    $parts = explode('/', $paidAt);
+                    if (count($parts) === 3) {
+                        $paidAt = sprintf('%04d-%02d-%02d', $parts[2], $parts[1], $parts[0]);
+                    }
+                }
+                
+                // Find member by tax code if provided
+                $memberId = null;
+                if ($type === 'income' && !empty($memberTaxCode)) {
+                    $stmt = $pdo->prepare("SELECT id FROM members WHERE tax_code = ?");
+                    $stmt->execute([$memberTaxCode]);
+                    $member = $stmt->fetch();
+                    if ($member) {
+                        $memberId = $member['id'];
+                    }
                 }
                 
                 try {
-                    if ($type === 'income') {
-                        // Find member by fiscal code if provided
-                        $memberId = null;
-                        if ($memberFiscalCode) {
-                            $stmt = $pdo->prepare("SELECT id FROM " . table('members') . " WHERE fiscal_code = ?");
-                            $stmt->execute([$memberFiscalCode]);
-                            $member = $stmt->fetch();
-                            if ($member) {
-                                $memberId = $member['id'];
-                            }
-                        }
-                        
-                        $stmt = $pdo->prepare("
-                            INSERT INTO " . table('income') . " 
-                            (social_year_id, category_id, member_id, amount, payment_method, receipt_number, transaction_date, notes) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        ");
-                        $stmt->execute([$socialYearId, $categoryId, $memberId, $amount, $paymentMethod, $receiptNumber, $transactionDate, $notes]);
-                    } else {
-                        $stmt = $pdo->prepare("
-                            INSERT INTO " . table('expenses') . " 
-                            (social_year_id, category_id, amount, payment_method, receipt_number, transaction_date, notes) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ");
-                        $stmt->execute([$socialYearId, $categoryId, $amount, $paymentMethod, $receiptNumber, $transactionDate, $notes]);
-                    }
+                    $stmt = $pdo->prepare("
+                        INSERT INTO movements (
+                            type, category_id, description, amount, paid_at,
+                            social_year_id, member_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    $stmt->execute([
+                        $type, $categoryId, $description, $amount, $paidAt ?: date('Y-m-d'),
+                        $defaultYearId, $memberId
+                    ]);
+                    
+                    $results[] = ['line' => $line, 'status' => 'success', 'message' => $description];
                     $imported++;
                 } catch (PDOException $e) {
+                    $results[] = ['line' => $line, 'status' => 'error', 'message' => $e->getMessage()];
                     $skipped++;
                 }
             }
             
-            setFlash('success', "Importazione completata: $imported movimenti importati, $skipped saltati");
-            redirect('finance.php?tab=' . $type);
+            fclose($handle);
+            
+            if ($imported > 0) {
+                setFlashMessage("Importati $imported movimenti con successo" . ($skipped > 0 ? ", $skipped saltati" : ''), 'success');
+            } elseif ($skipped > 0) {
+                setFlashMessage("Nessun movimento importato, $skipped righe saltate", 'warning');
+            }
+        } else {
+            $errors[] = 'Impossibile aprire il file';
         }
-    } else {
-        $errors[] = "Errore nel caricamento del file";
     }
-}
-
-// Load data for reference
-try {
-    $stmt = $pdo->query("SELECT id, name FROM " . table('social_years') . " ORDER BY start_date DESC");
-    $socialYears = $stmt->fetchAll();
-    
-    $stmt = $pdo->query("SELECT id, name FROM " . table('income_categories') . " WHERE is_active = 1 ORDER BY sort_order, name");
-    $incomeCategories = $stmt->fetchAll();
-    
-    $stmt = $pdo->query("SELECT id, name FROM " . table('expense_categories') . " WHERE is_active = 1 ORDER BY sort_order, name");
-    $expenseCategories = $stmt->fetchAll();
-} catch (PDOException $e) {
-    die("Errore database: " . htmlspecialchars($e->getMessage()));
 }
 
 include __DIR__ . '/inc/header.php';
 ?>
 
-<?php displayFlash(); ?>
-
-<div class="row mb-3">
-    <div class="col">
-        <h2><i class="bi bi-upload me-2"></i>Importa Movimenti da CSV</h2>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-upload"></i> Importa Movimenti da CSV</h2>
+    <a href="/finance.php" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Torna ai Movimenti
+    </a>
 </div>
 
 <?php if (!empty($errors)): ?>
-<div class="alert alert-danger">
-    <strong>Errori:</strong>
-    <ul class="mb-0">
-        <?php foreach ($errors as $error): ?>
-            <li><?= h($error) ?></li>
-        <?php endforeach; ?>
-    </ul>
-</div>
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+            <?php foreach ($errors as $error): ?>
+                <li><?php echo e($error); ?></li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
 <?php endif; ?>
 
 <div class="row">
-    <div class="col-md-8">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
                 <h5 class="mb-0">Carica File CSV</h5>
             </div>
             <div class="card-body">
                 <form method="POST" enctype="multipart/form-data">
-                    <?= csrfField() ?>
+                    <input type="hidden" name="csrf_token" value="<?php echo e(generateCsrfToken()); ?>">
                     
                     <div class="mb-3">
-                        <label class="form-label">Tipo Movimento *</label>
-                        <select name="movement_type" class="form-select" required>
-                            <option value="income">Entrate</option>
-                            <option value="expense">Uscite</option>
-                        </select>
+                        <label class="form-label">File CSV</label>
+                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                        <small class="text-muted">Max 5MB</small>
                     </div>
                     
                     <div class="mb-3">
-                        <label class="form-label">File CSV *</label>
-                        <input type="file" name="csv_file" class="form-control" accept=".csv,.txt" required>
-                        <div class="form-text">Seleziona un file CSV con i movimenti</div>
+                        <label class="form-label">Anno Sociale (opzionale)</label>
+                        <select name="social_year_id" class="form-select">
+                            <option value="">Nessuno</option>
+                            <?php foreach ($socialYears as $year): ?>
+                                <option value="<?php echo $year['id']; ?>" <?php echo $year['is_current'] ? 'selected' : ''; ?>>
+                                    <?php echo e($year['name']); ?>
+                                    <?php if ($year['is_current']): ?>(Corrente)<?php endif; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted">Assegna tutti i movimenti a questo anno</small>
                     </div>
                     
                     <div class="mb-3">
                         <label class="form-label">Separatore</label>
-                        <select name="delimiter" class="form-select">
+                        <select name="separator" class="form-select">
                             <option value=";">Punto e virgola (;)</option>
                             <option value=",">Virgola (,)</option>
                         </select>
                     </div>
                     
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" name="skip_first_row" class="form-check-input" id="skipFirst" checked>
-                            <label class="form-check-label" for="skipFirst">
-                                Salta prima riga (intestazione)
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-warning">
-                        <strong>Importante:</strong> Assicurati che gli ID degli anni sociali e delle categorie siano corretti.
-                    </div>
-                    
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-upload me-1"></i>Importa
-                        </button>
-                        <a href="finance.php" class="btn btn-secondary">
-                            <i class="bi bi-x-circle me-1"></i>Annulla
-                        </a>
-                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Importa
+                    </button>
                 </form>
             </div>
         </div>
     </div>
     
-    <div class="col-md-4">
-        <div class="card shadow-sm border-primary">
-            <div class="card-header bg-primary text-white">
-                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Formato CSV Entrate</h6>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Formato File</h5>
             </div>
             <div class="card-body">
-                <ol class="small mb-0">
-                    <li>ID Anno Sociale *</li>
-                    <li>ID Categoria *</li>
-                    <li>Codice Fiscale Socio</li>
-                    <li>Importo * (es: 100.50)</li>
-                    <li>Metodo Pagamento</li>
-                    <li>Numero Ricevuta</li>
-                    <li>Data (YYYY-MM-DD) *</li>
-                    <li>Note</li>
-                </ol>
-            </div>
-        </div>
-        
-        <div class="card shadow-sm border-danger mt-3">
-            <div class="card-header bg-danger text-white">
-                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Formato CSV Uscite</h6>
-            </div>
-            <div class="card-body">
-                <ol class="small mb-0">
-                    <li>ID Anno Sociale *</li>
-                    <li>ID Categoria *</li>
-                    <li>Importo * (es: 100.50)</li>
-                    <li>Metodo Pagamento</li>
-                    <li>Numero Ricevuta</li>
-                    <li>Data (YYYY-MM-DD) *</li>
-                    <li>Note</li>
-                </ol>
-            </div>
-        </div>
-        
-        <!-- Reference Tables -->
-        <div class="card shadow-sm mt-3">
-            <div class="card-header bg-secondary text-white">
-                <h6 class="mb-0"><i class="bi bi-list-ul me-2"></i>Riferimenti</h6>
-            </div>
-            <div class="card-body">
-                <h6 class="small">Anni Sociali:</h6>
-                <ul class="small mb-2">
-                    <?php foreach ($socialYears as $year): ?>
-                        <li>ID <?= $year['id'] ?>: <?= h($year['name']) ?></li>
-                    <?php endforeach; ?>
-                </ul>
+                <p>Il file CSV deve contenere le seguenti colonne (con intestazione):</p>
                 
-                <h6 class="small">Categorie Entrate:</h6>
-                <ul class="small mb-2">
-                    <?php foreach ($incomeCategories as $cat): ?>
-                        <li>ID <?= $cat['id'] ?>: <?= h($cat['name']) ?></li>
-                    <?php endforeach; ?>
-                </ul>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Colonna</th>
+                            <th>Descrizione</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>type</code></td><td>income o expense</td></tr>
+                        <tr><td><code>paid_at</code></td><td>Data (YYYY-MM-DD o DD/MM/YYYY)</td></tr>
+                        <tr><td><code>category</code></td><td>Nome categoria (deve esistere)</td></tr>
+                        <tr><td><code>description</code></td><td>Descrizione movimento</td></tr>
+                        <tr><td><code>amount</code></td><td>Importo (usa . o ,)</td></tr>
+                        <tr><td><code>member_tax_code</code></td><td>CF socio (opzionale, solo entrate)</td></tr>
+                    </tbody>
+                </table>
                 
-                <h6 class="small">Categorie Uscite:</h6>
-                <ul class="small mb-0">
-                    <?php foreach ($expenseCategories as $cat): ?>
-                        <li>ID <?= $cat['id'] ?>: <?= h($cat['name']) ?></li>
-                    <?php endforeach; ?>
-                </ul>
+                <div class="alert alert-info mt-3">
+                    <strong>Esempio:</strong><br>
+                    <small><code>type;paid_at;category;description;amount;member_tax_code</code></small><br>
+                    <small><code>income;2024-01-15;Quote associative;Quota 2024;50.00;RSSMRA80A01H501U</code></small>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <strong>Categorie disponibili:</strong><br>
+                    <small>
+                        <strong>Entrate:</strong> 
+                        <?php echo implode(', ', array_column($incomeCategories, 'name')); ?><br>
+                        <strong>Uscite:</strong> 
+                        <?php echo implode(', ', array_column($expenseCategories, 'name')); ?>
+                    </small>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<?php if (!empty($results)): ?>
+<div class="card mt-3">
+    <div class="card-header">
+        <h5 class="mb-0">Risultati Importazione</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <strong>Riepilogo:</strong> <?php echo $imported; ?> importati, <?php echo $skipped; ?> saltati
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Riga</th>
+                        <th>Stato</th>
+                        <th>Messaggio</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($results as $result): ?>
+                    <tr>
+                        <td><?php echo $result['line']; ?></td>
+                        <td>
+                            <?php if ($result['status'] === 'success'): ?>
+                                <span class="badge bg-success">Importato</span>
+                            <?php elseif ($result['status'] === 'skipped'): ?>
+                                <span class="badge bg-warning">Saltato</span>
+                            <?php else: ?>
+                                <span class="badge bg-danger">Errore</span>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo e($result['message']); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>

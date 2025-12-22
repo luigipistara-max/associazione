@@ -1,181 +1,180 @@
 <?php
 require_once __DIR__ . '/../src/auth.php';
-require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/functions.php';
+require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
-// Get year parameter
-$yearId = isset($_GET['year']) ? (int)$_GET['year'] : null;
+$pdo = getDbConnection();
 
-if (!$yearId) {
-    die("Anno sociale non specificato");
-}
+// Get year filter
+$yearId = $_GET['year'] ?? '';
+$yearFilter = '';
+$yearName = 'Tutti';
 
-try {
-    // Get year info
-    $stmt = $pdo->prepare("SELECT * FROM " . table('social_years') . " WHERE id = ?");
+if ($yearId) {
+    $yearFilter = "AND m.social_year_id = " . (int)$yearId;
+    $stmt = $pdo->prepare("SELECT name FROM social_years WHERE id = ?");
     $stmt->execute([$yearId]);
     $year = $stmt->fetch();
-    
-    if (!$year) {
-        die("Anno sociale non trovato");
-    }
-    
-    // Get income
-    $stmt = $pdo->prepare("
-        SELECT i.*, c.name as category_name, m.first_name, m.last_name, m.fiscal_code
-        FROM " . table('income') . " i
-        LEFT JOIN " . table('income_categories') . " c ON i.category_id = c.id
-        LEFT JOIN " . table('members') . " m ON i.member_id = m.id
-        WHERE i.social_year_id = ?
-        ORDER BY i.transaction_date, i.created_at
-    ");
-    $stmt->execute([$yearId]);
-    $income = $stmt->fetchAll();
-    
-    // Get expenses
-    $stmt = $pdo->prepare("
-        SELECT e.*, c.name as category_name
-        FROM " . table('expenses') . " e
-        LEFT JOIN " . table('expense_categories') . " c ON e.category_id = c.id
-        WHERE e.social_year_id = ?
-        ORDER BY e.transaction_date, e.created_at
-    ");
-    $stmt->execute([$yearId]);
-    $expenses = $stmt->fetchAll();
-    
-    // Get summary
-    $stmt = $pdo->prepare("
-        SELECT c.name, COALESCE(SUM(i.amount), 0) as total
-        FROM " . table('income_categories') . " c
-        LEFT JOIN " . table('income') . " i ON c.id = i.category_id AND i.social_year_id = ?
-        WHERE c.is_active = 1
-        GROUP BY c.id, c.name, c.sort_order
-        ORDER BY c.sort_order, c.name
-    ");
-    $stmt->execute([$yearId]);
-    $incomeSummary = $stmt->fetchAll();
-    
-    $stmt = $pdo->prepare("
-        SELECT c.name, COALESCE(SUM(e.amount), 0) as total
-        FROM " . table('expense_categories') . " c
-        LEFT JOIN " . table('expenses') . " e ON c.id = e.category_id AND e.social_year_id = ?
-        WHERE c.is_active = 1
-        GROUP BY c.id, c.name, c.sort_order
-        ORDER BY c.sort_order, c.name
-    ");
-    $stmt->execute([$yearId]);
-    $expenseSummary = $stmt->fetchAll();
-    
-} catch (PDOException $e) {
-    die("Errore database: " . htmlspecialchars($e->getMessage()));
-}
-
-// Calculate totals
-$totalIncome = array_sum(array_column($income, 'amount'));
-$totalExpense = array_sum(array_column($expenses, 'amount'));
-$balance = $totalIncome - $totalExpense;
-
-// Generate CSV (Excel-compatible)
-$filename = 'rendiconto_' . preg_replace('/[^a-zA-Z0-9]/', '_', $year['name']) . '_' . date('Ymd') . '.csv';
-
-header('Content-Type: text/csv; charset=utf-8');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
-
-$output = fopen('php://output', 'w');
-
-// UTF-8 BOM for Excel
-fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-
-// Write header info
-fputcsv($output, ['RENDICONTO FINANZIARIO'], ';');
-fputcsv($output, ['Anno Sociale', $year['name']], ';');
-fputcsv($output, ['Periodo', formatDate($year['start_date']) . ' - ' . formatDate($year['end_date'])], ';');
-fputcsv($output, ['Data Esportazione', date('d/m/Y H:i')], ';');
-fputcsv($output, [], ';');
-
-// INCOME SECTION
-fputcsv($output, ['ENTRATE'], ';');
-fputcsv($output, ['Data', 'Categoria', 'Socio', 'CF Socio', 'Metodo', 'Ricevuta', 'Importo', 'Note'], ';');
-
-foreach ($income as $row) {
-    $socio = $row['member_id'] ? ($row['last_name'] . ' ' . $row['first_name']) : '';
-    fputcsv($output, [
-        formatDate($row['transaction_date']),
-        $row['category_name'],
-        $socio,
-        $row['fiscal_code'] ?? '',
-        $row['payment_method'],
-        $row['receipt_number'],
-        number_format($row['amount'], 2, ',', ''),
-        $row['notes']
-    ], ';');
-}
-
-fputcsv($output, ['', '', '', '', '', 'TOTALE ENTRATE', number_format($totalIncome, 2, ',', '')], ';');
-fputcsv($output, [], ';');
-
-// INCOME SUMMARY
-fputcsv($output, ['RIEPILOGO ENTRATE PER CATEGORIA'], ';');
-fputcsv($output, ['Categoria', 'Importo'], ';');
-
-foreach ($incomeSummary as $row) {
-    if ($row['total'] > 0) {
-        fputcsv($output, [
-            $row['name'],
-            number_format($row['total'], 2, ',', '')
-        ], ';');
+    if ($year) {
+        $yearName = $year['name'];
     }
 }
 
-fputcsv($output, ['TOTALE', number_format($totalIncome, 2, ',', '')], ';');
-fputcsv($output, [], ';');
-fputcsv($output, [], ';');
+// Get all movements
+$stmt = $pdo->query("
+    SELECT m.*, 
+           CASE 
+               WHEN m.type = 'income' THEN ic.name
+               WHEN m.type = 'expense' THEN ec.name
+           END as category_name,
+           sy.name as year_name,
+           mem.first_name, mem.last_name, mem.tax_code
+    FROM movements m
+    LEFT JOIN income_categories ic ON m.type = 'income' AND m.category_id = ic.id
+    LEFT JOIN expense_categories ec ON m.type = 'expense' AND m.category_id = ec.id
+    LEFT JOIN social_years sy ON m.social_year_id = sy.id
+    LEFT JOIN members mem ON m.member_id = mem.id
+    WHERE 1=1 $yearFilter
+    ORDER BY m.paid_at DESC, m.id DESC
+");
+$movements = $stmt->fetchAll();
 
-// EXPENSE SECTION
-fputcsv($output, ['USCITE'], ';');
-fputcsv($output, ['Data', 'Categoria', 'Metodo', 'Ricevuta', 'Importo', 'Note'], ';');
+// Set headers for Excel download
+header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+header('Content-Disposition: attachment; filename="movimenti_' . date('Y-m-d') . '.xls"');
+header('Pragma: no-cache');
+header('Expires: 0');
 
-foreach ($expenses as $row) {
-    fputcsv($output, [
-        formatDate($row['transaction_date']),
-        $row['category_name'],
-        $row['payment_method'],
-        $row['receipt_number'],
-        number_format($row['amount'], 2, ',', ''),
-        $row['notes']
-    ], ';');
-}
+// Start output buffering
+ob_start();
 
-fputcsv($output, ['', '', '', 'TOTALE USCITE', number_format($totalExpense, 2, ',', '')], ';');
-fputcsv($output, [], ';');
+// Output BOM for UTF-8
+echo "\xEF\xBB\xBF";
 
-// EXPENSE SUMMARY
-fputcsv($output, ['RIEPILOGO USCITE PER CATEGORIA'], ';');
-fputcsv($output, ['Categoria', 'Importo'], ';');
-
-foreach ($expenseSummary as $row) {
-    if ($row['total'] > 0) {
-        fputcsv($output, [
-            $row['name'],
-            number_format($row['total'], 2, ',', '')
-        ], ';');
-    }
-}
-
-fputcsv($output, ['TOTALE', number_format($totalExpense, 2, ',', '')], ';');
-fputcsv($output, [], ';');
-fputcsv($output, [], ';');
-
-// FINAL BALANCE
-fputcsv($output, ['RIEPILOGO FINALE'], ';');
-fputcsv($output, ['Totale Entrate', number_format($totalIncome, 2, ',', '')], ';');
-fputcsv($output, ['Totale Uscite', number_format($totalExpense, 2, ',', '')], ';');
-fputcsv($output, ['RISULTATO D\'ESERCIZIO', number_format($balance, 2, ',', '')], ';');
-fputcsv($output, [], ';');
-fputcsv($output, [], ';');
-fputcsv($output, ['Powered with AssoLife by Luigi Pistarà'], ';');
-
-fclose($output);
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 5px;
+            text-align: left;
+        }
+        th {
+            background-color: #4472C4;
+            color: white;
+            font-weight: bold;
+        }
+        .income {
+            background-color: #C6E0B4;
+        }
+        .expense {
+            background-color: #F4B084;
+        }
+        .amount {
+            text-align: right;
+        }
+        .total {
+            background-color: #FFD966;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h2>Esportazione Movimenti - Anno: <?php echo htmlspecialchars($yearName); ?></h2>
+    <p>Generato il: <?php echo date('d/m/Y H:i:s'); ?></p>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Categoria</th>
+                <th>Descrizione</th>
+                <th>Importo €</th>
+                <th>Anno Sociale</th>
+                <th>Socio</th>
+                <th>CF Socio</th>
+                <th>Metodo Pagamento</th>
+                <th>N. Ricevuta</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php 
+            $totalIncome = 0;
+            $totalExpense = 0;
+            
+            foreach ($movements as $mov): 
+                $rowClass = $mov['type'] === 'income' ? 'income' : 'expense';
+                
+                if ($mov['type'] === 'income') {
+                    $totalIncome += $mov['amount'];
+                } else {
+                    $totalExpense += $mov['amount'];
+                }
+            ?>
+            <tr class="<?php echo $rowClass; ?>">
+                <td><?php echo $mov['id']; ?></td>
+                <td><?php echo date('d/m/Y', strtotime($mov['paid_at'])); ?></td>
+                <td><?php echo $mov['type'] === 'income' ? 'Entrata' : 'Uscita'; ?></td>
+                <td><?php echo htmlspecialchars($mov['category_name']); ?></td>
+                <td><?php echo htmlspecialchars($mov['description']); ?></td>
+                <td class="amount"><?php echo number_format($mov['amount'], 2, ',', '.'); ?></td>
+                <td><?php echo htmlspecialchars($mov['year_name'] ?? ''); ?></td>
+                <td>
+                    <?php 
+                    if ($mov['member_id']) {
+                        echo htmlspecialchars($mov['first_name'] . ' ' . $mov['last_name']);
+                    }
+                    ?>
+                </td>
+                <td><?php echo htmlspecialchars($mov['tax_code'] ?? ''); ?></td>
+                <td><?php echo htmlspecialchars($mov['payment_method'] ?? ''); ?></td>
+                <td><?php echo htmlspecialchars($mov['receipt_number'] ?? ''); ?></td>
+                <td><?php echo htmlspecialchars($mov['notes'] ?? ''); ?></td>
+            </tr>
+            <?php endforeach; ?>
+            
+            <!-- Totals -->
+            <tr class="total">
+                <td colspan="5"><strong>TOTALE ENTRATE</strong></td>
+                <td class="amount"><strong><?php echo number_format($totalIncome, 2, ',', '.'); ?></strong></td>
+                <td colspan="6"></td>
+            </tr>
+            <tr class="total">
+                <td colspan="5"><strong>TOTALE USCITE</strong></td>
+                <td class="amount"><strong><?php echo number_format($totalExpense, 2, ',', '.'); ?></strong></td>
+                <td colspan="6"></td>
+            </tr>
+            <tr class="total">
+                <td colspan="5"><strong>SALDO (Entrate - Uscite)</strong></td>
+                <td class="amount"><strong><?php echo number_format($totalIncome - $totalExpense, 2, ',', '.'); ?></strong></td>
+                <td colspan="6"></td>
+            </tr>
+        </tbody>
+    </table>
+    
+    <br>
+    <p><strong>Riepilogo:</strong></p>
+    <ul>
+        <li>Totale movimenti: <?php echo count($movements); ?></li>
+        <li>Totale entrate: € <?php echo number_format($totalIncome, 2, ',', '.'); ?></li>
+        <li>Totale uscite: € <?php echo number_format($totalExpense, 2, ',', '.'); ?></li>
+        <li>Saldo: € <?php echo number_format($totalIncome - $totalExpense, 2, ',', '.'); ?></li>
+    </ul>
+</body>
+</html>
+<?php
+// Flush output
+ob_end_flush();
 exit;

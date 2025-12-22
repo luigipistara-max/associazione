@@ -1,137 +1,146 @@
 <?php
 require_once __DIR__ . '/../src/auth.php';
-require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/functions.php';
+require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
 $pageTitle = 'Gestione Soci';
+$pdo = getDbConnection();
 
 // Handle delete
 if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    checkCsrf();
     $id = (int)$_GET['delete'];
-    try {
-        $stmt = $pdo->prepare("DELETE FROM " . table('members') . " WHERE id = ?");
-        $stmt->execute([$id]);
-        setFlash('success', 'Socio eliminato con successo');
-        redirect('members.php');
-    } catch (PDOException $e) {
-        setFlash('error', 'Errore durante l\'eliminazione: ' . $e->getMessage());
+    $token = $_POST['csrf_token'] ?? '';
+    
+    if (verifyCsrfToken($token)) {
+        try {
+            $stmt = $pdo->prepare("DELETE FROM members WHERE id = ?");
+            $stmt->execute([$id]);
+            setFlashMessage('Socio eliminato con successo');
+        } catch (PDOException $e) {
+            setFlashMessage('Errore nell\'eliminazione del socio: ' . $e->getMessage(), 'danger');
+        }
+        redirect('/members.php');
     }
 }
 
 // Get filters
-$searchTerm = $_GET['search'] ?? '';
 $statusFilter = $_GET['status'] ?? '';
+$searchQuery = $_GET['search'] ?? '';
 
 // Build query
-$sql = "SELECT * FROM " . table('members') . " WHERE 1=1";
+$sql = "SELECT * FROM members WHERE 1=1";
 $params = [];
-
-if ($searchTerm) {
-    $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR fiscal_code LIKE ? OR membership_number LIKE ?)";
-    $searchPattern = '%' . $searchTerm . '%';
-    $params[] = $searchPattern;
-    $params[] = $searchPattern;
-    $params[] = $searchPattern;
-    $params[] = $searchPattern;
-}
 
 if ($statusFilter) {
     $sql .= " AND status = ?";
     $params[] = $statusFilter;
 }
 
+if ($searchQuery) {
+    $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR tax_code LIKE ? OR email LIKE ?)";
+    $search = "%$searchQuery%";
+    $params[] = $search;
+    $params[] = $search;
+    $params[] = $search;
+    $params[] = $search;
+}
+
 $sql .= " ORDER BY last_name, first_name";
 
-try {
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $members = $stmt->fetchAll();
-} catch (PDOException $e) {
-    die("Errore database: " . htmlspecialchars($e->getMessage()));
-}
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$members = $stmt->fetchAll();
 
 include __DIR__ . '/inc/header.php';
 ?>
 
-<?php displayFlash(); ?>
-
-<div class="row mb-3">
-    <div class="col-md-6">
-        <h2><i class="bi bi-people me-2"></i>Soci</h2>
-    </div>
-    <div class="col-md-6 text-end">
-        <a href="member_edit.php" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-1"></i>Nuovo Socio
-        </a>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-people"></i> Gestione Soci</h2>
+    <a href="/member_edit.php" class="btn btn-primary">
+        <i class="bi bi-plus"></i> Nuovo Socio
+    </a>
 </div>
 
-<div class="card shadow-sm mb-4">
+<!-- Filters -->
+<div class="card mb-3">
     <div class="card-body">
         <form method="GET" class="row g-3">
-            <div class="col-md-6">
-                <input type="text" name="search" class="form-control" placeholder="Cerca per nome, cognome, CF o tessera..." value="<?= h($searchTerm) ?>">
+            <div class="col-md-4">
+                <label class="form-label">Cerca</label>
+                <input type="text" name="search" class="form-control" placeholder="Nome, cognome, CF, email..." value="<?php echo e($searchQuery); ?>">
             </div>
             <div class="col-md-3">
+                <label class="form-label">Stato</label>
                 <select name="status" class="form-select">
-                    <option value="">Tutti gli stati</option>
-                    <option value="attivo" <?= $statusFilter === 'attivo' ? 'selected' : '' ?>>Attivo</option>
-                    <option value="sospeso" <?= $statusFilter === 'sospeso' ? 'selected' : '' ?>>Sospeso</option>
-                    <option value="cessato" <?= $statusFilter === 'cessato' ? 'selected' : '' ?>>Cessato</option>
+                    <option value="">Tutti</option>
+                    <option value="attivo" <?php echo $statusFilter === 'attivo' ? 'selected' : ''; ?>>Attivo</option>
+                    <option value="sospeso" <?php echo $statusFilter === 'sospeso' ? 'selected' : ''; ?>>Sospeso</option>
+                    <option value="cessato" <?php echo $statusFilter === 'cessato' ? 'selected' : ''; ?>>Cessato</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search me-1"></i>Cerca
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">
+                    <i class="bi bi-search"></i> Cerca
                 </button>
+                <a href="/members.php" class="btn btn-secondary">
+                    <i class="bi bi-x"></i> Reset
+                </a>
             </div>
         </form>
     </div>
 </div>
 
-<div class="card shadow-sm">
+<!-- Members Table -->
+<div class="card">
     <div class="card-body">
         <?php if (empty($members)): ?>
-            <p class="text-muted text-center py-5">Nessun socio trovato</p>
+            <p class="text-muted text-center">Nessun socio trovato.</p>
         <?php else: ?>
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
+                <table class="table table-hover">
                     <thead>
                         <tr>
                             <th>Tessera</th>
-                            <th>Nome</th>
-                            <th>Cognome</th>
+                            <th>Nome Cognome</th>
                             <th>Codice Fiscale</th>
                             <th>Email</th>
                             <th>Telefono</th>
                             <th>Stato</th>
-                            <th>Data Iscrizione</th>
+                            <th>Iscrizione</th>
                             <th class="text-end">Azioni</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($members as $member): ?>
                         <tr>
-                            <td><?= h($member['membership_number']) ?></td>
-                            <td><?= h($member['first_name']) ?></td>
-                            <td><?= h($member['last_name']) ?></td>
-                            <td><?= h($member['fiscal_code']) ?></td>
-                            <td><?= h($member['email']) ?></td>
-                            <td><?= h($member['phone']) ?></td>
+                            <td><?php echo e($member['card_number'] ?? '-'); ?></td>
                             <td>
-                                <span class="badge bg-<?= $member['status'] === 'attivo' ? 'success' : ($member['status'] === 'sospeso' ? 'warning' : 'secondary') ?>">
-                                    <?= h($member['status']) ?>
+                                <strong><?php echo e($member['first_name'] . ' ' . $member['last_name']); ?></strong>
+                            </td>
+                            <td><code><?php echo e($member['tax_code']); ?></code></td>
+                            <td><?php echo e($member['email'] ?? '-'); ?></td>
+                            <td><?php echo e($member['phone'] ?? '-'); ?></td>
+                            <td>
+                                <?php
+                                $badgeClass = [
+                                    'attivo' => 'success',
+                                    'sospeso' => 'warning',
+                                    'cessato' => 'secondary'
+                                ][$member['status']] ?? 'secondary';
+                                ?>
+                                <span class="badge bg-<?php echo $badgeClass; ?>">
+                                    <?php echo e(ucfirst($member['status'])); ?>
                                 </span>
                             </td>
-                            <td><?= formatDate($member['registration_date']) ?></td>
+                            <td><?php echo formatDate($member['registration_date']); ?></td>
                             <td class="text-end">
-                                <a href="member_edit.php?id=<?= $member['id'] ?>" class="btn btn-sm btn-primary" title="Modifica">
+                                <a href="/member_edit.php?id=<?php echo $member['id']; ?>" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete(<?= $member['id'] ?>)" title="Elimina">
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        onclick="confirmDelete(<?php echo $member['id']; ?>, '<?php echo e($member['first_name'] . ' ' . $member['last_name']); ?>')">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </td>
@@ -140,14 +149,12 @@ include __DIR__ . '/inc/header.php';
                     </tbody>
                 </table>
             </div>
-            <div class="mt-3">
-                <small class="text-muted">Totale: <?= count($members) ?> soci</small>
-            </div>
+            <p class="text-muted mt-2">Totale: <?php echo count($members); ?> soci</p>
         <?php endif; ?>
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
+<!-- Delete Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -156,11 +163,12 @@ include __DIR__ . '/inc/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                Sei sicuro di voler eliminare questo socio? L'operazione non può essere annullata.
+                Sei sicuro di voler eliminare il socio <strong id="deleteMemberName"></strong>?
+                <p class="text-danger mt-2"><small>Questa azione non può essere annullata.</small></p>
             </div>
             <div class="modal-footer">
                 <form method="POST" id="deleteForm">
-                    <?= csrfField() ?>
+                    <input type="hidden" name="csrf_token" value="<?php echo e(generateCsrfToken()); ?>">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-danger">Elimina</button>
                 </form>
@@ -170,11 +178,10 @@ include __DIR__ . '/inc/header.php';
 </div>
 
 <script>
-function confirmDelete(id) {
-    const form = document.getElementById('deleteForm');
-    form.action = 'members.php?delete=' + id;
-    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    modal.show();
+function confirmDelete(id, name) {
+    document.getElementById('deleteMemberName').textContent = name;
+    document.getElementById('deleteForm').action = '/members.php?delete=' + id;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
 </script>
 

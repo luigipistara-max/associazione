@@ -1,125 +1,104 @@
 <?php
 require_once __DIR__ . '/../src/auth.php';
-require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/functions.php';
+require_once __DIR__ . '/../src/db.php';
 
 requireAdmin();
 
 $pageTitle = 'Gestione Categorie';
+$pdo = getDbConnection();
+$errors = [];
 
-// Handle actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    checkCsrf();
+// Handle delete
+if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $type = $_GET['type'] ?? '';
+    $id = (int)$_GET['delete'];
+    $token = $_POST['csrf_token'] ?? '';
     
-    $action = $_POST['action'] ?? '';
-    $type = $_POST['type'] ?? 'income';
-    $table = $type === 'income' ? table('income_categories') : table('expense_categories');
-    
-    if ($action === 'create' || $action === 'update') {
-        $catId = isset($_POST['cat_id']) ? (int)$_POST['cat_id'] : null;
-        $name = trim($_POST['name'] ?? '');
-        $sortOrder = (int)($_POST['sort_order'] ?? 0);
-        $isActive = isset($_POST['is_active']);
-        
-        if (empty($name)) {
-            setFlash('error', 'Nome categoria obbligatorio');
-        } else {
-            try {
-                if ($action === 'create') {
-                    $stmt = $pdo->prepare("INSERT INTO $table (name, sort_order, is_active) VALUES (?, ?, ?)");
-                    $stmt->execute([$name, $sortOrder, $isActive ? 1 : 0]);
-                    setFlash('success', 'Categoria creata con successo');
-                } else {
-                    $stmt = $pdo->prepare("UPDATE $table SET name = ?, sort_order = ?, is_active = ? WHERE id = ?");
-                    $stmt->execute([$name, $sortOrder, $isActive ? 1 : 0, $catId]);
-                    setFlash('success', 'Categoria aggiornata con successo');
-                }
-            } catch (PDOException $e) {
-                setFlash('error', 'Errore database: ' . $e->getMessage());
-            }
-        }
-        redirect('categories.php?tab=' . $type);
-    } elseif ($action === 'delete') {
-        $catId = (int)$_POST['cat_id'];
-        
-        try {
-            // Check if category has movements
-            if ($type === 'income') {
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM " . table('income') . " WHERE category_id = ?");
-            } else {
-                $stmt = $pdo->prepare("SELECT COUNT(*) FROM " . table('expenses') . " WHERE category_id = ?");
-            }
-            $stmt->execute([$catId]);
-            $count = $stmt->fetchColumn();
-            
-            if ($count > 0) {
-                setFlash('error', 'Impossibile eliminare: categoria con movimenti associati');
-            } else {
-                $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ?");
-                $stmt->execute([$catId]);
-                setFlash('success', 'Categoria eliminata con successo');
-            }
-        } catch (PDOException $e) {
-            setFlash('error', 'Errore durante l\'eliminazione: ' . $e->getMessage());
-        }
-        redirect('categories.php?tab=' . $type);
+    if (verifyCsrfToken($token) && in_array($type, ['income', 'expense'])) {
+        $table = $type === 'income' ? 'income_categories' : 'expense_categories';
+        $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ?");
+        $stmt->execute([$id]);
+        setFlashMessage('Categoria eliminata con successo');
+        redirect('/categories.php');
     }
 }
 
-// Get active tab
-$activeTab = $_GET['tab'] ?? 'income';
-
-// Load categories
-try {
-    $stmt = $pdo->query("SELECT * FROM " . table('income_categories') . " ORDER BY sort_order, name");
-    $incomeCategories = $stmt->fetchAll();
+// Handle add/edit
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    $token = $_POST['csrf_token'] ?? '';
     
-    $stmt = $pdo->query("SELECT * FROM " . table('expense_categories') . " ORDER BY sort_order, name");
-    $expenseCategories = $stmt->fetchAll();
-} catch (PDOException $e) {
-    die("Errore database: " . htmlspecialchars($e->getMessage()));
+    if (!verifyCsrfToken($token)) {
+        $errors[] = 'Token di sicurezza non valido';
+    } else {
+        $type = $_POST['type'] ?? '';
+        $name = trim($_POST['name'] ?? '');
+        $sortOrder = (int)($_POST['sort_order'] ?? 0);
+        $isActive = isset($_POST['is_active']) ? 1 : 0;
+        $categoryId = $_POST['category_id'] ?? null;
+        
+        if (!in_array($type, ['income', 'expense'])) {
+            $errors[] = 'Tipo categoria non valido';
+        } elseif (empty($name)) {
+            $errors[] = 'Il nome è obbligatorio';
+        } else {
+            try {
+                $table = $type === 'income' ? 'income_categories' : 'expense_categories';
+                
+                if ($categoryId) {
+                    $stmt = $pdo->prepare("UPDATE $table SET name = ?, sort_order = ?, is_active = ? WHERE id = ?");
+                    $stmt->execute([$name, $sortOrder, $isActive, $categoryId]);
+                    setFlashMessage('Categoria aggiornata con successo');
+                } else {
+                    $stmt = $pdo->prepare("INSERT INTO $table (name, sort_order, is_active) VALUES (?, ?, ?)");
+                    $stmt->execute([$name, $sortOrder, $isActive]);
+                    setFlashMessage('Categoria creata con successo');
+                }
+                redirect('/categories.php');
+            } catch (PDOException $e) {
+                $errors[] = 'Errore: ' . $e->getMessage();
+            }
+        }
+    }
 }
+
+// Get categories
+$incomeCategories = getIncomeCategories(false);
+$expenseCategories = getExpenseCategories(false);
 
 include __DIR__ . '/inc/header.php';
 ?>
 
-<?php displayFlash(); ?>
+<h2><i class="bi bi-tags"></i> Gestione Categorie</h2>
 
-<div class="row mb-3">
-    <div class="col-md-6">
-        <h2><i class="bi bi-tag me-2"></i>Gestione Categorie</h2>
+<?php if (!empty($errors)): ?>
+    <div class="alert alert-danger">
+        <ul class="mb-0">
+            <?php foreach ($errors as $error): ?>
+                <li><?php echo e($error); ?></li>
+            <?php endforeach; ?>
+        </ul>
     </div>
-    <div class="col-md-6 text-end">
-        <button type="button" class="btn btn-primary" onclick="showNewCategory()">
-            <i class="bi bi-plus-circle me-1"></i>Nuova Categoria
-        </button>
-    </div>
-</div>
+<?php endif; ?>
 
-<ul class="nav nav-tabs mb-3" role="tablist">
-    <li class="nav-item" role="presentation">
-        <a class="nav-link <?= $activeTab === 'income' ? 'active' : '' ?>" href="?tab=income">
-            <i class="bi bi-arrow-up-circle me-1"></i>Categorie Entrate
-        </a>
-    </li>
-    <li class="nav-item" role="presentation">
-        <a class="nav-link <?= $activeTab === 'expense' ? 'active' : '' ?>" href="?tab=expense">
-            <i class="bi bi-arrow-down-circle me-1"></i>Categorie Uscite
-        </a>
-    </li>
-</ul>
-
-<div class="tab-content">
-    <!-- Income Categories Tab -->
-    <div class="tab-pane fade <?= $activeTab === 'income' ? 'show active' : '' ?>">
-        <div class="card shadow-sm">
+<div class="row mt-4">
+    <!-- Income Categories -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-arrow-down-circle"></i> Categorie Entrate</h5>
+                <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#categoryModal" 
+                        onclick="resetCategoryForm('income')">
+                    <i class="bi bi-plus"></i> Nuova
+                </button>
+            </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover">
+                    <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Nome</th>
                                 <th>Ordine</th>
+                                <th>Nome</th>
                                 <th>Stato</th>
                                 <th class="text-end">Azioni</th>
                             </tr>
@@ -127,18 +106,22 @@ include __DIR__ . '/inc/header.php';
                         <tbody>
                             <?php foreach ($incomeCategories as $cat): ?>
                             <tr>
-                                <td><?= h($cat['name']) ?></td>
-                                <td><?= $cat['sort_order'] ?></td>
+                                <td><?php echo $cat['sort_order']; ?></td>
+                                <td><?php echo e($cat['name']); ?></td>
                                 <td>
-                                    <span class="badge bg-<?= $cat['is_active'] ? 'success' : 'secondary' ?>">
-                                        <?= $cat['is_active'] ? 'Attiva' : 'Disattiva' ?>
-                                    </span>
+                                    <?php if ($cat['is_active']): ?>
+                                        <span class="badge bg-success">Attiva</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary">Disattiva</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-primary" onclick="editCategory('income', <?= htmlspecialchars(json_encode($cat)) ?>)">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                            onclick="editCategory('income', <?php echo htmlspecialchars(json_encode($cat)); ?>)">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete('income', <?= $cat['id'] ?>, '<?= h($cat['name']) ?>')">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            onclick="confirmDelete('income', <?php echo $cat['id']; ?>, '<?php echo e($cat['name']); ?>')">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -151,16 +134,23 @@ include __DIR__ . '/inc/header.php';
         </div>
     </div>
     
-    <!-- Expense Categories Tab -->
-    <div class="tab-pane fade <?= $activeTab === 'expense' ? 'show active' : '' ?>">
-        <div class="card shadow-sm">
+    <!-- Expense Categories -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-arrow-up-circle"></i> Categorie Uscite</h5>
+                <button type="button" class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#categoryModal" 
+                        onclick="resetCategoryForm('expense')">
+                    <i class="bi bi-plus"></i> Nuova
+                </button>
+            </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover">
+                    <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Nome</th>
                                 <th>Ordine</th>
+                                <th>Nome</th>
                                 <th>Stato</th>
                                 <th class="text-end">Azioni</th>
                             </tr>
@@ -168,18 +158,22 @@ include __DIR__ . '/inc/header.php';
                         <tbody>
                             <?php foreach ($expenseCategories as $cat): ?>
                             <tr>
-                                <td><?= h($cat['name']) ?></td>
-                                <td><?= $cat['sort_order'] ?></td>
+                                <td><?php echo $cat['sort_order']; ?></td>
+                                <td><?php echo e($cat['name']); ?></td>
                                 <td>
-                                    <span class="badge bg-<?= $cat['is_active'] ? 'success' : 'secondary' ?>">
-                                        <?= $cat['is_active'] ? 'Attiva' : 'Disattiva' ?>
-                                    </span>
+                                    <?php if ($cat['is_active']): ?>
+                                        <span class="badge bg-success">Attiva</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-secondary">Disattiva</span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-primary" onclick="editCategory('expense', <?= htmlspecialchars(json_encode($cat)) ?>)">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                            onclick="editCategory('expense', <?php echo htmlspecialchars(json_encode($cat)); ?>)">
                                         <i class="bi bi-pencil"></i>
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-danger" onclick="confirmDelete('expense', <?= $cat['id'] ?>, '<?= h($cat['name']) ?>')">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            onclick="confirmDelete('expense', <?php echo $cat['id']; ?>, '<?php echo e($cat['name']); ?>')">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -198,38 +192,32 @@ include __DIR__ . '/inc/header.php';
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="POST">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" id="formAction" value="create">
-                <input type="hidden" name="type" id="categoryType" value="income">
-                <input type="hidden" name="cat_id" id="catId">
-                
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Nuova Categoria</h5>
+                    <h5 class="modal-title" id="categoryModalTitle">Nuova Categoria</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <input type="hidden" name="csrf_token" value="<?php echo e(generateCsrfToken()); ?>">
+                    <input type="hidden" name="action" value="save">
+                    <input type="hidden" name="type" id="categoryType">
+                    <input type="hidden" name="category_id" id="categoryId">
+                    
                     <div class="mb-3">
-                        <label class="form-label">Tipo *</label>
-                        <select class="form-select" id="typeSelect" onchange="updateCategoryType()">
-                            <option value="income">Entrata</option>
-                            <option value="expense">Uscita</option>
-                        </select>
+                        <label class="form-label">Nome</label>
+                        <input type="text" name="name" id="categoryName" class="form-control" required>
                     </div>
+                    
                     <div class="mb-3">
-                        <label class="form-label">Nome *</label>
-                        <input type="text" name="name" id="name" class="form-control" required>
+                        <label class="form-label">Ordine di Visualizzazione</label>
+                        <input type="number" name="sort_order" id="categorySortOrder" class="form-control" value="0" min="0">
+                        <small class="text-muted">Le categorie vengono mostrate in ordine crescente</small>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Ordine</label>
-                        <input type="number" name="sort_order" id="sortOrder" class="form-control" value="0" min="0">
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input type="checkbox" name="is_active" id="isActive" class="form-check-input" checked>
-                            <label class="form-check-label" for="isActive">
-                                Categoria attiva
-                            </label>
-                        </div>
+                    
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="categoryIsActive" checked>
+                        <label class="form-check-label" for="categoryIsActive">
+                            Categoria attiva
+                        </label>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -245,73 +233,51 @@ include __DIR__ . '/inc/header.php';
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="POST">
-                <?= csrfField() ?>
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="type" id="deleteType">
-                <input type="hidden" name="cat_id" id="deleteCatId">
-                
-                <div class="modal-header">
-                    <h5 class="modal-title">Conferma Eliminazione</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    Sei sicuro di voler eliminare la categoria <strong id="deleteCatName"></strong>?<br>
-                    <small class="text-muted">Nota: non è possibile eliminare categorie con movimenti associati.</small>
-                </div>
-                <div class="modal-footer">
+            <div class="modal-header">
+                <h5 class="modal-title">Conferma Eliminazione</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Sei sicuro di voler eliminare la categoria <strong id="deleteCategoryName"></strong>?
+                <p class="text-danger mt-2"><small>Attenzione: l'eliminazione potrebbe fallire se ci sono movimenti associati.</small></p>
+            </div>
+            <div class="modal-footer">
+                <form method="POST" id="deleteForm">
+                    <input type="hidden" name="csrf_token" value="<?php echo e(generateCsrfToken()); ?>">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
                     <button type="submit" class="btn btn-danger">Elimina</button>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-const currentTab = '<?= $activeTab ?>';
-
-function showNewCategory() {
-    document.getElementById('formAction').value = 'create';
-    document.getElementById('modalTitle').textContent = 'Nuova Categoria';
-    document.getElementById('catId').value = '';
-    document.getElementById('typeSelect').value = currentTab;
-    document.getElementById('categoryType').value = currentTab;
-    document.getElementById('typeSelect').disabled = false;
-    document.getElementById('name').value = '';
-    document.getElementById('sortOrder').value = '0';
-    document.getElementById('isActive').checked = true;
-    
-    const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
-    modal.show();
+function resetCategoryForm(type) {
+    const typeLabels = {income: 'Entrata', expense: 'Uscita'};
+    document.getElementById('categoryModalTitle').textContent = 'Nuova Categoria ' + typeLabels[type];
+    document.getElementById('categoryType').value = type;
+    document.getElementById('categoryId').value = '';
+    document.getElementById('categoryName').value = '';
+    document.getElementById('categorySortOrder').value = '0';
+    document.getElementById('categoryIsActive').checked = true;
 }
 
 function editCategory(type, category) {
-    document.getElementById('formAction').value = 'update';
-    document.getElementById('modalTitle').textContent = 'Modifica Categoria';
-    document.getElementById('catId').value = category.id;
-    document.getElementById('typeSelect').value = type;
+    const typeLabels = {income: 'Entrata', expense: 'Uscita'};
+    document.getElementById('categoryModalTitle').textContent = 'Modifica Categoria ' + typeLabels[type];
     document.getElementById('categoryType').value = type;
-    document.getElementById('typeSelect').disabled = true;
-    document.getElementById('name').value = category.name;
-    document.getElementById('sortOrder').value = category.sort_order;
-    document.getElementById('isActive').checked = category.is_active == 1;
-    
-    const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
-    modal.show();
-}
-
-function updateCategoryType() {
-    document.getElementById('categoryType').value = document.getElementById('typeSelect').value;
+    document.getElementById('categoryId').value = category.id;
+    document.getElementById('categoryName').value = category.name;
+    document.getElementById('categorySortOrder').value = category.sort_order;
+    document.getElementById('categoryIsActive').checked = category.is_active == 1;
+    new bootstrap.Modal(document.getElementById('categoryModal')).show();
 }
 
 function confirmDelete(type, id, name) {
-    document.getElementById('deleteType').value = type;
-    document.getElementById('deleteCatId').value = id;
-    document.getElementById('deleteCatName').textContent = name;
-    
-    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    modal.show();
+    document.getElementById('deleteCategoryName').textContent = name;
+    document.getElementById('deleteForm').action = '/categories.php?delete=' + id + '&type=' + type;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
 </script>
 

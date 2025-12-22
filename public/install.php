@@ -1,129 +1,102 @@
 <?php
 /**
- * AssoLife Advanced Installer
+ * Installation Wizard
+ * Creates database tables and initial admin user
  */
 
+session_start();
+
 // Check if already installed
-if (file_exists(__DIR__ . '/../src/config.php')) {
-    die('AssoLife è già installato. Elimina il file src/config.php per reinstallare.');
+if (file_exists(__DIR__ . '/../src/config_local.php')) {
+    $installed = true;
+} else {
+    $installed = false;
 }
 
-$errors = [];
-$success = false;
+$step = $_GET['step'] ?? 1;
+$error = null;
+$success = null;
 
-// Auto-detect installation path
-$detectedPath = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') . '/';
-if ($detectedPath === '//') $detectedPath = '/';
-
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Database configuration
-    $dbHost = trim($_POST['db_host'] ?? '');
-    $dbName = trim($_POST['db_name'] ?? '');
-    $dbUser = trim($_POST['db_user'] ?? '');
+// Step 2: Test database connection and create tables
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 2) {
+    $dbHost = $_POST['db_host'] ?? '';
+    $dbName = $_POST['db_name'] ?? '';
+    $dbUser = $_POST['db_user'] ?? '';
     $dbPass = $_POST['db_pass'] ?? '';
-    $dbPrefix = trim($_POST['db_prefix'] ?? '');
     
-    // Site configuration
-    $siteName = trim($_POST['site_name'] ?? '');
-    $basePath = trim($_POST['base_path'] ?? '/');
-    $forceHttps = isset($_POST['force_https']);
+    try {
+        $dsn = "mysql:host=$dbHost;charset=utf8mb4";
+        $pdo = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        
+        // Create database if not exists
+        $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        $pdo->exec("USE `$dbName`");
+        
+        // Read and execute schema
+        $schema = file_get_contents(__DIR__ . '/../schema.sql');
+        $statements = array_filter(array_map('trim', explode(';', $schema)));
+        
+        foreach ($statements as $statement) {
+            if (!empty($statement) && !preg_match('/^--/', $statement)) {
+                $pdo->exec($statement);
+            }
+        }
+        
+        // Store database credentials
+        $_SESSION['install_db'] = [
+            'host' => $dbHost,
+            'name' => $dbName,
+            'user' => $dbUser,
+            'pass' => $dbPass
+        ];
+        
+        header('Location: install.php?step=3');
+        exit;
+        
+    } catch (PDOException $e) {
+        $error = "Errore database: " . $e->getMessage();
+    }
+}
+
+// Step 3: Create admin user
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 3) {
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
+    $passwordConfirm = $_POST['password_confirm'] ?? '';
     
-    // Admin account
-    $adminUsername = trim($_POST['admin_username'] ?? '');
-    $adminPassword = $_POST['admin_password'] ?? '';
-    $adminFullName = trim($_POST['admin_full_name'] ?? '');
-    $adminEmail = trim($_POST['admin_email'] ?? '');
-    
-    // Validation
-    if (empty($dbHost)) $errors[] = "Host database richiesto";
-    if (empty($dbName)) $errors[] = "Nome database richiesto";
-    if (empty($dbUser)) $errors[] = "Utente database richiesto";
-    if (empty($siteName)) $errors[] = "Nome del sito richiesto";
-    if (empty($basePath)) $errors[] = "Path di installazione richiesto";
-    if (empty($adminUsername)) $errors[] = "Username amministratore richiesto";
-    if (empty($adminPassword)) $errors[] = "Password amministratore richiesta";
-    if (strlen($adminPassword) < 8) $errors[] = "La password deve contenere almeno 8 caratteri";
-    if (empty($adminFullName)) $errors[] = "Nome completo amministratore richiesto";
-    if (empty($adminEmail)) $errors[] = "Email amministratore richiesta";
-    if (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL)) $errors[] = "Email non valida";
-    
-    if (empty($errors)) {
+    if (empty($username) || empty($password)) {
+        $error = "Username e password sono obbligatori";
+    } elseif ($password !== $passwordConfirm) {
+        $error = "Le password non corrispondono";
+    } elseif (strlen($password) < 8) {
+        $error = "La password deve essere di almeno 8 caratteri";
+    } else {
         try {
-            // Test database connection
-            $dsn = "mysql:host=$dbHost;dbname=$dbName;charset=utf8mb4";
-            $pdo = new PDO($dsn, $dbUser, $dbPass, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            ]);
-            
-            // Read schema file
-            $schemaPath = __DIR__ . '/../schema.sql';
-            if (!file_exists($schemaPath)) {
-                throw new Exception("File schema.sql non trovato");
-            }
-            
-            $schema = file_get_contents($schemaPath);
-            
-            // Replace table names with prefixed versions
-            $tables = [
-                'users', 'members', 'social_years', 
-                'income_categories', 'expense_categories', 
-                'income', 'expenses'
-            ];
-            
-            foreach ($tables as $table) {
-                $schema = str_replace(
-                    "CREATE TABLE IF NOT EXISTS $table",
-                    "CREATE TABLE IF NOT EXISTS {$dbPrefix}$table",
-                    $schema
-                );
-                $schema = str_replace(
-                    "INSERT INTO $table",
-                    "INSERT INTO {$dbPrefix}$table",
-                    $schema
-                );
-            }
-            
-            // Execute schema
-            $pdo->exec($schema);
+            $db = $_SESSION['install_db'];
+            $dsn = "mysql:host={$db['host']};dbname={$db['name']};charset=utf8mb4";
+            $pdo = new PDO($dsn, $db['user'], $db['pass'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             
             // Create admin user
-            $passwordHash = password_hash($adminPassword, PASSWORD_BCRYPT);
-            $stmt = $pdo->prepare("INSERT INTO {$dbPrefix}users (username, password, full_name, email, role) VALUES (?, ?, ?, ?, 'admin')");
-            $stmt->execute([$adminUsername, $passwordHash, $adminFullName, $adminEmail]);
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("INSERT INTO users (username, password, role) VALUES (?, ?, 'admin')");
+            $stmt->execute([$username, $hashedPassword]);
             
-            // Create config.php
+            // Create config_local.php
             $configContent = "<?php\n";
-            $configContent .= "return [\n";
-            $configContent .= "    'db' => [\n";
-            $configContent .= "        'host'     => " . var_export($dbHost, true) . ",\n";
-            $configContent .= "        'dbname'   => " . var_export($dbName, true) . ",\n";
-            $configContent .= "        'username' => " . var_export($dbUser, true) . ",\n";
-            $configContent .= "        'password' => " . var_export($dbPass, true) . ",\n";
-            $configContent .= "        'charset'  => 'utf8mb4',\n";
-            $configContent .= "        'prefix'   => " . var_export($dbPrefix, true) . ",\n";
-            $configContent .= "    ],\n";
-            $configContent .= "    'app' => [\n";
-            $configContent .= "        'name'         => " . var_export($siteName, true) . ",\n";
-            $configContent .= "        'version'      => '1.0.0',\n";
-            $configContent .= "        'base_path'    => " . var_export($basePath, true) . ",\n";
-            $configContent .= "        'force_https'  => " . ($forceHttps ? 'true' : 'false') . ",\n";
-            $configContent .= "        'session_name' => 'assolife_session',\n";
-            $configContent .= "        'timezone'     => 'Europe/Rome',\n";
-            $configContent .= "    ],\n";
-            $configContent .= "];\n";
+            $configContent .= "define('DB_HOST', " . var_export($db['host'], true) . ");\n";
+            $configContent .= "define('DB_NAME', " . var_export($db['name'], true) . ");\n";
+            $configContent .= "define('DB_USER', " . var_export($db['user'], true) . ");\n";
+            $configContent .= "define('DB_PASS', " . var_export($db['pass'], true) . ");\n";
+            $configContent .= "define('DB_CHARSET', 'utf8mb4');\n";
             
-            $configPath = __DIR__ . '/../src/config.php';
-            if (file_put_contents($configPath, $configContent) === false) {
-                throw new Exception("Impossibile creare il file config.php");
-            }
+            file_put_contents(__DIR__ . '/../src/config_local.php', $configContent);
             
-            $success = true;
+            unset($_SESSION['install_db']);
+            header('Location: install.php?step=4');
+            exit;
             
         } catch (PDOException $e) {
-            $errors[] = "Errore database: " . $e->getMessage();
-        } catch (Exception $e) {
-            $errors[] = $e->getMessage();
+            $error = "Errore nella creazione dell'utente: " . $e->getMessage();
         }
     }
 }
@@ -133,136 +106,135 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Installazione AssoLife</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <title>Installazione - Gestione Associazione</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 </head>
 <body class="bg-light">
-    <div class="container py-5">
-        <div class="row justify-content-center">
+    <div class="container">
+        <div class="row justify-content-center mt-5">
             <div class="col-md-8">
                 <div class="card shadow">
                     <div class="card-header bg-primary text-white">
-                        <h3 class="mb-0"><i class="bi bi-gear-fill me-2"></i>Installazione AssoLife</h3>
+                        <h4 class="mb-0"><i class="bi bi-gear"></i> Installazione Gestione Associazione</h4>
                     </div>
                     <div class="card-body">
-                        <?php if ($success): ?>
+                        
+                        <?php if ($installed && $step != 4): ?>
                             <div class="alert alert-success">
-                                <h4 class="alert-heading"><i class="bi bi-check-circle-fill me-2"></i>Installazione completata!</h4>
-                                <p>AssoLife è stato installato con successo.</p>
-                                <hr>
-                                <p class="mb-0">
-                                    <a href="login.php" class="btn btn-primary">
-                                        <i class="bi bi-box-arrow-in-right me-2"></i>Vai al Login
-                                    </a>
-                                </p>
+                                <i class="bi bi-check-circle"></i> L'applicazione è già stata installata.
+                                <a href="index.php" class="alert-link">Vai alla dashboard</a>
                             </div>
-                        <?php else: ?>
-                            <?php if (!empty($errors)): ?>
-                                <div class="alert alert-danger">
-                                    <h5>Errori:</h5>
-                                    <ul class="mb-0">
-                                        <?php foreach ($errors as $error): ?>
-                                            <li><?= htmlspecialchars($error) ?></li>
-                                        <?php endforeach; ?>
-                                    </ul>
-                                </div>
+                        
+                        <?php elseif ($step == 1): ?>
+                            <h5>Benvenuto!</h5>
+                            <p>Questa procedura guidata ti aiuterà a installare il sistema di gestione dell'associazione.</p>
+                            <p>Assicurati di avere:</p>
+                            <ul>
+                                <li>Un database MySQL o MariaDB pronto</li>
+                                <li>Le credenziali di accesso al database</li>
+                                <li>PHP 7.4 o superiore</li>
+                            </ul>
+                            
+                            <div class="alert alert-info">
+                                <strong>Nota per AlterVista:</strong> Il nome del database è solitamente <code>my_nomeUtente</code>.
+                                Le credenziali sono disponibili nel pannello di controllo.
+                            </div>
+                            
+                            <a href="install.php?step=2" class="btn btn-primary">
+                                <i class="bi bi-arrow-right"></i> Avanti
+                            </a>
+                        
+                        <?php elseif ($step == 2): ?>
+                            <h5>Configurazione Database</h5>
+                            
+                            <?php if ($error): ?>
+                                <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
                             <?php endif; ?>
                             
                             <form method="POST">
-                                <!-- Database Configuration -->
-                                <h5 class="mb-3"><i class="bi bi-database me-2"></i>1. Configurazione Database</h5>
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Host Database *</label>
-                                        <input type="text" name="db_host" class="form-control" value="<?= htmlspecialchars($_POST['db_host'] ?? 'localhost') ?>" required>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Nome Database *</label>
-                                        <input type="text" name="db_name" class="form-control" value="<?= htmlspecialchars($_POST['db_name'] ?? '') ?>" required>
-                                    </div>
-                                </div>
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Utente Database *</label>
-                                        <input type="text" name="db_user" class="form-control" value="<?= htmlspecialchars($_POST['db_user'] ?? '') ?>" required>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Password Database</label>
-                                        <input type="password" name="db_pass" class="form-control" value="<?= htmlspecialchars($_POST['db_pass'] ?? '') ?>">
-                                    </div>
-                                </div>
-                                <div class="mb-4">
-                                    <label class="form-label">Prefisso Tabelle</label>
-                                    <input type="text" name="db_prefix" class="form-control" value="<?= htmlspecialchars($_POST['db_prefix'] ?? '') ?>" placeholder="es: assolife_">
-                                    <div class="form-text">Opzionale. Tutte le tabelle useranno questo prefisso.</div>
-                                </div>
-                                
-                                <hr>
-                                
-                                <!-- Site Configuration -->
-                                <h5 class="mb-3"><i class="bi bi-globe me-2"></i>2. Configurazione Sito</h5>
                                 <div class="mb-3">
-                                    <label class="form-label">Nome del Sito *</label>
-                                    <input type="text" name="site_name" class="form-control" value="<?= htmlspecialchars($_POST['site_name'] ?? 'Associazione') ?>" required>
-                                    <div class="form-text">Sarà visualizzato nell'header e nel titolo delle pagine.</div>
+                                    <label class="form-label">Host Database</label>
+                                    <input type="text" name="db_host" class="form-control" value="localhost" required>
+                                    <small class="text-muted">Di solito: localhost</small>
                                 </div>
+                                
                                 <div class="mb-3">
-                                    <label class="form-label">Path di Installazione *</label>
-                                    <input type="text" name="base_path" class="form-control" value="<?= htmlspecialchars($_POST['base_path'] ?? $detectedPath) ?>" required>
-                                    <div class="form-text">Rilevato automaticamente: <code><?= htmlspecialchars($detectedPath) ?></code></div>
-                                </div>
-                                <div class="mb-4">
-                                    <div class="form-check">
-                                        <input type="checkbox" name="force_https" class="form-check-input" id="forceHttps" <?= isset($_POST['force_https']) ? 'checked' : '' ?>>
-                                        <label class="form-check-label" for="forceHttps">
-                                            Forza HTTPS (solo se disponibile)
-                                        </label>
-                                    </div>
-                                    <div class="form-text">Abilita redirect automatico a HTTPS se il certificato SSL è disponibile.</div>
+                                    <label class="form-label">Nome Database</label>
+                                    <input type="text" name="db_name" class="form-control" required>
+                                    <small class="text-muted">Es: associazione o my_username su AlterVista</small>
                                 </div>
                                 
-                                <hr>
-                                
-                                <!-- Admin Account -->
-                                <h5 class="mb-3"><i class="bi bi-person-badge me-2"></i>3. Account Amministratore</h5>
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Username *</label>
-                                        <input type="text" name="admin_username" class="form-control" value="<?= htmlspecialchars($_POST['admin_username'] ?? '') ?>" required>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Password * (min 8 caratteri)</label>
-                                        <input type="password" name="admin_password" class="form-control" minlength="8" required>
-                                    </div>
-                                </div>
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Nome Completo *</label>
-                                        <input type="text" name="admin_full_name" class="form-control" value="<?= htmlspecialchars($_POST['admin_full_name'] ?? '') ?>" required>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Email *</label>
-                                        <input type="email" name="admin_email" class="form-control" value="<?= htmlspecialchars($_POST['admin_email'] ?? '') ?>" required>
-                                    </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Username Database</label>
+                                    <input type="text" name="db_user" class="form-control" required>
                                 </div>
                                 
-                                <div class="d-grid">
-                                    <button type="submit" class="btn btn-primary btn-lg">
-                                        <i class="bi bi-download me-2"></i>Installa AssoLife
-                                    </button>
+                                <div class="mb-3">
+                                    <label class="form-label">Password Database</label>
+                                    <input type="password" name="db_pass" class="form-control">
+                                    <small class="text-muted">Lascia vuoto se non c'è password</small>
                                 </div>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-arrow-right"></i> Crea Tabelle
+                                </button>
                             </form>
+                        
+                        <?php elseif ($step == 3): ?>
+                            <h5>Crea Amministratore</h5>
+                            
+                            <?php if ($error): ?>
+                                <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+                            <?php endif; ?>
+                            
+                            <p>Crea l'account amministratore principale:</p>
+                            
+                            <form method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label">Username</label>
+                                    <input type="text" name="username" class="form-control" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Password</label>
+                                    <input type="password" name="password" class="form-control" required minlength="8">
+                                    <small class="text-muted">Minimo 8 caratteri</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Conferma Password</label>
+                                    <input type="password" name="password_confirm" class="form-control" required minlength="8">
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-check"></i> Completa Installazione
+                                </button>
+                            </form>
+                        
+                        <?php elseif ($step == 4): ?>
+                            <div class="alert alert-success">
+                                <h5 class="alert-heading"><i class="bi bi-check-circle"></i> Installazione Completata!</h5>
+                                <p>Il sistema è stato installato correttamente.</p>
+                                <hr>
+                                <p class="mb-0">
+                                    <a href="login.php" class="btn btn-primary">
+                                        <i class="bi bi-box-arrow-in-right"></i> Vai al Login
+                                    </a>
+                                </p>
+                            </div>
+                            
+                            <div class="alert alert-warning mt-3">
+                                <strong>Importante:</strong> Per motivi di sicurezza, considera di eliminare o rinominare il file <code>install.php</code> dopo l'installazione.
+                            </div>
                         <?php endif; ?>
-                    </div>
-                    <div class="card-footer text-center text-muted">
-                        <small>Powered with <strong>AssoLife</strong> by Luigi Pistarà</small>
+                        
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
