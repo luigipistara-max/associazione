@@ -35,12 +35,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $errors[] = 'Token di sicurezza non valido';
     } else {
         $username = trim($_POST['username'] ?? '');
+        $fullName = trim($_POST['full_name'] ?? '');
+        $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
         $role = $_POST['role'] ?? 'operatore';
         $userId = $_POST['user_id'] ?? null;
         
         if (empty($username)) {
             $errors[] = 'Username obbligatorio';
+        }
+        
+        if (empty($fullName)) {
+            $errors[] = 'Nome completo obbligatorio';
+        }
+        
+        if (empty($email)) {
+            $errors[] = 'Email obbligatoria';
         }
         
         if ($userId) {
@@ -50,12 +60,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $errors[] = 'La password deve essere di almeno 8 caratteri';
                 } else {
                     $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
-                    $stmt = $pdo->prepare("UPDATE " . table('users') . " SET username = ?, password = ?, role = ? WHERE id = ?");
-                    $stmt->execute([$username, $hashedPassword, $role, $userId]);
+                    $stmt = $pdo->prepare("UPDATE " . table('users') . " SET username = ?, password = ?, full_name = ?, email = ?, role = ? WHERE id = ?");
+                    $stmt->execute([$username, $hashedPassword, $fullName, $email, $role, $userId]);
                 }
             } else {
-                $stmt = $pdo->prepare("UPDATE " . table('users') . " SET username = ?, role = ? WHERE id = ?");
-                $stmt->execute([$username, $role, $userId]);
+                $stmt = $pdo->prepare("UPDATE " . table('users') . " SET username = ?, full_name = ?, email = ?, role = ? WHERE id = ?");
+                $stmt->execute([$username, $fullName, $email, $role, $userId]);
             }
             if (empty($errors)) {
                 setFlashMessage('Utente aggiornato con successo');
@@ -113,6 +123,8 @@ include __DIR__ . '/inc/header.php';
                 <thead>
                     <tr>
                         <th>Username</th>
+                        <th>Nome Completo</th>
+                        <th>Email</th>
                         <th>Ruolo</th>
                         <th>Creato il</th>
                         <th class="text-end">Azioni</th>
@@ -122,14 +134,16 @@ include __DIR__ . '/inc/header.php';
                     <?php foreach ($users as $user): ?>
                     <tr>
                         <td>
-                            <strong><?php echo e($user['username']); ?></strong>
+                            <strong><?php echo h($user['username']); ?></strong>
                             <?php if ($user['id'] == $_SESSION['user_id']): ?>
                                 <span class="badge bg-info">Tu</span>
                             <?php endif; ?>
                         </td>
+                        <td><?php echo h($user['full_name'] ?? '-'); ?></td>
+                        <td><?php echo h($user['email'] ?? '-'); ?></td>
                         <td>
                             <span class="badge bg-<?php echo $user['role'] === 'admin' ? 'danger' : 'primary'; ?>">
-                                <?php echo e(ucfirst($user['role'])); ?>
+                                <?php echo h(ucfirst($user['role'])); ?>
                             </span>
                         </td>
                         <td><?php echo formatDate($user['created_at']); ?></td>
@@ -170,6 +184,16 @@ include __DIR__ . '/inc/header.php';
                     <div class="mb-3">
                         <label class="form-label">Username</label>
                         <input type="text" name="username" id="username" class="form-control" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nome Completo</label>
+                        <input type="text" name="full_name" id="full_name" class="form-control" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" id="email" class="form-control" required>
                     </div>
                     
                     <div class="mb-3">
@@ -222,6 +246,8 @@ function resetUserForm() {
     document.getElementById('userModalTitle').textContent = 'Nuovo Utente';
     document.getElementById('userId').value = '';
     document.getElementById('username').value = '';
+    document.getElementById('full_name').value = '';
+    document.getElementById('email').value = '';
     document.getElementById('password').value = '';
     document.getElementById('password').required = true;
     document.getElementById('passwordHelp').textContent = 'Minimo 8 caratteri';
@@ -232,6 +258,8 @@ function editUser(user) {
     document.getElementById('userModalTitle').textContent = 'Modifica Utente';
     document.getElementById('userId').value = user.id;
     document.getElementById('username').value = user.username;
+    document.getElementById('full_name').value = user.full_name || '';
+    document.getElementById('email').value = user.email || '';
     document.getElementById('password').value = '';
     document.getElementById('password').required = false;
     document.getElementById('passwordHelp').textContent = 'Minimo 8 caratteri. Lascia vuoto per non modificare.';
