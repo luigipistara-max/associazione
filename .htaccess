@@ -1,0 +1,39 @@
+# AssoLife .htaccess Configuration
+
+# Disable directory browsing
+Options -Indexes
+
+# Enable rewrite engine
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Force HTTPS (will be configured by installer if enabled)
+    # RewriteCond %{HTTPS} off
+    # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    
+    # Prevent access to sensitive files
+    RewriteRule ^src/config\.php$ - [F,L]
+    RewriteRule ^\.git - [F,L]
+</IfModule>
+
+# Protect sensitive directories
+<FilesMatch "^(config|\.env|\.git)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# PHP security settings
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_value error_log /tmp/php_errors.log
+</IfModule>
+
+# Set default charset
+AddDefaultCharset UTF-8
+
+# Prevent access to .htaccess itself
+<Files .htaccess>
+    Order allow,deny
+    Deny from all
+</Files>
