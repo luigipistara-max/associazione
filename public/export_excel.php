@@ -5,7 +5,7 @@ require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
-$pdo = getDbConnection();
+
 
 // Get year filter
 $yearId = $_GET['year'] ?? '';
@@ -14,7 +14,7 @@ $yearName = 'Tutti';
 
 if ($yearId) {
     $yearFilter = "AND m.social_year_id = " . (int)$yearId;
-    $stmt = $pdo->prepare("SELECT name FROM social_years WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT name FROM " . table('social_years') . " WHERE id = ?");
     $stmt->execute([$yearId]);
     $year = $stmt->fetch();
     if ($year) {
@@ -32,10 +32,10 @@ $stmt = $pdo->query("
            sy.name as year_name,
            mem.first_name, mem.last_name, mem.tax_code
     FROM movements m
-    LEFT JOIN income_categories ic ON m.type = 'income' AND m.category_id = ic.id
-    LEFT JOIN expense_categories ec ON m.type = 'expense' AND m.category_id = ec.id
-    LEFT JOIN social_years sy ON m.social_year_id = sy.id
-    LEFT JOIN members mem ON m.member_id = mem.id
+    LEFT JOIN " . table('income_categories') . " ic ON m.type = 'income' AND m.category_id = ic.id
+    LEFT JOIN " . table('expense_categories') . " ec ON m.type = 'expense' AND m.category_id = ec.id
+    LEFT JOIN " . table('social_years') . " sy ON m.social_year_id = sy.id
+    LEFT JOIN " . table('members') . " mem ON m.member_id = mem.id
     WHERE 1=1 $yearFilter
     ORDER BY m.paid_at DESC, m.id DESC
 ");

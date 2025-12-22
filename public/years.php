@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 requireLogin();
 
 $pageTitle = 'Anni Sociali';
-$pdo = getDbConnection();
+
 $errors = [];
 
 // Only admin can create/modify
@@ -19,7 +19,7 @@ if ($canEdit && isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST')
     
     if (verifyCsrfToken($token)) {
         try {
-            $stmt = $pdo->prepare("DELETE FROM social_years WHERE id = ?");
+            $stmt = $pdo->prepare("DELETE FROM " . table('social_years') . " WHERE id = ?");
             $stmt->execute([$id]);
             setFlashMessage('Anno sociale eliminato con successo');
         } catch (PDOException $e) {
@@ -35,8 +35,8 @@ if ($canEdit && isset($_GET['set_current'])) {
     $token = $_GET['csrf_token'] ?? '';
     
     if (verifyCsrfToken($token)) {
-        $pdo->exec("UPDATE social_years SET is_current = 0");
-        $stmt = $pdo->prepare("UPDATE social_years SET is_current = 1 WHERE id = ?");
+        $pdo->exec("UPDATE " . table('social_years') . " SET is_current = 0");
+        $stmt = $pdo->prepare("UPDATE " . table('social_years') . " SET is_current = 1 WHERE id = ?");
         $stmt->execute([$id]);
         setFlashMessage('Anno sociale corrente aggiornato');
         redirect('/years.php');
@@ -63,15 +63,15 @@ if ($canEdit && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])
         } else {
             try {
                 if ($isCurrent) {
-                    $pdo->exec("UPDATE social_years SET is_current = 0");
+                    $pdo->exec("UPDATE " . table('social_years') . " SET is_current = 0");
                 }
                 
                 if ($yearId) {
-                    $stmt = $pdo->prepare("UPDATE social_years SET name = ?, start_date = ?, end_date = ?, is_current = ? WHERE id = ?");
+                    $stmt = $pdo->prepare("UPDATE " . table('social_years') . " SET name = ?, start_date = ?, end_date = ?, is_current = ? WHERE id = ?");
                     $stmt->execute([$name, $startDate, $endDate, $isCurrent, $yearId]);
                     setFlashMessage('Anno sociale aggiornato con successo');
                 } else {
-                    $stmt = $pdo->prepare("INSERT INTO social_years (name, start_date, end_date, is_current) VALUES (?, ?, ?, ?)");
+                    $stmt = $pdo->prepare("INSERT INTO " . table('social_years') . " (name, start_date, end_date, is_current) VALUES (?, ?, ?, ?)");
                     $stmt->execute([$name, $startDate, $endDate, $isCurrent]);
                     setFlashMessage('Anno sociale creato con successo');
                 }
@@ -84,7 +84,7 @@ if ($canEdit && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])
 }
 
 // Get all years
-$stmt = $pdo->query("SELECT * FROM social_years ORDER BY start_date DESC");
+$stmt = $pdo->query("SELECT * FROM " . table('social_years') . " ORDER BY start_date DESC");
 $years = $stmt->fetchAll();
 
 include __DIR__ . '/inc/header.php';

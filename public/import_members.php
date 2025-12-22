@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 requireLogin();
 
 $pageTitle = 'Importa Soci da CSV';
-$pdo = getDbConnection();
+
 $errors = [];
 $imported = 0;
 $skipped = 0;
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 // Check for duplicates
-                $stmt = $pdo->prepare("SELECT id FROM members WHERE tax_code = ?");
+                $stmt = $pdo->prepare("SELECT id FROM " . table('members') . " WHERE tax_code = ?");
                 $stmt->execute([$taxCode]);
                 if ($stmt->fetch()) {
                     $results[] = ['line' => $line, 'status' => 'skipped', 'message' => "CF già presente: $taxCode"];
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 try {
                     $stmt = $pdo->prepare("
-                        INSERT INTO members (
+                        INSERT INTO " . table('members') . " (
                             first_name, last_name, tax_code, birth_date, birth_place,
                             email, phone, address, city, postal_code, notes,
                             registration_date, status

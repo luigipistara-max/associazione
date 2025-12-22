@@ -6,8 +6,11 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/db.php';
 
-// Start session if not already started
+$config = require __DIR__ . '/config.php';
+
+// Start session with custom name if not already started
 if (session_status() === PHP_SESSION_NONE) {
+    session_name($config['app']['session_name'] ?? 'assolife_session');
     session_start();
 }
 
@@ -29,6 +32,24 @@ function verifyCsrfToken($token) {
 }
 
 /**
+ * Generate CSRF input field
+ */
+function csrfField() {
+    $token = generateCsrfToken();
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($token) . '">';
+}
+
+/**
+ * Check CSRF token from POST request
+ */
+function checkCsrf() {
+    $token = $_POST['csrf_token'] ?? '';
+    if (!verifyCsrfToken($token)) {
+        die('Token di sicurezza non valido');
+    }
+}
+
+/**
  * Check if user is logged in
  */
 function isLoggedIn() {
@@ -46,8 +67,10 @@ function isAdmin() {
  * Require login (redirect to login page if not logged in)
  */
 function requireLogin() {
+    global $config;
     if (!isLoggedIn()) {
-        header('Location: /login.php');
+        $basePath = $config['app']['base_path'] ?? '/';
+        header('Location: ' . $basePath . 'login.php');
         exit;
     }
 }
@@ -66,9 +89,9 @@ function requireAdmin() {
  * Login user
  */
 function loginUser($username, $password) {
-    $pdo = getDbConnection();
+    global $pdo;
     
-    $stmt = $pdo->prepare("SELECT id, username, password, role FROM users WHERE username = ?");
+    $stmt = $pdo->prepare("SELECT id, username, password, full_name, role FROM " . table('users') . " WHERE username = ?");
     $stmt->execute([$username]);
     $user = $stmt->fetch();
     
@@ -78,6 +101,7 @@ function loginUser($username, $password) {
         
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
+        $_SESSION['full_name'] = $user['full_name'] ?? $user['username'];
         $_SESSION['role'] = $user['role'];
         
         return true;
@@ -106,6 +130,7 @@ function getCurrentUser() {
     return [
         'id' => $_SESSION['user_id'],
         'username' => $_SESSION['username'],
+        'full_name' => $_SESSION['full_name'] ?? $_SESSION['username'],
         'role' => $_SESSION['role']
     ];
 }

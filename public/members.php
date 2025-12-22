@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 requireLogin();
 
 $pageTitle = 'Gestione Soci';
-$pdo = getDbConnection();
+
 
 // Handle delete
 if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -15,7 +15,7 @@ if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (verifyCsrfToken($token)) {
         try {
-            $stmt = $pdo->prepare("DELETE FROM members WHERE id = ?");
+            $stmt = $pdo->prepare("DELETE FROM " . table('members') . " WHERE id = ?");
             $stmt->execute([$id]);
             setFlashMessage('Socio eliminato con successo');
         } catch (PDOException $e) {
@@ -30,7 +30,7 @@ $statusFilter = $_GET['status'] ?? '';
 $searchQuery = $_GET['search'] ?? '';
 
 // Build query
-$sql = "SELECT * FROM members WHERE 1=1";
+$sql = "SELECT * FROM " . table('members') . " WHERE 1=1";
 $params = [];
 
 if ($statusFilter) {

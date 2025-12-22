@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 requireLogin();
 
 $pageTitle = 'Rendiconto';
-$pdo = getDbConnection();
+
 
 // Get year filter
 $yearId = $_GET['year'] ?? '';
@@ -14,9 +14,11 @@ $socialYears = getSocialYears();
 
 // Build query
 $yearFilter = '';
+$yearParams = [];
 $yearName = 'Tutti gli anni';
 if ($yearId) {
-    $yearFilter = "AND m.social_year_id = " . (int)$yearId;
+    $yearFilter = "WHERE i.social_year_id = ?";
+    $yearParams = [(int)$yearId];
     foreach ($socialYears as $y) {
         if ($y['id'] == $yearId) {
             $yearName = $y['name'];
@@ -26,26 +28,37 @@ if ($yearId) {
 }
 
 // Get income by category
-$stmt = $pdo->query("
-    SELECT ic.name, COALESCE(SUM(m.amount), 0) as total, COUNT(m.id) as count
-    FROM income_categories ic
-    LEFT JOIN movements m ON ic.id = m.category_id AND m.type = 'income' $yearFilter
+$stmt = $pdo->prepare("
+    SELECT ic.name, COALESCE(SUM(i.amount), 0) as total, COUNT(i.id) as count
+    FROM " . table('income_categories') . " ic
+    LEFT JOIN " . table('income') . " i ON ic.id = i.category_id " . ($yearFilter ? str_replace('WHERE i.', 'AND i.', $yearFilter) : '') . "
     WHERE ic.is_active = 1
     GROUP BY ic.id, ic.name, ic.sort_order
     ORDER BY ic.sort_order, ic.name
 ");
+if ($yearParams) {
+    $stmt->execute($yearParams);
+} else {
+    $stmt->execute();
+}
 $incomeByCategory = $stmt->fetchAll();
 $totalIncome = array_sum(array_column($incomeByCategory, 'total'));
 
 // Get expense by category
-$stmt = $pdo->query("
-    SELECT ec.name, COALESCE(SUM(m.amount), 0) as total, COUNT(m.id) as count
-    FROM expense_categories ec
-    LEFT JOIN movements m ON ec.id = m.category_id AND m.type = 'expense' $yearFilter
+$expenseFilter = $yearFilter ? str_replace('i.', 'e.', $yearFilter) : '';
+$stmt = $pdo->prepare("
+    SELECT ec.name, COALESCE(SUM(e.amount), 0) as total, COUNT(e.id) as count
+    FROM " . table('expense_categories') . " ec
+    LEFT JOIN " . table('expenses') . " e ON ec.id = e.category_id " . ($expenseFilter ? str_replace('WHERE e.', 'AND e.', $expenseFilter) : '') . "
     WHERE ec.is_active = 1
     GROUP BY ec.id, ec.name, ec.sort_order
     ORDER BY ec.sort_order, ec.name
 ");
+if ($yearParams) {
+    $stmt->execute($yearParams);
+} else {
+    $stmt->execute();
+}
 $expenseByCategory = $stmt->fetchAll();
 $totalExpense = array_sum(array_column($expenseByCategory, 'total'));
 

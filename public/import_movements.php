@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 requireLogin();
 
 $pageTitle = 'Importa Movimenti da CSV';
-$pdo = getDbConnection();
+
 $errors = [];
 $imported = 0;
 $skipped = 0;
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Find member by tax code if provided
                 $memberId = null;
                 if ($type === 'income' && !empty($memberTaxCode)) {
-                    $stmt = $pdo->prepare("SELECT id FROM members WHERE tax_code = ?");
+                    $stmt = $pdo->prepare("SELECT id FROM " . table('members') . " WHERE tax_code = ?");
                     $stmt->execute([$memberTaxCode]);
                     $member = $stmt->fetch();
                     if ($member) {

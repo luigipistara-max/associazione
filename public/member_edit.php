@@ -5,14 +5,14 @@ require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
-$pdo = getDbConnection();
+
 $memberId = $_GET['id'] ?? null;
 $member = null;
 $errors = [];
 
 // Load existing member
 if ($memberId) {
-    $stmt = $pdo->prepare("SELECT * FROM members WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
     $stmt->execute([$memberId]);
     $member = $stmt->fetch();
     
@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Check for duplicate tax code
         if (!empty($data['tax_code'])) {
-            $stmt = $pdo->prepare("SELECT id FROM members WHERE tax_code = ? AND id != ?");
+            $stmt = $pdo->prepare("SELECT id FROM " . table('members') . " WHERE tax_code = ? AND id != ?");
             $stmt->execute([$data['tax_code'], $memberId ?? 0]);
             if ($stmt->fetch()) {
                 $errors[] = 'Codice fiscale già presente nel database';
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($memberId) {
                     // Update
                     $stmt = $pdo->prepare("
-                        UPDATE members SET
+                        UPDATE " . table('members') . " SET
                             card_number = ?, first_name = ?, last_name = ?, tax_code = ?,
                             birth_date = ?, birth_place = ?, email = ?, phone = ?,
                             address = ?, city = ?, postal_code = ?, registration_date = ?,
@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     // Insert
                     $stmt = $pdo->prepare("
-                        INSERT INTO members (
+                        INSERT INTO " . table('members') . " (
                             card_number, first_name, last_name, tax_code,
                             birth_date, birth_place, email, phone,
                             address, city, postal_code, registration_date,
