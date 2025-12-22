@@ -79,40 +79,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
             $failedStatements = [];
             
             foreach ($statements as $statement) {
-                if (!empty($statement) && !preg_match('/^--/', $statement)) {
-                    try {
-                        $pdo->exec($statement);
-                        $executedStatements[] = $statement;
-                        if ($debugMode) {
-                            $debugInfo[] = "✓ Executed: " . substr($statement, 0, 100) . "...";
-                        }
-                    } catch (PDOException $e) {
-                        // Try fallback without ENGINE=InnoDB for compatibility
-                        if (stripos($statement, 'ENGINE=InnoDB') !== false) {
-                            $fallbackStatement = preg_replace('/ENGINE=InnoDB\s*/i', '', $statement);
-                            try {
-                                $pdo->exec($fallbackStatement);
-                                $executedStatements[] = $fallbackStatement;
-                                if ($debugMode) {
-                                    $debugInfo[] = "✓ Executed (no InnoDB): " . substr($fallbackStatement, 0, 100) . "...";
-                                }
-                            } catch (PDOException $e2) {
-                                $failedStatements[] = [
-                                    'statement' => substr($statement, 0, 200),
-                                    'error' => $e2->getMessage()
-                                ];
-                                if ($debugMode) {
-                                    $debugInfo[] = "✗ Failed: " . $e2->getMessage();
-                                }
+                // Skip empty statements
+                if (empty($statement)) {
+                    continue;
+                }
+                
+                // Remove comment lines from the statement
+                $lines = explode("\n", $statement);
+                $cleanLines = [];
+                foreach ($lines as $line) {
+                    $trimmedLine = trim($line);
+                    if (!empty($trimmedLine) && !preg_match('/^--/', $trimmedLine)) {
+                        $cleanLines[] = $line;
+                    }
+                }
+                $cleanStatement = implode("\n", $cleanLines);
+                
+                // Skip if nothing left after removing comments
+                if (empty(trim($cleanStatement))) {
+                    continue;
+                }
+                
+                try {
+                    $pdo->exec($cleanStatement);
+                    $executedStatements[] = $cleanStatement;
+                    if ($debugMode) {
+                        $debugInfo[] = "✓ Executed: " . substr($cleanStatement, 0, 100) . "...";
+                    }
+                } catch (PDOException $e) {
+                    // Try fallback without ENGINE=InnoDB for compatibility
+                    if (stripos($cleanStatement, 'ENGINE=InnoDB') !== false) {
+                        $fallbackStatement = preg_replace('/ENGINE=InnoDB\s*/i', '', $cleanStatement);
+                        try {
+                            $pdo->exec($fallbackStatement);
+                            $executedStatements[] = $fallbackStatement;
+                            if ($debugMode) {
+                                $debugInfo[] = "✓ Executed (no InnoDB): " . substr($fallbackStatement, 0, 100) . "...";
                             }
-                        } else {
+                        } catch (PDOException $e2) {
                             $failedStatements[] = [
-                                'statement' => substr($statement, 0, 200),
-                                'error' => $e->getMessage()
+                                'statement' => substr($cleanStatement, 0, 200),
+                                'error' => $e2->getMessage()
                             ];
                             if ($debugMode) {
-                                $debugInfo[] = "✗ Failed: " . $e->getMessage();
+                                $debugInfo[] = "✗ Failed: " . $e2->getMessage();
                             }
+                        }
+                    } else {
+                        $failedStatements[] = [
+                            'statement' => substr($cleanStatement, 0, 200),
+                            'error' => $e->getMessage()
+                        ];
+                        if ($debugMode) {
+                            $debugInfo[] = "✗ Failed: " . $e->getMessage();
                         }
                     }
                 }
