@@ -35,18 +35,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
     $dbPass = $_POST['db_pass'] ?? '';
     $dbPrefix = $_POST['db_prefix'] ?? '';
     
+    // Validate database name (alphanumeric and underscore only)
+    if (!preg_match('/^[a-zA-Z0-9_]+$/', $dbName)) {
+        $error = "Il nome del database può contenere solo lettere, numeri e underscore";
+    }
     // Validate and sanitize prefix (only alphanumeric and underscore)
-    if (!empty($dbPrefix) && !preg_match('/^[a-zA-Z0-9_]+$/', $dbPrefix)) {
+    elseif (!empty($dbPrefix) && !preg_match('/^[a-zA-Z0-9_]+$/', $dbPrefix)) {
         $error = "Il prefisso può contenere solo lettere, numeri e underscore";
     } else {
         try {
             // Test connection
-            $dsn = "mysql:host=$dbHost;charset=utf8mb4";
+            $dsn = "mysql:host=" . $dbHost . ";charset=utf8mb4";
             $pdo = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
             
-            // Create database if not exists
-            $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-            $pdo->exec("USE `$dbName`");
+            // Create database if not exists (using backticks for safety)
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS `" . $dbName . "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $pdo->exec("USE `" . $dbName . "`");
             
             // Read schema and apply prefix
             $schema = file_get_contents(__DIR__ . '/../schema.sql');

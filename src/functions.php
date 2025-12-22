@@ -203,10 +203,18 @@ function parseCsvFile($filePath, $delimiter = ',', $hasHeader = true) {
     if (($handle = fopen($filePath, 'r')) !== false) {
         if ($hasHeader) {
             $headers = fgetcsv($handle, 0, $delimiter);
+            if ($headers === false) {
+                fclose($handle);
+                return false;
+            }
         }
         
         while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             if ($hasHeader && !empty($headers)) {
+                // Skip rows that don't match header count
+                if (count($row) !== count($headers)) {
+                    continue;
+                }
                 $data[] = array_combine($headers, $row);
             } else {
                 $data[] = $row;
