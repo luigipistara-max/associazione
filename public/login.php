@@ -1,9 +1,19 @@
 <?php
+/**
+ * AssoLife Login Page
+ * Modern design with gradient and branding
+ */
+
 require_once __DIR__ . '/../src/auth.php';
+
+// Load config for site name
+$config = require __DIR__ . '/../src/config.php';
+$siteName = $config['app']['name'] ?? 'Associazione';
 
 // Redirect if already logged in
 if (isLoggedIn()) {
-    header('Location: /index.php');
+    $basePath = $config['app']['base_path'] ?? '/';
+    header('Location: ' . $basePath . 'index.php');
     exit;
 }
 
@@ -16,7 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (verifyCsrfToken($token)) {
         if (loginUser($username, $password)) {
-            header('Location: /index.php');
+            $basePath = $config['app']['base_path'] ?? '/';
+            header('Location: ' . $basePath . 'index.php');
             exit;
         } else {
             $error = 'Username o password non validi';
@@ -33,60 +44,104 @@ $csrfToken = generateCsrfToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Gestione Associazione</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Login - <?php echo htmlspecialchars($siteName); ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             display: flex;
             align-items: center;
-            padding-top: 40px;
-            padding-bottom: 40px;
-            background-color: #f5f5f5;
-            min-height: 100vh;
+            justify-content: center;
+            padding: 20px;
         }
-        .form-signin {
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            max-width: 420px;
             width: 100%;
-            max-width: 400px;
-            padding: 15px;
-            margin: auto;
+        }
+        .login-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        .login-header i {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+        .login-body {
+            padding: 40px 30px;
+        }
+        .form-floating > .form-control {
+            border-radius: 10px;
+        }
+        .btn-login {
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .btn-login:hover {
+            background: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .login-footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
-    <main class="form-signin">
-        <form method="POST">
-            <div class="text-center mb-4">
-                <i class="bi bi-people-fill text-primary" style="font-size: 4rem;"></i>
-                <h1 class="h3 mb-3 fw-normal">Gestione Associazione</h1>
-            </div>
-
+    <div class="login-card">
+        <div class="login-header">
+            <i class="bi bi-people-fill"></i>
+            <h2 class="mb-0"><?php echo htmlspecialchars($siteName); ?></h2>
+            <p class="mb-0 mt-2">Sistema di Gestione Associativa</p>
+        </div>
+        
+        <div class="login-body">
             <?php if ($error): ?>
-                <div class="alert alert-danger" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
                     <i class="bi bi-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
 
-            <div class="form-floating mb-3">
-                <input type="text" class="form-control" id="username" name="username" placeholder="Username" required autofocus>
-                <label for="username">Username</label>
-            </div>
+            <form method="POST">
+                <div class="form-floating mb-3">
+                    <input type="text" class="form-control" id="username" name="username" placeholder="Username" required autofocus>
+                    <label for="username"><i class="bi bi-person"></i> Username</label>
+                </div>
 
-            <div class="form-floating mb-3">
-                <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
-                <label for="password">Password</label>
-            </div>
+                <div class="form-floating mb-4">
+                    <input type="password" class="form-control" id="password" name="password" placeholder="Password" required>
+                    <label for="password"><i class="bi bi-lock"></i> Password</label>
+                </div>
 
-            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
-            <button class="w-100 btn btn-lg btn-primary" type="submit">
-                <i class="bi bi-box-arrow-in-right"></i> Accedi
-            </button>
+                <button class="w-100 btn btn-primary btn-login" type="submit">
+                    <i class="bi bi-box-arrow-in-right"></i> Accedi
+                </button>
+            </form>
+        </div>
+        
+        <div class="login-footer">
+            © <?php echo date('Y'); ?> <?php echo htmlspecialchars($siteName); ?><br>
+            Powered with <strong>AssoLife</strong> by Luigi Pistarà
+        </div>
+    </div>
 
-            <p class="mt-5 mb-3 text-muted text-center">&copy; 2024 Gestione Associazione</p>
-        </form>
-    </main>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

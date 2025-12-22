@@ -1,5 +1,6 @@
 # Configuration files (created during installation)
 src/config_local.php
+src/config.generated.php
 
 # IDE and editor files
 .vscode/
