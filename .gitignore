@@ -1,0 +1,24 @@
+# Configuration files (created during installation)
+src/config_local.php
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Logs
+*.log
+
+# Upload directories (if any)
+uploads/
