@@ -24,13 +24,21 @@ $activeMembers = $memberStats['attivo'] ?? 0;
 $currentYear = getCurrentSocialYear();
 
 // Get financial summary for current year
-$yearFilter = $currentYear ? "WHERE social_year_id = " . $currentYear['id'] : "";
-
-$stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM " . table('income') . " $yearFilter");
-$totalIncome = $stmt->fetch()['total'];
-
-$stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM " . table('expenses') . " $yearFilter");
-$totalExpense = $stmt->fetch()['total'];
+if ($currentYear) {
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) as total FROM " . table('income') . " WHERE social_year_id = ?");
+    $stmt->execute([$currentYear['id']]);
+    $totalIncome = $stmt->fetch()['total'];
+    
+    $stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) as total FROM " . table('expenses') . " WHERE social_year_id = ?");
+    $stmt->execute([$currentYear['id']]);
+    $totalExpense = $stmt->fetch()['total'];
+} else {
+    $stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM " . table('income'));
+    $totalIncome = $stmt->fetch()['total'];
+    
+    $stmt = $pdo->query("SELECT COALESCE(SUM(amount), 0) as total FROM " . table('expenses'));
+    $totalExpense = $stmt->fetch()['total'];
+}
 
 $balance = $totalIncome - $totalExpense;
 

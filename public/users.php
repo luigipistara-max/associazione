@@ -82,8 +82,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             if (empty($errors)) {
                 $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
                 $stmt = $pdo->prepare("INSERT INTO " . table('users') . " (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
-                $fullName = trim($_POST['full_name'] ?? '');
-                $email = trim($_POST['email'] ?? '');
                 $stmt->execute([$username, $hashedPassword, $fullName, $email, $role]);
                 setFlashMessage('Utente creato con successo');
                 redirect('/users.php');

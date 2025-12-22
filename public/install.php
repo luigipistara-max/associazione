@@ -35,46 +35,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
     $dbPass = $_POST['db_pass'] ?? '';
     $dbPrefix = $_POST['db_prefix'] ?? '';
     
-    try {
-        // Test connection
-        $dsn = "mysql:host=$dbHost;charset=utf8mb4";
-        $pdo = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-        
-        // Create database if not exists
-        $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-        $pdo->exec("USE `$dbName`");
-        
-        // Read schema and apply prefix
-        $schema = file_get_contents(__DIR__ . '/../schema.sql');
-        
-        // Apply prefix to table names in CREATE TABLE statements
-        $schema = preg_replace('/CREATE TABLE IF NOT EXISTS (\w+)/i', 'CREATE TABLE IF NOT EXISTS ' . $dbPrefix . '$1', $schema);
-        
-        // Apply prefix to INSERT INTO statements
-        $schema = preg_replace('/INSERT INTO (\w+)/i', 'INSERT INTO ' . $dbPrefix . '$1', $schema);
-        
-        // Execute schema
-        $statements = array_filter(array_map('trim', explode(';', $schema)));
-        foreach ($statements as $statement) {
-            if (!empty($statement) && !preg_match('/^--/', $statement)) {
-                $pdo->exec($statement);
+    // Validate and sanitize prefix (only alphanumeric and underscore)
+    if (!empty($dbPrefix) && !preg_match('/^[a-zA-Z0-9_]+$/', $dbPrefix)) {
+        $error = "Il prefisso può contenere solo lettere, numeri e underscore";
+    } else {
+        try {
+            // Test connection
+            $dsn = "mysql:host=$dbHost;charset=utf8mb4";
+            $pdo = new PDO($dsn, $dbUser, $dbPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+            
+            // Create database if not exists
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $pdo->exec("USE `$dbName`");
+            
+            // Read schema and apply prefix
+            $schema = file_get_contents(__DIR__ . '/../schema.sql');
+            
+            // Apply prefix to table names in CREATE TABLE statements
+            if (!empty($dbPrefix)) {
+                $schema = preg_replace('/CREATE TABLE IF NOT EXISTS (\w+)/i', 'CREATE TABLE IF NOT EXISTS ' . $dbPrefix . '$1', $schema);
+                
+                // Apply prefix to INSERT INTO statements
+                $schema = preg_replace('/INSERT INTO (\w+)/i', 'INSERT INTO ' . $dbPrefix . '$1', $schema);
             }
+            
+            // Execute schema
+            $statements = array_filter(array_map('trim', explode(';', $schema)));
+            foreach ($statements as $statement) {
+                if (!empty($statement) && !preg_match('/^--/', $statement)) {
+                    $pdo->exec($statement);
+                }
+            }
+            
+            // Store database credentials in session
+            $_SESSION['install_db'] = [
+                'host' => $dbHost,
+                'name' => $dbName,
+                'user' => $dbUser,
+                'pass' => $dbPass,
+                'prefix' => $dbPrefix
+            ];
+            
+            header('Location: install.php?step=2');
+            exit;
+            
+        } catch (PDOException $e) {
+            $error = "Errore database: " . $e->getMessage();
         }
-        
-        // Store database credentials in session
-        $_SESSION['install_db'] = [
-            'host' => $dbHost,
-            'name' => $dbName,
-            'user' => $dbUser,
-            'pass' => $dbPass,
-            'prefix' => $dbPrefix
-        ];
-        
-        header('Location: install.php?step=2');
-        exit;
-        
-    } catch (PDOException $e) {
-        $error = "Errore database: " . $e->getMessage();
     }
 }
 
