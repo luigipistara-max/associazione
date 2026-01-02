@@ -27,4 +27,14 @@ return [
         'session_name' => 'assolife_session',
         'timezone'     => 'Europe/Rome',
     ],
+    'email' => [
+        'enabled'     => false,
+        'smtp_host'   => 'smtp.example.com',
+        'smtp_port'   => 587,
+        'smtp_user'   => '',
+        'smtp_pass'   => '',
+        'smtp_secure' => 'tls', // tls o ssl
+        'from_email'  => 'noreply@associazione.it',
+        'from_name'   => 'AssoLife',
+    ],
 ];

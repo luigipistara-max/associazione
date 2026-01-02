@@ -556,3 +556,164 @@ function getTotalCollectedFees($socialYearId = null) {
     $result = $stmt->fetch();
     return $result['total'];
 }
+
+/**
+ * Verifica se socio ha già quota per anno
+ */
+function memberHasFeeForYear($memberId, $socialYearId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count
+        FROM " . table('member_fees') . "
+        WHERE member_id = ? AND social_year_id = ?
+    ");
+    $stmt->execute([$memberId, $socialYearId]);
+    $result = $stmt->fetch();
+    
+    return $result['count'] > 0;
+}
+
+/**
+ * Ottieni soci senza quota per anno
+ */
+function getMembersWithoutFee($socialYearId, $status = 'attivo') {
+    global $pdo;
+    
+    $sql = "
+        SELECT m.*
+        FROM " . table('members') . " m
+        WHERE m.status = ?
+        AND NOT EXISTS (
+            SELECT 1 FROM " . table('member_fees') . " mf
+            WHERE mf.member_id = m.id AND mf.social_year_id = ?
+        )
+        ORDER BY m.last_name, m.first_name
+    ";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$status, $socialYearId]);
+    
+    return $stmt->fetchAll();
+}
+
+/**
+ * Copia importo quota da anno precedente
+ */
+function getPreviousFeeAmount($memberId, $currentYearId) {
+    global $pdo;
+    
+    // Trova anno precedente
+    $stmt = $pdo->prepare("
+        SELECT id, start_date 
+        FROM " . table('social_years') . " 
+        WHERE id = ?
+    ");
+    $stmt->execute([$currentYearId]);
+    $currentYear = $stmt->fetch();
+    
+    if (!$currentYear) {
+        return null;
+    }
+    
+    // Trova l'anno sociale precedente
+    $stmt = $pdo->prepare("
+        SELECT id 
+        FROM " . table('social_years') . " 
+        WHERE start_date < ?
+        ORDER BY start_date DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$currentYear['start_date']]);
+    $previousYear = $stmt->fetch();
+    
+    if (!$previousYear) {
+        return null;
+    }
+    
+    // Trova importo quota dell'anno precedente
+    $stmt = $pdo->prepare("
+        SELECT amount 
+        FROM " . table('member_fees') . "
+        WHERE member_id = ? AND social_year_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$memberId, $previousYear['id']]);
+    $previousFee = $stmt->fetch();
+    
+    return $previousFee ? $previousFee['amount'] : null;
+}
+
+/**
+ * Genera quote massivamente
+ * 
+ * @param array $memberIds Array di ID soci
+ * @param int $socialYearId ID anno sociale
+ * @param float $amount Importo quota
+ * @param string $dueDate Data scadenza
+ * @param string $feeType Tipo quota
+ * @param bool $sendEmail Invia email notifica
+ * @return array Statistiche creazione
+ */
+function bulkCreateFees($memberIds, $socialYearId, $amount, $dueDate, $feeType = 'quota_associativa', $sendEmail = false) {
+    global $pdo;
+    
+    $stats = [
+        'created' => 0,
+        'skipped' => 0,
+        'emails_sent' => 0,
+        'errors' => []
+    ];
+    
+    foreach ($memberIds as $memberId) {
+        // Verifica se ha già una quota per questo anno
+        if (memberHasFeeForYear($memberId, $socialYearId)) {
+            $stats['skipped']++;
+            continue;
+        }
+        
+        try {
+            // Crea quota
+            $stmt = $pdo->prepare("
+                INSERT INTO " . table('member_fees') . "
+                (member_id, social_year_id, fee_type, amount, due_date, status)
+                VALUES (?, ?, ?, ?, ?, 'pending')
+            ");
+            $stmt->execute([$memberId, $socialYearId, $feeType, $amount, $dueDate]);
+            $stats['created']++;
+            
+            // Invia email se richiesto
+            if ($sendEmail) {
+                // Recupera dati socio e anno
+                $memberStmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
+                $memberStmt->execute([$memberId]);
+                $member = $memberStmt->fetch();
+                
+                $yearStmt = $pdo->prepare("SELECT * FROM " . table('social_years') . " WHERE id = ?");
+                $yearStmt->execute([$socialYearId]);
+                $year = $yearStmt->fetch();
+                
+                if ($member && $member['email'] && $year) {
+                    require_once __DIR__ . '/email.php';
+                    
+                    $variables = [
+                        'nome' => $member['first_name'],
+                        'cognome' => $member['last_name'],
+                        'anno' => $year['name'],
+                        'importo' => formatCurrency($amount),
+                        'scadenza' => formatDate($dueDate)
+                    ];
+                    
+                    if (sendEmailFromTemplate($member['email'], 'new_fee_notification', $variables)) {
+                        $stats['emails_sent']++;
+                    }
+                }
+            }
+        } catch (PDOException $e) {
+            $stats['errors'][] = "Errore creazione quota per socio ID $memberId: " . $e->getMessage();
+        }
+    }
+    
+    return $stats;
+}
