@@ -22,7 +22,7 @@ return [
     'app' => [
         'name'         => 'Associazione',
         'version'      => '1.0.0',
-        'base_path'    => '/public/',
+        'base_path'    => '/gest/public/',
         'force_https'  => false,
         'session_name' => 'assolife_session',
         'timezone'     => 'Europe/Rome',
