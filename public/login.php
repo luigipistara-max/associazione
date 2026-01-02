@@ -160,6 +160,12 @@ $csrfToken = generateCsrfToken();
                     <label for="password"><i class="bi bi-lock"></i> Password</label>
                 </div>
 
+                <div class="mb-3 text-end">
+                    <a href="<?php echo htmlspecialchars($config['app']['base_path']); ?>forgot_password.php" class="text-muted">
+                        <small><i class="bi bi-question-circle"></i> Password dimenticata?</small>
+                    </a>
+                </div>
+
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
                 <button class="w-100 btn btn-primary btn-login" type="submit">
