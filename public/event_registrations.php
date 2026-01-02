@@ -245,11 +245,11 @@ include __DIR__ . '/inc/header.php';
                         <td><?php echo h($reg['email']); ?></td>
                         <td><?php echo date('d/m/Y H:i', strtotime($reg['registered_at'])); ?></td>
                         <td>
-                            <form method="POST" class="d-inline">
+                            <form method="POST" class="d-inline" id="attendance-form-<?php echo $reg['id']; ?>">
                                 <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
                                 <input type="hidden" name="registration_id" value="<?php echo $reg['id']; ?>">
-                                <select name="attendance_status" class="form-select form-select-sm" 
-                                        onchange="this.form.submit()"
+                                <select name="attendance_status" class="form-select form-select-sm status-select" 
+                                        aria-label="Stato presenza per <?php echo h($reg['first_name'] . ' ' . $reg['last_name']); ?>"
                                         style="width: auto; display: inline-block;">
                                     <option value="registered" <?php echo $reg['attendance_status'] == 'registered' ? 'selected' : ''; ?>>Registrato</option>
                                     <option value="confirmed" <?php echo $reg['attendance_status'] == 'confirmed' ? 'selected' : ''; ?>>Confermato</option>
@@ -258,21 +258,27 @@ include __DIR__ . '/inc/header.php';
                                     <option value="waitlist" <?php echo $reg['attendance_status'] == 'waitlist' ? 'selected' : ''; ?>>Lista d'attesa</option>
                                 </select>
                                 <input type="hidden" name="update_attendance" value="1">
+                                <button type="submit" class="btn btn-sm btn-primary ms-1">
+                                    <i class="bi bi-check"></i>
+                                </button>
                             </form>
                         </td>
                         <?php if ($event['cost'] > 0): ?>
                         <td>
-                            <form method="POST" class="d-inline">
+                            <form method="POST" class="d-inline" id="payment-form-<?php echo $reg['id']; ?>">
                                 <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
                                 <input type="hidden" name="registration_id" value="<?php echo $reg['id']; ?>">
-                                <select name="payment_status" class="form-select form-select-sm"
-                                        onchange="this.form.submit()"
+                                <select name="payment_status" class="form-select form-select-sm status-select"
+                                        aria-label="Stato pagamento per <?php echo h($reg['first_name'] . ' ' . $reg['last_name']); ?>"
                                         style="width: auto; display: inline-block;">
                                     <option value="pending" <?php echo $reg['payment_status'] == 'pending' ? 'selected' : ''; ?>>In attesa</option>
                                     <option value="paid" <?php echo $reg['payment_status'] == 'paid' ? 'selected' : ''; ?>>Pagato</option>
                                     <option value="refunded" <?php echo $reg['payment_status'] == 'refunded' ? 'selected' : ''; ?>>Rimborsato</option>
                                 </select>
                                 <input type="hidden" name="update_payment" value="1">
+                                <button type="submit" class="btn btn-sm btn-primary ms-1">
+                                    <i class="bi bi-check"></i>
+                                </button>
                             </form>
                         </td>
                         <?php endif; ?>

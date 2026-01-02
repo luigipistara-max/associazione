@@ -337,7 +337,9 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     UNIQUE KEY unique_registration (event_id, member_id),
     INDEX idx_event (event_id),
     INDEX idx_member (member_id),
-    INDEX idx_attendance (attendance_status)
+    INDEX idx_attendance (attendance_status),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Mass email batches table
@@ -357,5 +359,6 @@ CREATE TABLE IF NOT EXISTS mass_email_batches (
     
     INDEX idx_status (status),
     INDEX idx_created_by (created_by),
-    INDEX idx_created_at (created_at)
+    INDEX idx_created_at (created_at),
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

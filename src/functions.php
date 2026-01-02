@@ -1155,14 +1155,23 @@ function unregisterFromEvent($eventId, $memberId) {
     global $pdo;
     require_once __DIR__ . '/audit.php';
     
+    // Get registration ID before deletion
+    $stmt = $pdo->prepare("
+        SELECT id FROM " . table('event_registrations') . " 
+        WHERE event_id = ? AND member_id = ?
+    ");
+    $stmt->execute([$eventId, $memberId]);
+    $registration = $stmt->fetch();
+    $registrationId = $registration ? $registration['id'] : null;
+    
     $stmt = $pdo->prepare("
         DELETE FROM " . table('event_registrations') . " 
         WHERE event_id = ? AND member_id = ?
     ");
     $result = $stmt->execute([$eventId, $memberId]);
     
-    if ($result) {
-        logDelete('event_registration', 0, "Event {$eventId} - Member {$memberId}", [
+    if ($result && $registrationId) {
+        logDelete('event_registration', $registrationId, "Event {$eventId} - Member {$memberId}", [
             'event_id' => $eventId,
             'member_id' => $memberId
         ]);
@@ -1470,9 +1479,16 @@ function getMassEmailRecipients($filter, $params = []) {
         case 'manual':
             // Specific member IDs
             if (!empty($params['member_ids']) && is_array($params['member_ids'])) {
+                if (count($params['member_ids']) === 0) {
+                    // Return empty result for empty array
+                    return [];
+                }
                 $placeholders = str_repeat('?,', count($params['member_ids']) - 1) . '?';
                 $sql .= " AND m.id IN ($placeholders)";
                 $queryParams = array_merge($queryParams, $params['member_ids']);
+            } else {
+                // No valid member IDs provided, return empty result
+                return [];
             }
             break;
     }
