@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/db.php';
+require_once __DIR__ . '/../src/audit.php';
 
 requireLogin();
 
@@ -24,8 +25,23 @@ $feeId = $_GET['id'] ?? null;
 // Delete fee
 if ($action === 'delete' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') {
     checkCsrf();
+    
+    // Get fee data for audit log
+    $stmt = $pdo->prepare("SELECT * FROM " . table('member_fees') . " WHERE id = ?");
+    $stmt->execute([$feeId]);
+    $oldFee = $stmt->fetch();
+    
     $stmt = $pdo->prepare("DELETE FROM " . table('member_fees') . " WHERE id = ?");
     $stmt->execute([$feeId]);
+    
+    if ($oldFee) {
+        logDelete('fee', $feeId, "Quota ID {$feeId}", [
+            'member_id' => $oldFee['member_id'],
+            'amount' => $oldFee['amount'],
+            'status' => $oldFee['status']
+        ]);
+    }
+    
     setFlashMessage('Quota eliminata con successo');
     redirect($basePath . 'member_fees.php');
 }
@@ -33,12 +49,26 @@ if ($action === 'delete' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // Mark as paid
 if ($action === 'mark_paid' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') {
     checkCsrf();
+    
+    // Get old data for audit
+    $stmt = $pdo->prepare("SELECT * FROM " . table('member_fees') . " WHERE id = ?");
+    $stmt->execute([$feeId]);
+    $oldFee = $stmt->fetch();
+    
     $stmt = $pdo->prepare("
         UPDATE " . table('member_fees') . " 
         SET status = 'paid', paid_date = CURDATE() 
         WHERE id = ?
     ");
     $stmt->execute([$feeId]);
+    
+    if ($oldFee) {
+        logUpdate('fee', $feeId, "Quota ID {$feeId}", 
+            ['status' => $oldFee['status'], 'paid_date' => $oldFee['paid_date']],
+            ['status' => 'paid', 'paid_date' => date('Y-m-d')]
+        );
+    }
+    
     setFlashMessage('Quota registrata come pagata');
     redirect($basePath . 'member_fees.php');
 }
@@ -59,6 +89,11 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
     $notes = $_POST['notes'] ?? '';
     
     if ($action === 'edit' && $feeId) {
+        // Get old data for audit
+        $stmt = $pdo->prepare("SELECT * FROM " . table('member_fees') . " WHERE id = ?");
+        $stmt->execute([$feeId]);
+        $oldFee = $stmt->fetch();
+        
         $stmt = $pdo->prepare("
             UPDATE " . table('member_fees') . " 
             SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
@@ -71,6 +106,14 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
             $dueDate, $paidDate ?: null, $paymentMethod ?: null, $receiptNumber ?: null, 
             $status, $notes ?: null, $feeId
         ]);
+        
+        if ($oldFee) {
+            logUpdate('fee', $feeId, "Quota ID {$feeId}",
+                ['amount' => $oldFee['amount'], 'status' => $oldFee['status']],
+                ['amount' => $amount, 'status' => $status]
+            );
+        }
+        
         setFlashMessage('Quota aggiornata con successo');
     } else {
         $stmt = $pdo->prepare("
@@ -83,6 +126,14 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
             $dueDate, $paidDate ?: null, $paymentMethod ?: null, $receiptNumber ?: null, 
             $status, $notes ?: null
         ]);
+        
+        $newFeeId = $pdo->lastInsertId();
+        logCreate('fee', $newFeeId, "Quota ID {$newFeeId}", [
+            'member_id' => $memberId,
+            'amount' => $amount,
+            'status' => $status
+        ]);
+        
         setFlashMessage('Quota aggiunta con successo');
     }
     
@@ -205,6 +256,7 @@ include __DIR__ . '/inc/header.php';
                             <th>Scadenza</th>
                             <th>Pagamento</th>
                             <th>Stato</th>
+                            <th>Ricevuta</th>
                             <th>Azioni</th>
                         </tr>
                     </thead>
@@ -245,8 +297,24 @@ include __DIR__ . '/inc/header.php';
                                 </span>
                             </td>
                             <td>
+                                <?php if ($f['status'] === 'paid'): ?>
+                                    <?php if ($f['receipt_number']): ?>
+                                        <small class="text-muted"><?php echo h($f['receipt_number']); ?></small>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
                                 <div class="btn-group btn-group-sm">
-                                    <?php if ($f['status'] !== 'paid'): ?>
+                                    <?php if ($f['status'] === 'paid'): ?>
+                                    <a href="<?php echo h($config['app']['base_path']); ?>receipt.php?fee_id=<?php echo $f['id']; ?>&format=html" 
+                                       class="btn btn-info" title="Stampa Ricevuta" target="_blank">
+                                        <i class="bi bi-printer"></i>
+                                    </a>
+                                    <?php else: ?>
                                     <form method="POST" action="?action=mark_paid&id=<?php echo $f['id']; ?>" class="d-inline">
                                         <?php echo csrfField(); ?>
                                         <button type="submit" class="btn btn-success" title="Segna come pagato">

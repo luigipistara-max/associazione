@@ -49,6 +49,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SESSION['login_lockout_until'] <=
             $_SESSION['login_attempts'] = 0;
             $_SESSION['login_lockout_until'] = 0;
             
+            // Log successful login
+            require_once __DIR__ . '/../src/audit.php';
+            logLogin($_SESSION['user_id'], $_SESSION['username']);
+            
             $basePath = $config['app']['base_path'] ?? '/';
             header('Location: ' . $basePath . 'index.php');
             exit;
