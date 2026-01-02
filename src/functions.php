@@ -182,6 +182,14 @@ function displayFlash() {
 }
 
 /**
+ * Escape LIKE special characters
+ * Prevents % and _ from being interpreted as wildcards
+ */
+function escapeLike($string) {
+    return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $string);
+}
+
+/**
  * Redirect to a page
  */
 function redirect($url) {
