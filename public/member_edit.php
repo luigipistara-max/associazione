@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/db.php';
+require_once __DIR__ . '/../src/audit.php';
 
 requireLogin();
 
@@ -92,6 +93,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             try {
                 if ($memberId) {
+                    // Get old data for audit
+                    $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
+                    $stmt->execute([$memberId]);
+                    $oldMember = $stmt->fetch();
+                    
                     // Update
                     $stmt = $pdo->prepare("
                         UPDATE " . table('members') . " SET
@@ -118,6 +124,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $data['notes'] ?: null,
                         $memberId
                     ]);
+                    
+                    if ($oldMember) {
+                        logUpdate('member', $memberId, "{$data['first_name']} {$data['last_name']}",
+                            ['status' => $oldMember['status'], 'email' => $oldMember['email']],
+                            ['status' => $data['status'], 'email' => $data['email']]
+                        );
+                    }
+                    
                     setFlashMessage('Socio aggiornato con successo');
                 } else {
                     // Insert
@@ -145,6 +159,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $data['status'],
                         $data['notes'] ?: null
                     ]);
+                    
+                    $newMemberId = $pdo->lastInsertId();
+                    logCreate('member', $newMemberId, "{$data['first_name']} {$data['last_name']}", [
+                        'fiscal_code' => $data['fiscal_code'],
+                        'status' => $data['status']
+                    ]);
+                    
                     setFlashMessage('Socio aggiunto con successo');
                 }
                 redirect('/members.php');

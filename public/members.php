@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/db.php';
+require_once __DIR__ . '/../src/audit.php';
 
 requireLogin();
 
@@ -18,8 +19,21 @@ if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (verifyCsrfToken($token)) {
         try {
+            // Get member data for audit
+            $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
+            $stmt->execute([$id]);
+            $oldMember = $stmt->fetch();
+            
             $stmt = $pdo->prepare("DELETE FROM " . table('members') . " WHERE id = ?");
             $stmt->execute([$id]);
+            
+            if ($oldMember) {
+                logDelete('member', $id, "{$oldMember['first_name']} {$oldMember['last_name']}", [
+                    'fiscal_code' => $oldMember['fiscal_code'],
+                    'status' => $oldMember['status']
+                ]);
+            }
+            
             setFlashMessage('Socio eliminato con successo');
         } catch (PDOException $e) {
             setFlashMessage('Errore nell\'eliminazione del socio: ' . $e->getMessage(), 'danger');

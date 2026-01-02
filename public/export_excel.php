@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/db.php';
+require_once __DIR__ . '/../src/audit.php';
 
 requireLogin();
 
@@ -21,6 +22,9 @@ if ($yearId) {
         $yearName = $year['name'];
     }
 }
+
+// Log export
+logExport('movements', "Export Excel movimenti ({$yearName})");
 
 // Get all movements
 $stmt = $pdo->query("
