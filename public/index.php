@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/db.php';
+require_once __DIR__ . '/../src/email.php';
 
 requireLogin();
 
@@ -78,6 +79,9 @@ if ($currentYear) {
         $morosiList = array_slice($morosiList, 0, 5);
     }
 }
+
+// Get email queue count
+$queuedEmails = getQueuedEmailsCount();
 
 // Get recent members
 $stmt = $pdo->query("
@@ -238,6 +242,37 @@ include __DIR__ . '/inc/header.php';
     <i class="bi bi-exclamation-triangle"></i> 
     Nessun anno sociale corrente impostato. 
     <a href="<?php echo $basePath; ?>years.php" class="alert-link">Imposta un anno sociale</a>
+</div>
+<?php endif; ?>
+
+<!-- Quick Actions (Admin Only) -->
+<?php if (isAdmin()): ?>
+<div class="row mt-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-lightning"></i> Azioni Rapide</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="<?php echo $basePath; ?>bulk_fees.php" class="btn btn-primary">
+                        <i class="bi bi-arrow-repeat"></i> Rinnovo Massivo Quote
+                    </a>
+                    <a href="<?php echo $basePath; ?>send_reminders.php" class="btn btn-warning">
+                        <i class="bi bi-envelope-exclamation"></i> Invia Solleciti
+                    </a>
+                    <a href="<?php echo $basePath; ?>admin_email_templates.php" class="btn btn-info">
+                        <i class="bi bi-envelope-paper"></i> Template Email
+                    </a>
+                    <?php if ($queuedEmails > 0): ?>
+                        <span class="badge bg-danger rounded-pill ms-2" style="padding: 8px 12px;">
+                            <?php echo $queuedEmails; ?> email in coda
+                        </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 <?php endif; ?>
 
