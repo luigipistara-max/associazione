@@ -201,17 +201,18 @@ if ($action === 'list') {
     
     $params = [];
     
-    if ($typeFilter === 'income') {
-        // Only income, add filters
-    } elseif ($typeFilter === 'expense') {
-        // Will be filtered in UNION
-    }
-    
+    // Add filters for income
     if ($yearFilter && $typeFilter !== 'expense') {
         $sql .= " AND i.social_year_id = ?";
         $params[] = $yearFilter;
     }
     
+    if ($categoryFilter && $typeFilter !== 'expense') {
+        $sql .= " AND i.category_id = ?";
+        $params[] = $categoryFilter;
+    }
+    
+    // Add UNION if showing both or only expenses
     if ($typeFilter !== 'expense') {
         $sql .= " UNION ALL ";
     }
@@ -243,6 +244,11 @@ if ($action === 'list') {
         if ($yearFilter) {
             $sql .= " AND e.social_year_id = ?";
             $params[] = $yearFilter;
+        }
+        
+        if ($categoryFilter) {
+            $sql .= " AND e.category_id = ?";
+            $params[] = $categoryFilter;
         }
     }
     
@@ -477,13 +483,14 @@ include __DIR__ . '/inc/header.php';
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Tipo <span class="text-danger">*</span></label>
-                        <select name="type" id="movementType" class="form-select" required onchange="updateCategories()" <?php echo $action === 'edit' ? 'disabled' : ''; ?>>
+                        <select name="type" id="movementType" class="form-select" required onchange="updateCategories()" <?php echo $action === 'edit' ? 'readonly disabled aria-readonly="true"' : ''; ?>>
                             <option value="">Seleziona...</option>
                             <option value="income" <?php echo ($movement['type'] ?? '') === 'income' ? 'selected' : ''; ?>>Entrata</option>
                             <option value="expense" <?php echo ($movement['type'] ?? '') === 'expense' ? 'selected' : ''; ?>>Uscita</option>
                         </select>
                         <?php if ($action === 'edit'): ?>
                             <input type="hidden" name="type" value="<?php echo e($movement['type']); ?>">
+                            <small class="text-muted">Il tipo di movimento non può essere modificato</small>
                         <?php endif; ?>
                     </div>
                     <div class="col-md-6 mb-3">
