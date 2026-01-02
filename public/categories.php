@@ -5,6 +5,7 @@ require_once __DIR__ . '/../src/db.php';
 
 requireAdmin();
 
+$basePath = $config['app']['base_path'];
 $pageTitle = 'Gestione Categorie';
 
 $errors = [];
@@ -20,7 +21,7 @@ if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ?");
         $stmt->execute([$id]);
         setFlashMessage('Categoria eliminata con successo');
-        redirect('/categories.php');
+        redirect($basePath . 'categories.php');
     }
 }
 
@@ -54,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $stmt->execute([$name, $sortOrder, $isActive]);
                     setFlashMessage('Categoria creata con successo');
                 }
-                redirect('/categories.php');
+                redirect($basePath . 'categories.php');
             } catch (PDOException $e) {
                 $errors[] = 'Errore: ' . $e->getMessage();
             }
@@ -276,7 +277,7 @@ function editCategory(type, category) {
 
 function confirmDelete(type, id, name) {
     document.getElementById('deleteCategoryName').textContent = name;
-    document.getElementById('deleteForm').action = '/categories.php?delete=' + id + '&type=' + type;
+    document.getElementById('deleteForm').action = '<?php echo $basePath; ?>categories.php?delete=' + id + '&type=' + type;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
 </script>

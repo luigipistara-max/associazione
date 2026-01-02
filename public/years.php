@@ -5,6 +5,7 @@ require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
+$basePath = $config['app']['base_path'];
 $pageTitle = 'Anni Sociali';
 
 $errors = [];
@@ -25,7 +26,7 @@ if ($canEdit && isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST')
         } catch (PDOException $e) {
             setFlashMessage('Errore: ' . $e->getMessage(), 'danger');
         }
-        redirect('/years.php');
+        redirect($basePath . 'years.php');
     }
 }
 
@@ -39,7 +40,7 @@ if ($canEdit && isset($_GET['set_current'])) {
         $stmt = $pdo->prepare("UPDATE " . table('social_years') . " SET is_current = 1 WHERE id = ?");
         $stmt->execute([$id]);
         setFlashMessage('Anno sociale corrente aggiornato');
-        redirect('/years.php');
+        redirect($basePath . 'years.php');
     }
 }
 
@@ -75,7 +76,7 @@ if ($canEdit && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])
                     $stmt->execute([$name, $startDate, $endDate, $isCurrent]);
                     setFlashMessage('Anno sociale creato con successo');
                 }
-                redirect('/years.php');
+                redirect($basePath . 'years.php');
             } catch (PDOException $e) {
                 $errors[] = 'Errore: ' . $e->getMessage();
             }
@@ -141,7 +142,7 @@ include __DIR__ . '/inc/header.php';
                             <td class="text-end">
                                 <?php if ($canEdit): ?>
                                     <?php if (!$year['is_current']): ?>
-                                    <a href="/years.php?set_current=<?php echo $year['id']; ?>&csrf_token=<?php echo urlencode(generateCsrfToken()); ?>" 
+                                    <a href="<?php echo h($basePath); ?>years.php?set_current=<?php echo $year['id']; ?>&csrf_token=<?php echo urlencode(generateCsrfToken()); ?>" 
                                        class="btn btn-sm btn-outline-success" title="Imposta come corrente">
                                         <i class="bi bi-check-circle"></i>
                                     </a>
@@ -256,7 +257,7 @@ function editYear(year) {
 
 function confirmDelete(id, name) {
     document.getElementById('deleteYearName').textContent = name;
-    document.getElementById('deleteForm').action = '/years.php?delete=' + id;
+    document.getElementById('deleteForm').action = '<?php echo $basePath; ?>years.php?delete=' + id;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
 </script>
