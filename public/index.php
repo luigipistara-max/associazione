@@ -45,6 +45,40 @@ if ($currentYear) {
 
 $balance = $totalIncome - $totalExpense;
 
+// Get fee statistics for current year
+$feesExpiringSoon = [];
+$morosiCount = 0;
+$totalPending = 0;
+$totalCollected = 0;
+$recentPaidFees = [];
+$morosiList = [];
+
+if ($currentYear) {
+    updateOverdueStatuses();
+    $feesExpiringSoon = getFeesExpiringSoon(30);
+    $morosiCount = countMorosi($currentYear['id']);
+    $totalPending = getTotalPendingFees($currentYear['id']);
+    $totalCollected = getTotalCollectedFees($currentYear['id']);
+    
+    // Get recent paid fees
+    $stmt = $pdo->prepare("
+        SELECT mf.*, m.first_name, m.last_name, m.membership_number
+        FROM " . table('member_fees') . " mf
+        JOIN " . table('members') . " m ON mf.member_id = m.id
+        WHERE mf.status = 'paid' AND mf.social_year_id = ?
+        ORDER BY mf.paid_date DESC
+        LIMIT 5
+    ");
+    $stmt->execute([$currentYear['id']]);
+    $recentPaidFees = $stmt->fetchAll();
+    
+    // Get morosi list
+    $morosiList = getMorosi($currentYear['id']);
+    if (count($morosiList) > 5) {
+        $morosiList = array_slice($morosiList, 0, 5);
+    }
+}
+
 // Get recent members
 $stmt = $pdo->query("
     SELECT * FROM " . table('members') . "
@@ -139,6 +173,59 @@ include __DIR__ . '/inc/header.php';
     </div>
 </div>
 
+<!-- Fee Statistics (if current year exists) -->
+<?php if ($currentYear): ?>
+<div class="row mt-3">
+    <div class="col-md-3 mb-3">
+        <div class="card border-warning">
+            <div class="card-body">
+                <h5 class="card-title text-warning">
+                    <i class="bi bi-exclamation-triangle"></i> In Scadenza
+                </h5>
+                <h2 class="mb-0"><?php echo count($feesExpiringSoon); ?></h2>
+                <small class="text-muted">prossimi 30 giorni</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">
+                    <i class="bi bi-person-x"></i> Soci Morosi
+                </h5>
+                <h2 class="mb-0"><?php echo $morosiCount; ?></h2>
+                <small class="text-muted">quote non pagate</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card border-info">
+            <div class="card-body">
+                <h5 class="card-title text-info">
+                    <i class="bi bi-hourglass-split"></i> Da Incassare
+                </h5>
+                <h2 class="mb-0"><?php echo formatAmount($totalPending); ?></h2>
+                <small class="text-muted">quote in sospeso</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="card border-success">
+            <div class="card-body">
+                <h5 class="card-title text-success">
+                    <i class="bi bi-cash-stack"></i> Incassato
+                </h5>
+                <h2 class="mb-0"><?php echo formatAmount($totalCollected); ?></h2>
+                <small class="text-muted"><?php echo e($currentYear['name']); ?></small>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Current Year Info -->
 <?php if ($currentYear): ?>
 <div class="alert alert-info">
@@ -156,6 +243,90 @@ include __DIR__ . '/inc/header.php';
 
 <!-- Recent Members and Movements -->
 <div class="row mt-4">
+    <?php if ($currentYear && !empty($morosiList)): ?>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-exclamation-circle text-danger"></i> Soci Morosi</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Socio</th>
+                                <th>Scadenza</th>
+                                <th>Importo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($morosiList as $moroso): ?>
+                            <tr>
+                                <td>
+                                    <a href="<?php echo $basePath; ?>member_edit.php?id=<?php echo $moroso['id']; ?>">
+                                        <?php echo h($moroso['first_name'] . ' ' . $moroso['last_name']); ?>
+                                    </a>
+                                </td>
+                                <td>
+                                    <span class="text-danger"><?php echo formatDate($moroso['due_date']); ?></span>
+                                </td>
+                                <td><?php echo formatAmount($moroso['amount']); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center mt-2">
+                    <a href="<?php echo $basePath; ?>member_fees.php?status=overdue" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-list"></i> Vedi Tutti i Morosi
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+    
+    <?php if ($currentYear && !empty($recentPaidFees)): ?>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-check-circle text-success"></i> Ultime Quote Pagate</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Socio</th>
+                                <th>Data</th>
+                                <th>Importo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recentPaidFees as $paidFee): ?>
+                            <tr>
+                                <td>
+                                    <a href="<?php echo $basePath; ?>member_edit.php?id=<?php echo $paidFee['member_id']; ?>">
+                                        <?php echo h($paidFee['first_name'] . ' ' . $paidFee['last_name']); ?>
+                                    </a>
+                                </td>
+                                <td><?php echo formatDate($paidFee['paid_date']); ?></td>
+                                <td class="text-success"><?php echo formatAmount($paidFee['amount']); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-center mt-2">
+                    <a href="<?php echo $basePath; ?>member_fees.php?status=paid" class="btn btn-sm btn-outline-success">
+                        <i class="bi bi-list"></i> Vedi Tutte le Quote Pagate
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+    
     <div class="col-md-6 mb-3">
         <div class="card">
             <div class="card-header">

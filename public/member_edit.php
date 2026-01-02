@@ -25,10 +25,10 @@ if ($memberId) {
 } else {
     $pageTitle = 'Nuovo Socio';
     $member = [
-        'card_number' => '',
+        'membership_number' => '',
         'first_name' => '',
         'last_name' => '',
-        'tax_code' => '',
+        'fiscal_code' => '',
         'birth_date' => '',
         'birth_place' => '',
         'email' => '',
@@ -51,10 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         // Get form data
         $data = [
-            'card_number' => trim($_POST['card_number'] ?? ''),
+            'membership_number' => trim($_POST['membership_number'] ?? ''),
             'first_name' => trim($_POST['first_name'] ?? ''),
             'last_name' => trim($_POST['last_name'] ?? ''),
-            'tax_code' => strtoupper(trim($_POST['tax_code'] ?? '')),
+            'fiscal_code' => strtoupper(trim($_POST['fiscal_code'] ?? '')),
             'birth_date' => $_POST['birth_date'] ?? null,
             'birth_place' => trim($_POST['birth_place'] ?? ''),
             'email' => trim($_POST['email'] ?? ''),
@@ -74,16 +74,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($data['last_name'])) {
             $errors[] = 'Il cognome è obbligatorio';
         }
-        if (empty($data['tax_code'])) {
+        if (empty($data['fiscal_code'])) {
             $errors[] = 'Il codice fiscale è obbligatorio';
-        } elseif (!validateTaxCode($data['tax_code'])) {
+        } elseif (!validateFiscalCode($data['fiscal_code'])) {
             $errors[] = 'Il codice fiscale non è valido';
         }
         
         // Check for duplicate tax code
-        if (!empty($data['tax_code'])) {
-            $stmt = $pdo->prepare("SELECT id FROM " . table('members') . " WHERE tax_code = ? AND id != ?");
-            $stmt->execute([$data['tax_code'], $memberId ?? 0]);
+        if (!empty($data['fiscal_code'])) {
+            $stmt = $pdo->prepare("SELECT id FROM " . table('members') . " WHERE fiscal_code = ? AND id != ?");
+            $stmt->execute([$data['fiscal_code'], $memberId ?? 0]);
             if ($stmt->fetch()) {
                 $errors[] = 'Codice fiscale già presente nel database';
             }
@@ -95,17 +95,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Update
                     $stmt = $pdo->prepare("
                         UPDATE " . table('members') . " SET
-                            card_number = ?, first_name = ?, last_name = ?, tax_code = ?,
+                            membership_number = ?, first_name = ?, last_name = ?, fiscal_code = ?,
                             birth_date = ?, birth_place = ?, email = ?, phone = ?,
                             address = ?, city = ?, postal_code = ?, registration_date = ?,
                             status = ?, notes = ?
                         WHERE id = ?
                     ");
                     $stmt->execute([
-                        $data['card_number'] ?: null,
+                        $data['membership_number'] ?: null,
                         $data['first_name'],
                         $data['last_name'],
-                        $data['tax_code'],
+                        $data['fiscal_code'],
                         $data['birth_date'] ?: null,
                         $data['birth_place'] ?: null,
                         $data['email'] ?: null,
@@ -123,17 +123,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Insert
                     $stmt = $pdo->prepare("
                         INSERT INTO " . table('members') . " (
-                            card_number, first_name, last_name, tax_code,
+                            membership_number, first_name, last_name, fiscal_code,
                             birth_date, birth_place, email, phone,
                             address, city, postal_code, registration_date,
                             status, notes
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
-                        $data['card_number'] ?: null,
+                        $data['membership_number'] ?: null,
                         $data['first_name'],
                         $data['last_name'],
-                        $data['tax_code'],
+                        $data['fiscal_code'],
                         $data['birth_date'] ?: null,
                         $data['birth_place'] ?: null,
                         $data['email'] ?: null,
@@ -193,7 +193,7 @@ include __DIR__ . '/inc/header.php';
             <div class="row">
                 <div class="col-md-3 mb-3">
                     <label class="form-label">Numero Tessera</label>
-                    <input type="text" name="card_number" class="form-control" value="<?php echo e($member['card_number']); ?>">
+                    <input type="text" name="membership_number" class="form-control" value="<?php echo e($member['membership_number']); ?>">
                 </div>
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Nome <span class="text-danger">*</span></label>
@@ -208,8 +208,8 @@ include __DIR__ . '/inc/header.php';
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Codice Fiscale <span class="text-danger">*</span></label>
-                    <input type="text" name="tax_code" class="form-control text-uppercase" 
-                           value="<?php echo e($member['tax_code']); ?>" 
+                    <input type="text" name="fiscal_code" class="form-control text-uppercase" 
+                           value="<?php echo e($member['fiscal_code']); ?>" 
                            maxlength="16" pattern="[A-Za-z0-9]{16}" required>
                     <small class="text-muted">16 caratteri alfanumerici</small>
                 </div>
@@ -284,6 +284,67 @@ include __DIR__ . '/inc/header.php';
             </div>
         </div>
     </div>
+    
+    <?php if ($memberId): ?>
+    <!-- Member Fees Section -->
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Quote Associative</h5>
+            <a href="<?php echo h($config['app']['base_path']); ?>member_fees.php?member=<?php echo $memberId; ?>" class="btn btn-sm btn-primary">
+                <i class="bi bi-credit-card"></i> Gestisci Quote
+            </a>
+        </div>
+        <div class="card-body">
+            <?php
+            $memberFees = getMemberFees($memberId);
+            if (empty($memberFees)):
+            ?>
+                <p class="text-muted text-center py-3">Nessuna quota registrata per questo socio.</p>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Anno Sociale</th>
+                                <th>Importo</th>
+                                <th>Scadenza</th>
+                                <th>Pagamento</th>
+                                <th>Stato</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($memberFees as $fee): ?>
+                            <tr>
+                                <td><?php echo h($fee['year_name'] ?? 'N/A'); ?></td>
+                                <td><?php echo formatAmount($fee['amount']); ?></td>
+                                <td><?php echo formatDate($fee['due_date']); ?></td>
+                                <td><?php echo $fee['paid_date'] ? formatDate($fee['paid_date']) : '-'; ?></td>
+                                <td>
+                                    <?php
+                                    $statusClass = [
+                                        'paid' => 'success',
+                                        'pending' => 'warning',
+                                        'overdue' => 'danger'
+                                    ];
+                                    $statusLabel = [
+                                        'paid' => 'Pagato',
+                                        'pending' => 'In Attesa',
+                                        'overdue' => 'Scaduto'
+                                    ];
+                                    ?>
+                                    <span class="badge bg-<?php echo $statusClass[$fee['status']] ?? 'secondary'; ?>">
+                                        <?php echo $statusLabel[$fee['status']] ?? $fee['status']; ?>
+                                    </span>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
     
     <div class="d-flex justify-content-between mb-4">
         <a href="/members.php" class="btn btn-secondary">
