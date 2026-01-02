@@ -548,7 +548,7 @@ include __DIR__ . '/inc/header.php';
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Tipo <span class="text-danger">*</span></label>
-                        <select name="type" id="movementType" class="form-select" required onchange="updateCategories()" <?php echo $action === 'edit' ? 'disabled aria-disabled="true"' : ''; ?>>
+                        <select name="type" id="movementType" class="form-select" required onchange="updateCategories()" <?php echo $action === 'edit' ? 'disabled' : ''; ?>>
                             <option value="">Seleziona...</option>
                             <option value="income" <?php echo ($movement['type'] ?? '') === 'income' ? 'selected' : ''; ?>>Entrata</option>
                             <option value="expense" <?php echo ($movement['type'] ?? '') === 'expense' ? 'selected' : ''; ?>>Uscita</option>
