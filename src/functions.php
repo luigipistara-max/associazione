@@ -1536,11 +1536,16 @@ function getQuoteAssociativeCategory() {
 /**
  * Create income movement for a paid fee
  */
-function createIncomeFromFee($fee, $paymentDate = null) {
+function createIncomeFromFee($feeData, $paymentDate = null) {
     global $pdo;
     
     $categoryId = getQuoteAssociativeCategory();
-    $date = $paymentDate ?? $fee['paid_date'] ?? date('Y-m-d');
+    $date = $paymentDate ?? $feeData['paid_date'] ?? date('Y-m-d');
+    $feeId = $feeData['id'] ?? $feeData['fee_id'] ?? null;
+    
+    if (!$feeId) {
+        throw new Exception("Fee ID is required to create income movement");
+    }
     
     $stmt = $pdo->prepare("
         INSERT INTO " . table('income') . " 
@@ -1548,13 +1553,13 @@ function createIncomeFromFee($fee, $paymentDate = null) {
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
-        $fee['social_year_id'],
+        $feeData['social_year_id'],
         $categoryId,
-        $fee['member_id'],
-        $fee['amount'],
+        $feeData['member_id'],
+        $feeData['amount'],
         $date,
-        $fee['payment_method'] ?? 'Contanti',
-        'Quota associativa - Fee #' . $fee['id']
+        $feeData['payment_method'] ?? 'Contanti',
+        'Quota associativa - Fee #' . $feeId
     ]);
     
     return $pdo->lastInsertId();
@@ -1566,8 +1571,9 @@ function createIncomeFromFee($fee, $paymentDate = null) {
 function deleteIncomeFromFee($feeId) {
     global $pdo;
     
-    $stmt = $pdo->prepare("DELETE FROM " . table('income') . " WHERE notes LIKE ?");
-    $stmt->execute(['%Fee #' . $feeId . '%']);
+    // Use exact pattern match to avoid accidental deletions
+    $stmt = $pdo->prepare("DELETE FROM " . table('income') . " WHERE notes = ?");
+    $stmt->execute(['Quota associativa - Fee #' . $feeId]);
     
     return $stmt->rowCount();
 }
