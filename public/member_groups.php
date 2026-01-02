@@ -143,7 +143,7 @@ include __DIR__ . '/inc/header.php';
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <button type="button" class="btn btn-outline-danger" 
-                                                onclick="confirmDelete(<?php echo $group['id']; ?>, '<?php echo addslashes($group['name']); ?>')" 
+                                                onclick="confirmDelete(<?php echo $group['id']; ?>, <?php echo htmlspecialchars(json_encode($group['name']), ENT_QUOTES, 'UTF-8'); ?>)" 
                                                 title="Elimina">
                                             <i class="bi bi-trash"></i>
                                         </button>

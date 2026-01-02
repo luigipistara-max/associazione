@@ -53,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_members'])) {
         } else {
             $added = 0;
             foreach ($memberIds as $memberId) {
+                $memberId = (int)$memberId;  // Ensure integer type
                 addMemberToGroup($groupId, $memberId);
                 $added++;
             }
@@ -148,7 +149,7 @@ include __DIR__ . '/inc/header.php';
                                 <td><?php echo formatDate($member['added_at']); ?></td>
                                 <td class="text-end">
                                     <button type="button" class="btn btn-sm btn-outline-danger" 
-                                            onclick="confirmRemove(<?php echo $member['id']; ?>, '<?php echo addslashes($member['first_name'] . ' ' . $member['last_name']); ?>')" 
+                                            onclick="confirmRemove(<?php echo $member['id']; ?>, <?php echo htmlspecialchars(json_encode($member['first_name'] . ' ' . $member['last_name']), ENT_QUOTES, 'UTF-8'); ?>)" 
                                             title="Rimuovi">
                                         <i class="bi bi-x-circle"></i> Rimuovi
                                     </button>
