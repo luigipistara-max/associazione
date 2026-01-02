@@ -1527,9 +1527,13 @@ function getQuoteAssociativeCategory() {
         return $category['id'];
     }
     
+    // Get next available sort_order
+    $stmt = $pdo->query("SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM " . table('income_categories'));
+    $nextOrder = $stmt->fetch()['next_order'];
+    
     // Create category if not exists
-    $stmt = $pdo->prepare("INSERT INTO " . table('income_categories') . " (name, sort_order, is_active) VALUES ('Quote associative', 1, 1)");
-    $stmt->execute();
+    $stmt = $pdo->prepare("INSERT INTO " . table('income_categories') . " (name, sort_order, is_active) VALUES ('Quote associative', ?, 1)");
+    $stmt->execute([$nextOrder]);
     return $pdo->lastInsertId();
 }
 
@@ -1547,6 +1551,9 @@ function createIncomeFromFee($feeData, $paymentDate = null) {
         throw new Exception("Fee ID is required to create income movement");
     }
     
+    // Default payment method
+    $defaultPaymentMethod = 'Contanti';
+    
     $stmt = $pdo->prepare("
         INSERT INTO " . table('income') . " 
         (social_year_id, category_id, member_id, amount, transaction_date, payment_method, notes)
@@ -1558,7 +1565,7 @@ function createIncomeFromFee($feeData, $paymentDate = null) {
         $feeData['member_id'],
         $feeData['amount'],
         $date,
-        $feeData['payment_method'] ?? 'Contanti',
+        $feeData['payment_method'] ?? $defaultPaymentMethod,
         'Quota associativa - Fee #' . $feeId
     ]);
     

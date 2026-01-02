@@ -70,9 +70,14 @@ if ($action === 'mark_paid' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') 
         $stmt->execute([$feeId]);
         
         // Create income movement using helper function
-        $feeData = $oldFee;
-        $feeData['id'] = $feeId;
-        $feeData['paid_date'] = date('Y-m-d');
+        $feeData = [
+            'id' => $feeId,
+            'member_id' => $oldFee['member_id'],
+            'social_year_id' => $oldFee['social_year_id'],
+            'amount' => $oldFee['amount'],
+            'paid_date' => date('Y-m-d'),
+            'payment_method' => $oldFee['payment_method']
+        ];
         createIncomeFromFee($feeData);
         
         // Log audit
