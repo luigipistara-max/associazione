@@ -19,18 +19,50 @@ if (isLoggedIn()) {
 
 $error = null;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Rate limiting configuration
+$maxAttempts = 5;
+$lockoutTime = 900; // 15 minutes in seconds
+
+// Initialize rate limiting session variables
+if (!isset($_SESSION['login_attempts'])) {
+    $_SESSION['login_attempts'] = 0;
+}
+if (!isset($_SESSION['login_lockout_until'])) {
+    $_SESSION['login_lockout_until'] = 0;
+}
+
+// Check if user is locked out
+$currentTime = time();
+if ($_SESSION['login_lockout_until'] > $currentTime) {
+    $remainingTime = ceil(($_SESSION['login_lockout_until'] - $currentTime) / 60);
+    $error = "Troppi tentativi falliti. Riprova tra $remainingTime minuti.";
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SESSION['login_lockout_until'] <= $currentTime) {
     $token = $_POST['csrf_token'] ?? '';
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
     
     if (verifyCsrfToken($token)) {
         if (loginUser($username, $password)) {
+            // Reset rate limiting on successful login
+            $_SESSION['login_attempts'] = 0;
+            $_SESSION['login_lockout_until'] = 0;
+            
             $basePath = $config['app']['base_path'] ?? '/';
             header('Location: ' . $basePath . 'index.php');
             exit;
         } else {
-            $error = 'Username o password non validi';
+            // Increment failed attempts
+            $_SESSION['login_attempts']++;
+            
+            if ($_SESSION['login_attempts'] >= $maxAttempts) {
+                $_SESSION['login_lockout_until'] = $currentTime + $lockoutTime;
+                $error = 'Troppi tentativi falliti. Account bloccato per 15 minuti.';
+            } else {
+                $remainingAttempts = $maxAttempts - $_SESSION['login_attempts'];
+                $error = "Username o password non validi. Tentativi rimasti: $remainingAttempts";
+            }
         }
     } else {
         $error = 'Token di sicurezza non valido';

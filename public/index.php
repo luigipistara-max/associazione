@@ -7,6 +7,9 @@ requireLogin();
 
 $pageTitle = 'Dashboard';
 
+// Get base path from config
+$basePath = $config['app']['base_path'];
+
 // Get statistics
 
 
@@ -147,7 +150,7 @@ include __DIR__ . '/inc/header.php';
 <div class="alert alert-warning">
     <i class="bi bi-exclamation-triangle"></i> 
     Nessun anno sociale corrente impostato. 
-    <a href="/years.php" class="alert-link">Imposta un anno sociale</a>
+    <a href="<?php echo $basePath; ?>years.php" class="alert-link">Imposta un anno sociale</a>
 </div>
 <?php endif; ?>
 
@@ -187,7 +190,7 @@ include __DIR__ . '/inc/header.php';
                         </table>
                     </div>
                     <div class="text-center mt-2">
-                        <a href="/members.php" class="btn btn-sm btn-outline-primary">
+                        <a href="<?php echo $basePath; ?>members.php" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-list"></i> Vedi Tutti i Soci
                         </a>
                     </div>
@@ -254,7 +257,7 @@ include __DIR__ . '/inc/header.php';
                 </div>
                 
                 <div class="text-center mt-2">
-                    <a href="/finance.php" class="btn btn-sm btn-outline-primary">
+                    <a href="<?php echo $basePath; ?>finance.php" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-list"></i> Vedi Tutti i Movimenti
                     </a>
                 </div>
@@ -270,7 +273,7 @@ include __DIR__ . '/inc/header.php';
             <div class="card-body text-center">
                 <i class="bi bi-person-plus text-primary" style="font-size: 3rem;"></i>
                 <h5 class="mt-3">Nuovo Socio</h5>
-                <a href="/member_edit.php" class="btn btn-primary">
+                <a href="<?php echo $basePath; ?>member_edit.php" class="btn btn-primary">
                     <i class="bi bi-plus"></i> Aggiungi
                 </a>
             </div>
@@ -281,7 +284,7 @@ include __DIR__ . '/inc/header.php';
             <div class="card-body text-center">
                 <i class="bi bi-cash-coin text-success" style="font-size: 3rem;"></i>
                 <h5 class="mt-3">Nuovo Movimento</h5>
-                <a href="/finance.php?action=add" class="btn btn-success">
+                <a href="<?php echo $basePath; ?>finance.php?action=add" class="btn btn-success">
                     <i class="bi bi-plus"></i> Aggiungi
                 </a>
             </div>
@@ -292,7 +295,7 @@ include __DIR__ . '/inc/header.php';
             <div class="card-body text-center">
                 <i class="bi bi-file-earmark-bar-graph text-info" style="font-size: 3rem;"></i>
                 <h5 class="mt-3">Rendiconto</h5>
-                <a href="/reports.php" class="btn btn-info">
+                <a href="<?php echo $basePath; ?>reports.php" class="btn btn-info">
                     <i class="bi bi-eye"></i> Visualizza
                 </a>
             </div>

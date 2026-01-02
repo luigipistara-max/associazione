@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS expenses (
     payment_method VARCHAR(50),
     receipt_number VARCHAR(50),
     transaction_date DATE NOT NULL,
+    description VARCHAR(255),
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

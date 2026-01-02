@@ -7,6 +7,9 @@ requireLogin();
 
 $pageTitle = 'Gestione Soci';
 
+// Get base path from config
+$basePath = $config['app']['base_path'];
+
 
 // Handle delete
 if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -21,7 +24,7 @@ if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (PDOException $e) {
             setFlashMessage('Errore nell\'eliminazione del socio: ' . $e->getMessage(), 'danger');
         }
-        redirect('/members.php');
+        redirect($basePath . 'members.php');
     }
 }
 
@@ -39,8 +42,8 @@ if ($statusFilter) {
 }
 
 if ($searchQuery) {
-    $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR tax_code LIKE ? OR email LIKE ?)";
-    $search = "%$searchQuery%";
+    $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR fiscal_code LIKE ? OR email LIKE ?)";
+    $search = "%" . escapeLike($searchQuery) . "%";
     $params[] = $search;
     $params[] = $search;
     $params[] = $search;
@@ -58,7 +61,7 @@ include __DIR__ . '/inc/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-people"></i> Gestione Soci</h2>
-    <a href="/member_edit.php" class="btn btn-primary">
+    <a href="<?php echo $basePath; ?>member_edit.php" class="btn btn-primary">
         <i class="bi bi-plus"></i> Nuovo Socio
     </a>
 </div>
@@ -84,7 +87,7 @@ include __DIR__ . '/inc/header.php';
                 <button type="submit" class="btn btn-primary me-2">
                     <i class="bi bi-search"></i> Cerca
                 </button>
-                <a href="/members.php" class="btn btn-secondary">
+                <a href="<?php echo $basePath; ?>members.php" class="btn btn-secondary">
                     <i class="bi bi-x"></i> Reset
                 </a>
             </div>
@@ -136,7 +139,7 @@ include __DIR__ . '/inc/header.php';
                             </td>
                             <td><?php echo formatDate($member['registration_date']); ?></td>
                             <td class="text-end">
-                                <a href="/member_edit.php?id=<?php echo $member['id']; ?>" class="btn btn-sm btn-outline-primary">
+                                <a href="<?php echo $basePath; ?>member_edit.php?id=<?php echo $member['id']; ?>" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 <button type="button" class="btn btn-sm btn-outline-danger" 
@@ -180,7 +183,7 @@ include __DIR__ . '/inc/header.php';
 <script>
 function confirmDelete(id, name) {
     document.getElementById('deleteMemberName').textContent = name;
-    document.getElementById('deleteForm').action = '/members.php?delete=' + id;
+    document.getElementById('deleteForm').action = '<?php echo $basePath; ?>members.php?delete=' + id;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
 </script>
