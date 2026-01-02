@@ -1508,6 +1508,83 @@ function countMassEmailRecipients($filter, $params = []) {
     return count($recipients);
 }
 
+// ============================================================================
+// INCOME FROM FEES FUNCTIONS
+// ============================================================================
+
+/**
+ * Get the ID of "Quote associative" income category
+ * Creates it if it doesn't exist
+ */
+function getQuoteAssociativeCategory() {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT id FROM " . table('income_categories') . " WHERE name = 'Quote associative' LIMIT 1");
+    $stmt->execute();
+    $category = $stmt->fetch();
+    
+    if ($category) {
+        return $category['id'];
+    }
+    
+    // Get next available sort_order
+    $stmt = $pdo->query("SELECT COALESCE(MAX(sort_order), 0) + 1 as next_order FROM " . table('income_categories'));
+    $nextOrder = $stmt->fetch()['next_order'];
+    
+    // Create category if not exists
+    $stmt = $pdo->prepare("INSERT INTO " . table('income_categories') . " (name, sort_order, is_active) VALUES ('Quote associative', ?, 1)");
+    $stmt->execute([$nextOrder]);
+    return $pdo->lastInsertId();
+}
+
+/**
+ * Create income movement for a paid fee
+ */
+function createIncomeFromFee($feeData, $paymentDate = null) {
+    global $pdo;
+    
+    $categoryId = getQuoteAssociativeCategory();
+    $date = $paymentDate ?? $feeData['paid_date'] ?? date('Y-m-d');
+    $feeId = $feeData['id'] ?? $feeData['fee_id'] ?? null;
+    
+    if (!$feeId) {
+        throw new Exception("Fee ID is required to create income movement");
+    }
+    
+    // Default payment method
+    $defaultPaymentMethod = 'Contanti';
+    
+    $stmt = $pdo->prepare("
+        INSERT INTO " . table('income') . " 
+        (social_year_id, category_id, member_id, amount, transaction_date, payment_method, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([
+        $feeData['social_year_id'],
+        $categoryId,
+        $feeData['member_id'],
+        $feeData['amount'],
+        $date,
+        $feeData['payment_method'] ?? $defaultPaymentMethod,
+        'Quota associativa - Fee #' . $feeId
+    ]);
+    
+    return $pdo->lastInsertId();
+}
+
+/**
+ * Delete income movement linked to a fee
+ */
+function deleteIncomeFromFee($feeId) {
+    global $pdo;
+    
+    // Use exact pattern match to avoid accidental deletions
+    $stmt = $pdo->prepare("DELETE FROM " . table('income') . " WHERE notes = ?");
+    $stmt->execute(['Quota associativa - Fee #' . $feeId]);
+    
+    return $stmt->rowCount();
+}
+
 /**
  * Queue mass email batch
  */
