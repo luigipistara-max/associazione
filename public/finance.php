@@ -7,21 +7,36 @@ requireLogin();
 
 $pageTitle = 'Movimenti Finanziari';
 
+// Get base path from config
+$basePath = $config['app']['base_path'];
+
 $errors = [];
 
 $action = $_GET['action'] ?? 'list';
 $movementId = $_GET['id'] ?? null;
+$movementType = $_GET['type'] ?? null;
 
 // Handle delete
-if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if (isset($_GET['delete']) && isset($_GET['type']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = (int)$_GET['delete'];
+    $type = $_GET['type'];
     $token = $_POST['csrf_token'] ?? '';
     
     if (verifyCsrfToken($token)) {
-        $stmt = $pdo->prepare("DELETE FROM movements WHERE id = ?");
-        $stmt->execute([$id]);
-        setFlashMessage('Movimento eliminato con successo');
-        redirect('/finance.php');
+        try {
+            if ($type === 'income') {
+                $stmt = $pdo->prepare("DELETE FROM " . table('income') . " WHERE id = ?");
+            } elseif ($type === 'expense') {
+                $stmt = $pdo->prepare("DELETE FROM " . table('expenses') . " WHERE id = ?");
+            } else {
+                throw new Exception('Tipo movimento non valido');
+            }
+            $stmt->execute([$id]);
+            setFlashMessage('Movimento eliminato con successo');
+        } catch (Exception $e) {
+            setFlashMessage('Errore nell\'eliminazione: ' . $e->getMessage(), 'danger');
+        }
+        redirect($basePath . 'finance.php');
     }
 }
 
@@ -36,13 +51,14 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $categoryId = (int)($_POST['category_id'] ?? 0);
         $description = trim($_POST['description'] ?? '');
         $amount = str_replace(',', '.', $_POST['amount'] ?? '0');
-        $paidAt = $_POST['paid_at'] ?? '';
+        $transactionDate = $_POST['transaction_date'] ?? '';
         $socialYearId = !empty($_POST['social_year_id']) ? (int)$_POST['social_year_id'] : null;
         $memberId = !empty($_POST['member_id']) ? (int)$_POST['member_id'] : null;
         $paymentMethod = trim($_POST['payment_method'] ?? '');
         $receiptNumber = trim($_POST['receipt_number'] ?? '');
         $notes = trim($_POST['notes'] ?? '');
         $editId = $_POST['movement_id'] ?? null;
+        $editType = $_POST['edit_type'] ?? null;
         
         // Validation
         if (!in_array($type, ['income', 'expense'])) {
@@ -57,39 +73,74 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($amount <= 0) {
             $errors[] = 'L\'importo deve essere maggiore di zero';
         }
-        if (empty($paidAt)) {
+        if (empty($transactionDate)) {
             $errors[] = 'La data è obbligatoria';
         }
         
         if (empty($errors)) {
             try {
                 if ($editId) {
-                    $stmt = $pdo->prepare("
-                        UPDATE movements SET
-                            type = ?, category_id = ?, description = ?, amount = ?, paid_at = ?,
-                            social_year_id = ?, member_id = ?, payment_method = ?, receipt_number = ?, notes = ?
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([
-                        $type, $categoryId, $description, $amount, $paidAt,
-                        $socialYearId, $memberId, $paymentMethod ?: null, $receiptNumber ?: null, $notes ?: null,
-                        $editId
-                    ]);
+                    // Update existing record
+                    if ($type === 'income') {
+                        $stmt = $pdo->prepare("
+                            UPDATE " . table('income') . " SET
+                                category_id = ?, amount = ?, transaction_date = ?,
+                                social_year_id = ?, member_id = ?, payment_method = ?, 
+                                receipt_number = ?, notes = ?
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([
+                            $categoryId, $amount, $transactionDate,
+                            $socialYearId, $memberId, $paymentMethod ?: null, 
+                            $receiptNumber ?: null, $notes ?: null,
+                            $editId
+                        ]);
+                    } elseif ($type === 'expense') {
+                        $stmt = $pdo->prepare("
+                            UPDATE " . table('expenses') . " SET
+                                category_id = ?, amount = ?, transaction_date = ?,
+                                social_year_id = ?, payment_method = ?, 
+                                receipt_number = ?, description = ?, notes = ?
+                            WHERE id = ?
+                        ");
+                        $stmt->execute([
+                            $categoryId, $amount, $transactionDate,
+                            $socialYearId, $paymentMethod ?: null, 
+                            $receiptNumber ?: null, $description ?: null, $notes ?: null,
+                            $editId
+                        ]);
+                    }
                     setFlashMessage('Movimento aggiornato con successo');
                 } else {
-                    $stmt = $pdo->prepare("
-                        INSERT INTO movements (
-                            type, category_id, description, amount, paid_at,
-                            social_year_id, member_id, payment_method, receipt_number, notes
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ");
-                    $stmt->execute([
-                        $type, $categoryId, $description, $amount, $paidAt,
-                        $socialYearId, $memberId, $paymentMethod ?: null, $receiptNumber ?: null, $notes ?: null
-                    ]);
+                    // Insert new record
+                    if ($type === 'income') {
+                        $stmt = $pdo->prepare("
+                            INSERT INTO " . table('income') . " (
+                                category_id, member_id, amount, payment_method, 
+                                receipt_number, transaction_date, social_year_id, notes
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ");
+                        $stmt->execute([
+                            $categoryId, $memberId, $amount, $paymentMethod ?: null,
+                            $receiptNumber ?: null, $transactionDate, $socialYearId, $notes ?: null
+                        ]);
+                    } elseif ($type === 'expense') {
+                        $stmt = $pdo->prepare("
+                            INSERT INTO " . table('expenses') . " (
+                                category_id, amount, payment_method, 
+                                receipt_number, transaction_date, social_year_id, 
+                                description, notes
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        ");
+                        $stmt->execute([
+                            $categoryId, $amount, $paymentMethod ?: null,
+                            $receiptNumber ?: null, $transactionDate, $socialYearId,
+                            $description ?: null, $notes ?: null
+                        ]);
+                    }
                     setFlashMessage('Movimento aggiunto con successo');
                 }
-                redirect('/finance.php');
+                redirect($basePath . 'finance.php');
             } catch (PDOException $e) {
                 $errors[] = 'Errore nel salvataggio: ' . $e->getMessage();
             }
@@ -99,54 +150,103 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Load movement for editing
 $movement = null;
-if ($action === 'edit' && $movementId) {
-    $stmt = $pdo->prepare("SELECT * FROM movements WHERE id = ?");
-    $stmt->execute([$movementId]);
-    $movement = $stmt->fetch();
-    if (!$movement) {
-        setFlashMessage('Movimento non trovato', 'danger');
-        redirect('/finance.php');
+if ($action === 'edit' && $movementId && $movementType) {
+    if ($movementType === 'income') {
+        $stmt = $pdo->prepare("SELECT *, 'income' as type, NULL as description FROM " . table('income') . " WHERE id = ?");
+    } elseif ($movementType === 'expense') {
+        $stmt = $pdo->prepare("SELECT *, 'expense' as type, NULL as member_id FROM " . table('expenses') . " WHERE id = ?");
+    }
+    
+    if (isset($stmt)) {
+        $stmt->execute([$movementId]);
+        $movement = $stmt->fetch();
+        if (!$movement) {
+            setFlashMessage('Movimento non trovato', 'danger');
+            redirect($basePath . 'finance.php');
+        }
     }
 }
 
 // Get filters for list
-$typeFilter = $_GET['type'] ?? '';
+$typeFilter = $_GET['type_filter'] ?? '';
 $yearFilter = $_GET['year'] ?? '';
 $categoryFilter = $_GET['category'] ?? '';
 
 // Build query for list
 if ($action === 'list') {
+    // Build UNION query to combine income and expenses
     $sql = "
-        SELECT m.*, 
-               CASE 
-                   WHEN m.type = 'income' THEN ic.name
-                   WHEN m.type = 'expense' THEN ec.name
-               END as category_name,
-               sy.name as year_name,
-               mem.first_name, mem.last_name
-        FROM movements m
-        LEFT JOIN " . table('income_categories') . " ic ON m.type = 'income' AND m.category_id = ic.id
-        LEFT JOIN " . table('expense_categories') . " ec ON m.type = 'expense' AND m.category_id = ec.id
-        LEFT JOIN " . table('social_years') . " sy ON m.social_year_id = sy.id
-        LEFT JOIN " . table('members') . " mem ON m.member_id = mem.id
+        SELECT 
+            i.id,
+            'income' as type,
+            i.category_id,
+            ic.name as category_name,
+            i.amount,
+            i.transaction_date,
+            i.payment_method,
+            i.receipt_number,
+            i.notes,
+            i.social_year_id,
+            sy.name as year_name,
+            i.member_id,
+            mem.first_name,
+            mem.last_name,
+            NULL as description
+        FROM " . table('income') . " i
+        LEFT JOIN " . table('income_categories') . " ic ON i.category_id = ic.id
+        LEFT JOIN " . table('social_years') . " sy ON i.social_year_id = sy.id
+        LEFT JOIN " . table('members') . " mem ON i.member_id = mem.id
         WHERE 1=1
     ";
+    
     $params = [];
     
-    if ($typeFilter) {
-        $sql .= " AND m.type = ?";
-        $params[] = $typeFilter;
-    }
-    if ($yearFilter) {
-        $sql .= " AND m.social_year_id = ?";
-        $params[] = $yearFilter;
-    }
-    if ($categoryFilter) {
-        $sql .= " AND m.category_id = ?";
-        $params[] = $categoryFilter;
+    if ($typeFilter === 'income') {
+        // Only income, add filters
+    } elseif ($typeFilter === 'expense') {
+        // Will be filtered in UNION
     }
     
-    $sql .= " ORDER BY m.paid_at DESC, m.id DESC LIMIT 100";
+    if ($yearFilter && $typeFilter !== 'expense') {
+        $sql .= " AND i.social_year_id = ?";
+        $params[] = $yearFilter;
+    }
+    
+    if ($typeFilter !== 'expense') {
+        $sql .= " UNION ALL ";
+    }
+    
+    if ($typeFilter !== 'income') {
+        $sql .= "
+            SELECT 
+                e.id,
+                'expense' as type,
+                e.category_id,
+                ec.name as category_name,
+                e.amount,
+                e.transaction_date,
+                e.payment_method,
+                e.receipt_number,
+                e.notes,
+                e.social_year_id,
+                sy.name as year_name,
+                NULL as member_id,
+                NULL as first_name,
+                NULL as last_name,
+                e.description
+            FROM " . table('expenses') . " e
+            LEFT JOIN " . table('expense_categories') . " ec ON e.category_id = ec.id
+            LEFT JOIN " . table('social_years') . " sy ON e.social_year_id = sy.id
+            WHERE 1=1
+        ";
+        
+        if ($yearFilter) {
+            $sql .= " AND e.social_year_id = ?";
+            $params[] = $yearFilter;
+        }
+    }
+    
+    $sql .= " ORDER BY transaction_date DESC, id DESC LIMIT 100";
     
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -180,7 +280,7 @@ include __DIR__ . '/inc/header.php';
     
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2><i class="bi bi-cash-coin"></i> Movimenti Finanziari</h2>
-        <a href="/finance.php?action=add" class="btn btn-primary">
+        <a href="<?php echo $basePath; ?>finance.php?action=add" class="btn btn-primary">
             <i class="bi bi-plus"></i> Nuovo Movimento
         </a>
     </div>
@@ -191,7 +291,7 @@ include __DIR__ . '/inc/header.php';
             <form method="GET" class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">Tipo</label>
-                    <select name="type" class="form-select">
+                    <select name="type_filter" class="form-select">
                         <option value="">Tutti</option>
                         <option value="income" <?php echo $typeFilter === 'income' ? 'selected' : ''; ?>>Entrate</option>
                         <option value="expense" <?php echo $typeFilter === 'expense' ? 'selected' : ''; ?>>Uscite</option>
@@ -212,7 +312,7 @@ include __DIR__ . '/inc/header.php';
                     <button type="submit" class="btn btn-primary me-2">
                         <i class="bi bi-search"></i> Filtra
                     </button>
-                    <a href="/finance.php" class="btn btn-secondary">
+                    <a href="<?php echo $basePath; ?>finance.php" class="btn btn-secondary">
                         <i class="bi bi-x"></i> Reset
                     </a>
                 </div>
@@ -271,7 +371,7 @@ include __DIR__ . '/inc/header.php';
                         <tbody>
                             <?php foreach ($movements as $mov): ?>
                             <tr>
-                                <td><?php echo formatDate($mov['paid_at']); ?></td>
+                                <td><?php echo formatDate($mov['transaction_date']); ?></td>
                                 <td>
                                     <?php if ($mov['type'] === 'income'): ?>
                                         <span class="badge bg-success">Entrata</span>
@@ -280,7 +380,7 @@ include __DIR__ . '/inc/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td><?php echo e($mov['category_name']); ?></td>
-                                <td><?php echo e($mov['description']); ?></td>
+                                <td><?php echo e($mov['description'] ?? '-'); ?></td>
                                 <td>
                                     <?php if ($mov['member_id']): ?>
                                         <?php echo e($mov['first_name'] . ' ' . $mov['last_name']); ?>
@@ -295,11 +395,11 @@ include __DIR__ . '/inc/header.php';
                                     </strong>
                                 </td>
                                 <td class="text-end">
-                                    <a href="/finance.php?action=edit&id=<?php echo $mov['id']; ?>" class="btn btn-sm btn-outline-primary">
+                                    <a href="<?php echo $basePath; ?>finance.php?action=edit&id=<?php echo $mov['id']; ?>&type=<?php echo $mov['type']; ?>" class="btn btn-sm btn-outline-primary">
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     <button type="button" class="btn btn-sm btn-outline-danger" 
-                                            onclick="confirmDelete(<?php echo $mov['id']; ?>)">
+                                            onclick="confirmDelete(<?php echo $mov['id']; ?>, '<?php echo $mov['type']; ?>')">
                                         <i class="bi bi-trash"></i>
                                     </button>
                                 </td>
@@ -336,8 +436,8 @@ include __DIR__ . '/inc/header.php';
     </div>
     
     <script>
-    function confirmDelete(id) {
-        document.getElementById('deleteForm').action = '/finance.php?delete=' + id;
+    function confirmDelete(id, type) {
+        document.getElementById('deleteForm').action = '<?php echo $basePath; ?>finance.php?delete=' + id + '&type=' + type;
         new bootstrap.Modal(document.getElementById('deleteModal')).show();
     }
     </script>
@@ -349,7 +449,7 @@ include __DIR__ . '/inc/header.php';
             <i class="bi bi-<?php echo $action === 'edit' ? 'pencil' : 'plus'; ?>"></i> 
             <?php echo $action === 'edit' ? 'Modifica' : 'Nuovo'; ?> Movimento
         </h2>
-        <a href="/finance.php" class="btn btn-secondary">
+        <a href="<?php echo $basePath; ?>finance.php" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Torna alla lista
         </a>
     </div>
@@ -364,9 +464,10 @@ include __DIR__ . '/inc/header.php';
         </div>
     <?php endif; ?>
     
-    <form method="POST" action="/finance.php?action=save">
+    <form method="POST" action="<?php echo $basePath; ?>finance.php?action=save">
         <input type="hidden" name="csrf_token" value="<?php echo e(generateCsrfToken()); ?>">
         <input type="hidden" name="movement_id" value="<?php echo e($movement['id'] ?? ''); ?>">
+        <input type="hidden" name="edit_type" value="<?php echo e($movement['type'] ?? ''); ?>">
         
         <div class="card mb-3">
             <div class="card-header">
@@ -376,11 +477,14 @@ include __DIR__ . '/inc/header.php';
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Tipo <span class="text-danger">*</span></label>
-                        <select name="type" id="movementType" class="form-select" required onchange="updateCategories()">
+                        <select name="type" id="movementType" class="form-select" required onchange="updateCategories()" <?php echo $action === 'edit' ? 'disabled' : ''; ?>>
                             <option value="">Seleziona...</option>
                             <option value="income" <?php echo ($movement['type'] ?? '') === 'income' ? 'selected' : ''; ?>>Entrata</option>
                             <option value="expense" <?php echo ($movement['type'] ?? '') === 'expense' ? 'selected' : ''; ?>>Uscita</option>
                         </select>
+                        <?php if ($action === 'edit'): ?>
+                            <input type="hidden" name="type" value="<?php echo e($movement['type']); ?>">
+                        <?php endif; ?>
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Categoria <span class="text-danger">*</span></label>
@@ -402,8 +506,8 @@ include __DIR__ . '/inc/header.php';
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Data <span class="text-danger">*</span></label>
-                        <input type="date" name="paid_at" class="form-control" 
-                               value="<?php echo e($movement['paid_at'] ?? date('Y-m-d')); ?>" required>
+                        <input type="date" name="transaction_date" class="form-control" 
+                               value="<?php echo e($movement['transaction_date'] ?? date('Y-m-d')); ?>" required>
                     </div>
                 </div>
                 
@@ -434,7 +538,7 @@ include __DIR__ . '/inc/header.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-6 mb-3" id="memberField">
                         <label class="form-label">Socio (solo per entrate)</label>
                         <select name="member_id" class="form-select">
                             <option value="">Nessuno</option>
@@ -470,7 +574,7 @@ include __DIR__ . '/inc/header.php';
         </div>
         
         <div class="d-flex justify-content-between mb-4">
-            <a href="/finance.php" class="btn btn-secondary">
+            <a href="<?php echo $basePath; ?>finance.php" class="btn btn-secondary">
                 <i class="bi bi-x"></i> Annulla
             </a>
             <button type="submit" class="btn btn-primary">
@@ -487,6 +591,7 @@ include __DIR__ . '/inc/header.php';
     function updateCategories() {
         const type = document.getElementById('movementType').value;
         const categorySelect = document.getElementById('categoryId');
+        const memberField = document.getElementById('memberField');
         
         categorySelect.innerHTML = '<option value="">Seleziona...</option>';
         
@@ -501,6 +606,13 @@ include __DIR__ . '/inc/header.php';
             }
             categorySelect.appendChild(option);
         });
+        
+        // Show/hide member field based on type
+        if (type === 'expense') {
+            memberField.style.display = 'none';
+        } else {
+            memberField.style.display = 'block';
+        }
     }
     
     // Initialize on page load
