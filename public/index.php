@@ -83,6 +83,9 @@ if ($currentYear) {
 // Get email queue count
 $queuedEmails = getQueuedEmailsCount();
 
+// Get upcoming events
+$upcomingEvents = getUpcomingEvents(5);
+
 // Get recent members
 $stmt = $pdo->query("
     SELECT * FROM " . table('members') . "
@@ -278,6 +281,50 @@ include __DIR__ . '/inc/header.php';
 
 <!-- Recent Members and Movements -->
 <div class="row mt-4">
+    <!-- Upcoming Events -->
+    <?php if (!empty($upcomingEvents)): ?>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-calendar-event text-primary"></i> Prossimi Eventi</h5>
+                    <a href="<?php echo $basePath; ?>events.php" class="btn btn-sm btn-outline-primary">Vedi Tutti</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <?php foreach ($upcomingEvents as $evt): 
+                        $modeIcon = '🏢';
+                        if ($evt['event_mode'] == 'online') $modeIcon = '💻';
+                        elseif ($evt['event_mode'] == 'hybrid') $modeIcon = '🔄';
+                    ?>
+                    <a href="<?php echo $basePath; ?>event_view.php?id=<?php echo $evt['id']; ?>" 
+                       class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                <span style="font-size: 1.2em;"><?php echo $modeIcon; ?></span>
+                                <?php echo h($evt['title']); ?>
+                            </h6>
+                            <small><?php echo formatDate($evt['event_date']); ?></small>
+                        </div>
+                        <p class="mb-1 small text-muted">
+                            <?php if ($evt['event_time']): ?>
+                                <i class="bi bi-clock"></i> <?php echo substr($evt['event_time'], 0, 5); ?>
+                            <?php endif; ?>
+                            <?php if ($evt['event_mode'] == 'in_person' && $evt['location']): ?>
+                                | <i class="bi bi-geo-alt"></i> <?php echo h($evt['location']); ?>
+                            <?php elseif ($evt['event_mode'] == 'online' && $evt['online_platform']): ?>
+                                | <i class="bi bi-camera-video"></i> <?php echo h($evt['online_platform']); ?>
+                            <?php endif; ?>
+                        </p>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+    
     <?php if ($currentYear && !empty($morosiList)): ?>
     <div class="col-md-6 mb-3">
         <div class="card">
