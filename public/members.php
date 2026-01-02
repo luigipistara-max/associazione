@@ -30,19 +30,23 @@ if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get filters
 $statusFilter = $_GET['status'] ?? '';
+$feeStatusFilter = $_GET['fee_status'] ?? '';
 $searchQuery = $_GET['search'] ?? '';
 
+// Get current year for fee filtering
+$currentYear = getCurrentSocialYear();
+
 // Build query
-$sql = "SELECT * FROM " . table('members') . " WHERE 1=1";
+$sql = "SELECT m.* FROM " . table('members') . " m WHERE 1=1";
 $params = [];
 
 if ($statusFilter) {
-    $sql .= " AND status = ?";
+    $sql .= " AND m.status = ?";
     $params[] = $statusFilter;
 }
 
 if ($searchQuery) {
-    $sql .= " AND (first_name LIKE ? OR last_name LIKE ? OR fiscal_code LIKE ? OR email LIKE ?)";
+    $sql .= " AND (m.first_name LIKE ? OR m.last_name LIKE ? OR m.fiscal_code LIKE ? OR m.email LIKE ?)";
     $search = "%" . escapeLike($searchQuery) . "%";
     $params[] = $search;
     $params[] = $search;
@@ -50,7 +54,28 @@ if ($searchQuery) {
     $params[] = $search;
 }
 
-$sql .= " ORDER BY last_name, first_name";
+// Fee status filter
+if ($feeStatusFilter && $currentYear) {
+    if ($feeStatusFilter === 'in_regola') {
+        $sql .= " AND EXISTS (
+            SELECT 1 FROM " . table('member_fees') . " mf 
+            WHERE mf.member_id = m.id 
+            AND mf.social_year_id = ? 
+            AND mf.status = 'paid'
+        )";
+        $params[] = $currentYear['id'];
+    } elseif ($feeStatusFilter === 'morosi') {
+        $sql .= " AND EXISTS (
+            SELECT 1 FROM " . table('member_fees') . " mf 
+            WHERE mf.member_id = m.id 
+            AND mf.social_year_id = ? 
+            AND mf.status IN ('pending', 'overdue')
+        )";
+        $params[] = $currentYear['id'];
+    }
+}
+
+$sql .= " ORDER BY m.last_name, m.first_name";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
@@ -61,26 +86,39 @@ include __DIR__ . '/inc/header.php';
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-people"></i> Gestione Soci</h2>
-    <a href="<?php echo $basePath; ?>member_edit.php" class="btn btn-primary">
-        <i class="bi bi-plus"></i> Nuovo Socio
-    </a>
+    <div>
+        <a href="<?php echo $basePath; ?>export_active_members.php" class="btn btn-success me-2">
+            <i class="bi bi-download"></i> Esporta Soci Attivi
+        </a>
+        <a href="<?php echo $basePath; ?>member_edit.php" class="btn btn-primary">
+            <i class="bi bi-plus"></i> Nuovo Socio
+        </a>
+    </div>
 </div>
 
 <!-- Filters -->
 <div class="card mb-3">
     <div class="card-body">
         <form method="GET" class="row g-3">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label">Cerca</label>
                 <input type="text" name="search" class="form-control" placeholder="Nome, cognome, CF, email..." value="<?php echo e($searchQuery); ?>">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Stato</label>
+            <div class="col-md-2">
+                <label class="form-label">Stato Socio</label>
                 <select name="status" class="form-select">
                     <option value="">Tutti</option>
                     <option value="attivo" <?php echo $statusFilter === 'attivo' ? 'selected' : ''; ?>>Attivo</option>
                     <option value="sospeso" <?php echo $statusFilter === 'sospeso' ? 'selected' : ''; ?>>Sospeso</option>
                     <option value="cessato" <?php echo $statusFilter === 'cessato' ? 'selected' : ''; ?>>Cessato</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Stato Quote</label>
+                <select name="fee_status" class="form-select">
+                    <option value="">Tutti</option>
+                    <option value="in_regola" <?php echo $feeStatusFilter === 'in_regola' ? 'selected' : ''; ?>>In Regola</option>
+                    <option value="morosi" <?php echo $feeStatusFilter === 'morosi' ? 'selected' : ''; ?>>Morosi</option>
                 </select>
             </div>
             <div class="col-md-3 d-flex align-items-end">
@@ -118,11 +156,11 @@ include __DIR__ . '/inc/header.php';
                     <tbody>
                         <?php foreach ($members as $member): ?>
                         <tr>
-                            <td><?php echo e($member['card_number'] ?? '-'); ?></td>
+                            <td><?php echo e($member['membership_number'] ?? '-'); ?></td>
                             <td>
                                 <strong><?php echo e($member['first_name'] . ' ' . $member['last_name']); ?></strong>
                             </td>
-                            <td><code><?php echo e($member['tax_code']); ?></code></td>
+                            <td><code><?php echo e($member['fiscal_code']); ?></code></td>
                             <td><?php echo e($member['email'] ?? '-'); ?></td>
                             <td><?php echo e($member['phone'] ?? '-'); ?></td>
                             <td>
