@@ -5,6 +5,7 @@ require_once __DIR__ . '/../src/db.php';
 
 requireAdmin();
 
+$basePath = $config['app']['base_path'];
 $pageTitle = 'Gestione Utenti';
 
 $errors = [];
@@ -23,7 +24,7 @@ if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             setFlashMessage('Non puoi eliminare il tuo account', 'danger');
         }
-        redirect('/users.php');
+        redirect($basePath . 'users.php');
     }
 }
 
@@ -69,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             if (empty($errors)) {
                 setFlashMessage('Utente aggiornato con successo');
-                redirect('/users.php');
+                redirect($basePath . 'users.php');
             }
         } else {
             // Create
@@ -84,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt = $pdo->prepare("INSERT INTO " . table('users') . " (username, password, full_name, email, role) VALUES (?, ?, ?, ?, ?)");
                 $stmt->execute([$username, $hashedPassword, $fullName, $email, $role]);
                 setFlashMessage('Utente creato con successo');
-                redirect('/users.php');
+                redirect($basePath . 'users.php');
             }
         }
     }
@@ -267,7 +268,7 @@ function editUser(user) {
 
 function confirmDelete(id, username) {
     document.getElementById('deleteUserName').textContent = username;
-    document.getElementById('deleteForm').action = '/users.php?delete=' + id;
+    document.getElementById('deleteForm').action = '<?php echo $basePath; ?>users.php?delete=' + id;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
 }
 </script>

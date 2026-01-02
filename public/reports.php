@@ -5,6 +5,7 @@ require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
+$basePath = $config['app']['base_path'];
 $pageTitle = 'Rendiconto';
 
 
@@ -70,7 +71,7 @@ include __DIR__ . '/inc/header.php';
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2><i class="bi bi-file-earmark-bar-graph"></i> Rendiconto</h2>
     <div>
-        <a href="/export_excel.php?year=<?php echo $yearId; ?>" class="btn btn-success">
+        <a href="<?php echo h($basePath); ?>export_excel.php?year=<?php echo $yearId; ?>" class="btn btn-success">
             <i class="bi bi-file-earmark-excel"></i> Esporta Excel
         </a>
     </div>

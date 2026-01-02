@@ -6,6 +6,7 @@ require_once __DIR__ . '/../src/audit.php';
 
 requireLogin();
 
+$basePath = $config['app']['base_path'];
 
 $memberId = $_GET['id'] ?? null;
 $member = null;
@@ -19,7 +20,7 @@ if ($memberId) {
     
     if (!$member) {
         setFlashMessage('Socio non trovato', 'danger');
-        redirect('/members.php');
+        redirect($basePath . 'members.php');
     }
     
     $pageTitle = 'Modifica Socio';
@@ -168,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     setFlashMessage('Socio aggiunto con successo');
                 }
-                redirect('/members.php');
+                redirect($basePath . 'members.php');
             } catch (PDOException $e) {
                 $errors[] = 'Errore nel salvataggio: ' . $e->getMessage();
             }
@@ -187,7 +188,7 @@ include __DIR__ . '/inc/header.php';
         <i class="bi bi-<?php echo $memberId ? 'pencil' : 'plus'; ?>"></i> 
         <?php echo e($pageTitle); ?>
     </h2>
-    <a href="/members.php" class="btn btn-secondary">
+    <a href="<?php echo h($basePath); ?>members.php" class="btn btn-secondary">
         <i class="bi bi-arrow-left"></i> Torna alla lista
     </a>
 </div>
@@ -407,7 +408,7 @@ include __DIR__ . '/inc/header.php';
     <?php endif; ?>
     
     <div class="d-flex justify-content-between mb-4">
-        <a href="/members.php" class="btn btn-secondary">
+        <a href="<?php echo h($basePath); ?>members.php" class="btn btn-secondary">
             <i class="bi bi-x"></i> Annulla
         </a>
         <button type="submit" class="btn btn-primary">
