@@ -84,6 +84,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'member_fees.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>member_fees.php">
+                                <i class="bi bi-credit-card"></i> Quote Associative
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link <?php echo $currentPage === 'finance.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>finance.php">
                                 <i class="bi bi-cash-coin"></i> Movimenti
                             </a>
@@ -122,6 +127,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                         <li class="nav-item">
                             <a class="nav-link <?php echo $currentPage === 'import_movements.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>import_movements.php">
                                 <i class="bi bi-upload"></i> Importa Movimenti
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'export_active_members.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>export_active_members.php">
+                                <i class="bi bi-download"></i> Export Soci Attivi
                             </a>
                         </li>
                         <li class="nav-item">

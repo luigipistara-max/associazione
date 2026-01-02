@@ -258,3 +258,301 @@ function exportCsv($filename, $data, $headers = null) {
     fclose($output);
     exit;
 }
+
+/**
+ * Get member fees for a specific member
+ */
+function getMemberFees($memberId, $yearId = null) {
+    global $pdo;
+    
+    $sql = "SELECT mf.*, sy.name as year_name 
+            FROM " . table('member_fees') . " mf
+            LEFT JOIN " . table('social_years') . " sy ON mf.social_year_id = sy.id
+            WHERE mf.member_id = ?";
+    
+    $params = [$memberId];
+    
+    if ($yearId !== null) {
+        $sql .= " AND mf.social_year_id = ?";
+        $params[] = $yearId;
+    }
+    
+    $sql .= " ORDER BY mf.due_date DESC";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get member fee status for a specific year
+ */
+function getMemberFeeStatus($memberId, $yearId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT status, COUNT(*) as count
+        FROM " . table('member_fees') . "
+        WHERE member_id = ? AND social_year_id = ?
+        GROUP BY status
+    ");
+    $stmt->execute([$memberId, $yearId]);
+    
+    $statuses = [];
+    while ($row = $stmt->fetch()) {
+        $statuses[$row['status']] = $row['count'];
+    }
+    
+    if (isset($statuses['paid']) && $statuses['paid'] > 0) {
+        return 'paid';
+    } elseif (isset($statuses['overdue'])) {
+        return 'overdue';
+    } elseif (isset($statuses['pending'])) {
+        return 'pending';
+    }
+    
+    return 'none';
+}
+
+/**
+ * Check if member has paid fee for year
+ */
+function isFeePaid($memberId, $yearId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count
+        FROM " . table('member_fees') . "
+        WHERE member_id = ? AND social_year_id = ? AND status = 'paid'
+    ");
+    $stmt->execute([$memberId, $yearId]);
+    $result = $stmt->fetch();
+    
+    return $result['count'] > 0;
+}
+
+/**
+ * Get overdue fees
+ */
+function getOverdueFees($yearId = null) {
+    global $pdo;
+    
+    $sql = "SELECT mf.*, m.first_name, m.last_name, sy.name as year_name
+            FROM " . table('member_fees') . " mf
+            JOIN " . table('members') . " m ON mf.member_id = m.id
+            LEFT JOIN " . table('social_years') . " sy ON mf.social_year_id = sy.id
+            WHERE mf.status = 'overdue'";
+    
+    if ($yearId !== null) {
+        $sql .= " AND mf.social_year_id = ?";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$yearId]);
+    } else {
+        $stmt = $pdo->query($sql);
+    }
+    
+    return $stmt->fetchAll();
+}
+
+/**
+ * Update overdue statuses for fees past due date
+ */
+function updateOverdueStatuses() {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('member_fees') . "
+        SET status = 'overdue'
+        WHERE status = 'pending' AND due_date < CURDATE()
+    ");
+    $stmt->execute();
+    
+    return $stmt->rowCount();
+}
+
+/**
+ * Get active members (with paid fee for year)
+ */
+function getActiveMembers($socialYearId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT m.*
+        FROM " . table('members') . " m
+        INNER JOIN " . table('member_fees') . " mf ON m.id = mf.member_id
+        WHERE mf.social_year_id = ? AND mf.status = 'paid'
+        ORDER BY m.last_name, m.first_name
+    ");
+    $stmt->execute([$socialYearId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get members with unpaid/overdue fees (morosi)
+ */
+function getMorosi($socialYearId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT m.*, mf.status as fee_status, mf.due_date, mf.amount
+        FROM " . table('members') . " m
+        INNER JOIN " . table('member_fees') . " mf ON m.id = mf.member_id
+        WHERE mf.social_year_id = ? AND mf.status IN ('pending', 'overdue')
+        ORDER BY mf.due_date ASC, m.last_name, m.first_name
+    ");
+    $stmt->execute([$socialYearId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Export active members to CSV
+ */
+function exportActiveMembersCsv($socialYearId, $fields) {
+    $members = getActiveMembers($socialYearId);
+    
+    // Build headers
+    $headers = [];
+    $fieldMap = [
+        'membership_number' => 'Numero Tessera',
+        'first_name' => 'Nome',
+        'last_name' => 'Cognome',
+        'fiscal_code' => 'Codice Fiscale',
+        'email' => 'Email',
+        'phone' => 'Telefono',
+        'paid_date' => 'Data Pagamento',
+        'amount' => 'Importo'
+    ];
+    
+    foreach ($fields as $field) {
+        if (isset($fieldMap[$field])) {
+            $headers[] = $fieldMap[$field];
+        }
+    }
+    
+    // Build data rows
+    $data = [];
+    foreach ($members as $member) {
+        $row = [];
+        foreach ($fields as $field) {
+            if (in_array($field, ['paid_date', 'amount'])) {
+                // Get fee data
+                $stmt = $GLOBALS['pdo']->prepare("
+                    SELECT paid_date, amount
+                    FROM " . table('member_fees') . "
+                    WHERE member_id = ? AND social_year_id = ? AND status = 'paid'
+                    ORDER BY paid_date DESC
+                    LIMIT 1
+                ");
+                $stmt->execute([$member['id'], $socialYearId]);
+                $fee = $stmt->fetch();
+                
+                if ($field === 'paid_date' && $fee) {
+                    $row[] = formatDate($fee['paid_date']);
+                } elseif ($field === 'amount' && $fee) {
+                    $row[] = number_format($fee['amount'], 2, ',', '.');
+                } else {
+                    $row[] = '';
+                }
+            } else {
+                $row[] = $member[$field] ?? '';
+            }
+        }
+        $data[] = $row;
+    }
+    
+    return ['headers' => $headers, 'data' => $data];
+}
+
+/**
+ * Get fees expiring soon
+ */
+function getFeesExpiringSoon($days = 30) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT mf.*, m.first_name, m.last_name, m.membership_number, sy.name as year_name
+        FROM " . table('member_fees') . " mf
+        JOIN " . table('members') . " m ON mf.member_id = m.id
+        LEFT JOIN " . table('social_years') . " sy ON mf.social_year_id = sy.id
+        WHERE mf.status = 'pending' 
+        AND mf.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+        ORDER BY mf.due_date ASC
+    ");
+    $stmt->execute([$days]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Count members with overdue fees (morosi)
+ */
+function countMorosi($socialYearId = null) {
+    global $pdo;
+    
+    if ($socialYearId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT member_id) as count
+            FROM " . table('member_fees') . "
+            WHERE status IN ('pending', 'overdue') AND social_year_id = ?
+        ");
+        $stmt->execute([$socialYearId]);
+    } else {
+        $stmt = $pdo->query("
+            SELECT COUNT(DISTINCT member_id) as count
+            FROM " . table('member_fees') . "
+            WHERE status IN ('pending', 'overdue')
+        ");
+    }
+    
+    $result = $stmt->fetch();
+    return $result['count'];
+}
+
+/**
+ * Get total pending fees amount
+ */
+function getTotalPendingFees($socialYearId = null) {
+    global $pdo;
+    
+    if ($socialYearId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM " . table('member_fees') . "
+            WHERE status IN ('pending', 'overdue') AND social_year_id = ?
+        ");
+        $stmt->execute([$socialYearId]);
+    } else {
+        $stmt = $pdo->query("
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM " . table('member_fees') . "
+            WHERE status IN ('pending', 'overdue')
+        ");
+    }
+    
+    $result = $stmt->fetch();
+    return $result['total'];
+}
+
+/**
+ * Get total collected fees amount
+ */
+function getTotalCollectedFees($socialYearId = null) {
+    global $pdo;
+    
+    if ($socialYearId !== null) {
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM " . table('member_fees') . "
+            WHERE status = 'paid' AND social_year_id = ?
+        ");
+        $stmt->execute([$socialYearId]);
+    } else {
+        $stmt = $pdo->query("
+            SELECT COALESCE(SUM(amount), 0) as total
+            FROM " . table('member_fees') . "
+            WHERE status = 'paid'
+        ");
+    }
+    
+    $result = $stmt->fetch();
+    return $result['total'];
+}

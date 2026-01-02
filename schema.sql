@@ -13,6 +13,18 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Password resets table
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_token (token),
+    INDEX idx_user_id (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Members table (association members)
 CREATE TABLE IF NOT EXISTS members (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -104,6 +116,27 @@ CREATE TABLE IF NOT EXISTS expenses (
     INDEX idx_social_year (social_year_id),
     INDEX idx_category (category_id),
     INDEX idx_transaction_date (transaction_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Member fees table
+CREATE TABLE IF NOT EXISTS member_fees (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    member_id INT NOT NULL,
+    social_year_id INT NOT NULL,
+    fee_type VARCHAR(50) DEFAULT 'quota_associativa',
+    amount DECIMAL(10,2) NOT NULL,
+    due_date DATE NOT NULL,
+    paid_date DATE NULL,
+    payment_method VARCHAR(50),
+    receipt_number VARCHAR(50),
+    status ENUM('pending', 'paid', 'overdue') DEFAULT 'pending',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_member (member_id),
+    INDEX idx_social_year (social_year_id),
+    INDEX idx_status (status),
+    INDEX idx_due_date (due_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Insert default income categories
