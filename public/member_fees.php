@@ -31,6 +31,11 @@ if ($action === 'delete' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([$feeId]);
     $oldFee = $stmt->fetch();
     
+    // Delete linked income movement if fee was paid
+    if ($oldFee && $oldFee['status'] === 'paid') {
+        deleteIncomeFromFee($feeId);
+    }
+    
     $stmt = $pdo->prepare("DELETE FROM " . table('member_fees') . " WHERE id = ?");
     $stmt->execute([$feeId]);
     
@@ -55,21 +60,42 @@ if ($action === 'mark_paid' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') 
     $stmt->execute([$feeId]);
     $oldFee = $stmt->fetch();
     
-    $stmt = $pdo->prepare("
-        UPDATE " . table('member_fees') . " 
-        SET status = 'paid', paid_date = CURDATE() 
-        WHERE id = ?
-    ");
-    $stmt->execute([$feeId]);
-    
-    if ($oldFee) {
+    if ($oldFee && $oldFee['status'] !== 'paid') {
+        // Update fee status
+        $stmt = $pdo->prepare("
+            UPDATE " . table('member_fees') . " 
+            SET status = 'paid', paid_date = CURDATE() 
+            WHERE id = ?
+        ");
+        $stmt->execute([$feeId]);
+        
+        // Create income movement
+        $categoryId = getQuoteAssociativeCategory();
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('income') . " 
+            (social_year_id, category_id, member_id, amount, transaction_date, payment_method, notes)
+            VALUES (?, ?, ?, ?, CURDATE(), ?, ?)
+        ");
+        $stmt->execute([
+            $oldFee['social_year_id'],
+            $categoryId,
+            $oldFee['member_id'],
+            $oldFee['amount'],
+            $oldFee['payment_method'] ?? 'Contanti',
+            'Quota associativa - Fee #' . $feeId
+        ]);
+        
+        // Log audit
         logUpdate('fee', $feeId, "Quota ID {$feeId}", 
             ['status' => $oldFee['status'], 'paid_date' => $oldFee['paid_date']],
             ['status' => 'paid', 'paid_date' => date('Y-m-d')]
         );
+        
+        setFlashMessage('Quota registrata come pagata e movimento creato');
+    } else {
+        setFlashMessage('Quota già registrata come pagata', 'warning');
     }
     
-    setFlashMessage('Quota registrata come pagata');
     redirect($basePath . 'member_fees.php');
 }
 
@@ -107,6 +133,32 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
             $status, $notes ?: null, $feeId
         ]);
         
+        // Handle status change from non-paid to paid
+        if ($oldFee && $oldFee['status'] !== 'paid' && $status === 'paid') {
+            // Create income movement
+            $categoryId = getQuoteAssociativeCategory();
+            $stmt = $pdo->prepare("
+                INSERT INTO " . table('income') . " 
+                (social_year_id, category_id, member_id, amount, transaction_date, payment_method, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $socialYearId,
+                $categoryId,
+                $memberId,
+                $amount,
+                $paidDate ?: date('Y-m-d'),
+                $paymentMethod ?: 'Contanti',
+                'Quota associativa - Fee #' . $feeId
+            ]);
+        }
+        
+        // Handle status change from paid to non-paid
+        if ($oldFee && $oldFee['status'] === 'paid' && $status !== 'paid') {
+            // Delete income movement
+            deleteIncomeFromFee($feeId);
+        }
+        
         if ($oldFee) {
             logUpdate('fee', $feeId, "Quota ID {$feeId}",
                 ['amount' => $oldFee['amount'], 'status' => $oldFee['status']],
@@ -128,6 +180,26 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
         ]);
         
         $newFeeId = $pdo->lastInsertId();
+        
+        // If created as paid, create income movement
+        if ($status === 'paid' && $paidDate) {
+            $categoryId = getQuoteAssociativeCategory();
+            $stmt = $pdo->prepare("
+                INSERT INTO " . table('income') . " 
+                (social_year_id, category_id, member_id, amount, transaction_date, payment_method, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([
+                $socialYearId,
+                $categoryId,
+                $memberId,
+                $amount,
+                $paidDate,
+                $paymentMethod ?: 'Contanti',
+                'Quota associativa - Fee #' . $newFeeId
+            ]);
+        }
+        
         logCreate('fee', $newFeeId, "Quota ID {$newFeeId}", [
             'member_id' => $memberId,
             'amount' => $amount,

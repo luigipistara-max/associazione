@@ -1508,6 +1508,70 @@ function countMassEmailRecipients($filter, $params = []) {
     return count($recipients);
 }
 
+// ============================================================================
+// INCOME FROM FEES FUNCTIONS
+// ============================================================================
+
+/**
+ * Get the ID of "Quote associative" income category
+ * Creates it if it doesn't exist
+ */
+function getQuoteAssociativeCategory() {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT id FROM " . table('income_categories') . " WHERE name = 'Quote associative' LIMIT 1");
+    $stmt->execute();
+    $category = $stmt->fetch();
+    
+    if ($category) {
+        return $category['id'];
+    }
+    
+    // Create category if not exists
+    $stmt = $pdo->prepare("INSERT INTO " . table('income_categories') . " (name, sort_order, is_active) VALUES ('Quote associative', 1, 1)");
+    $stmt->execute();
+    return $pdo->lastInsertId();
+}
+
+/**
+ * Create income movement for a paid fee
+ */
+function createIncomeFromFee($fee, $paymentDate = null) {
+    global $pdo;
+    
+    $categoryId = getQuoteAssociativeCategory();
+    $date = $paymentDate ?? $fee['paid_date'] ?? date('Y-m-d');
+    
+    $stmt = $pdo->prepare("
+        INSERT INTO " . table('income') . " 
+        (social_year_id, category_id, member_id, amount, transaction_date, payment_method, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([
+        $fee['social_year_id'],
+        $categoryId,
+        $fee['member_id'],
+        $fee['amount'],
+        $date,
+        $fee['payment_method'] ?? 'Contanti',
+        'Quota associativa - Fee #' . $fee['id']
+    ]);
+    
+    return $pdo->lastInsertId();
+}
+
+/**
+ * Delete income movement linked to a fee
+ */
+function deleteIncomeFromFee($feeId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("DELETE FROM " . table('income') . " WHERE notes LIKE ?");
+    $stmt->execute(['%Fee #' . $feeId . '%']);
+    
+    return $stmt->rowCount();
+}
+
 /**
  * Queue mass email batch
  */
