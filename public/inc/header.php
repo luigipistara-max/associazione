@@ -98,6 +98,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                                 <i class="bi bi-file-earmark-bar-graph"></i> Rendiconto
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo in_array($currentPage, ['events.php', 'event_edit.php', 'event_view.php', 'event_registrations.php']) ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>events.php">
+                                <i class="bi bi-calendar-event"></i> Eventi
+                            </a>
+                        </li>
                         
                         <?php if (isAdmin()): ?>
                         <hr>
@@ -124,6 +129,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                         <li class="nav-item">
                             <a class="nav-link <?php echo $currentPage === 'send_reminders.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>send_reminders.php">
                                 <i class="bi bi-envelope-exclamation"></i> Invio Solleciti
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'mass_email.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>mass_email.php">
+                                <i class="bi bi-envelope-at"></i> Email Massiva
                             </a>
                         </li>
                         <li class="nav-item">

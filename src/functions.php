@@ -900,3 +900,649 @@ function getFeesStatus($yearId = null) {
         'colors' => ['#28a745', '#ffc107', '#dc3545']
     ];
 }
+
+// ============================================================================
+// EVENT MANAGEMENT FUNCTIONS
+// ============================================================================
+
+/**
+ * Get events with optional filters
+ */
+function getEvents($filters = [], $limit = 20, $offset = 0) {
+    global $pdo;
+    
+    $sql = "SELECT * FROM " . table('events') . " WHERE 1=1";
+    $params = [];
+    
+    if (!empty($filters['status'])) {
+        $sql .= " AND status = ?";
+        $params[] = $filters['status'];
+    }
+    
+    if (!empty($filters['event_mode'])) {
+        $sql .= " AND event_mode = ?";
+        $params[] = $filters['event_mode'];
+    }
+    
+    if (!empty($filters['from_date'])) {
+        $sql .= " AND event_date >= ?";
+        $params[] = $filters['from_date'];
+    }
+    
+    if (!empty($filters['to_date'])) {
+        $sql .= " AND event_date <= ?";
+        $params[] = $filters['to_date'];
+    }
+    
+    $sql .= " ORDER BY event_date ASC, event_time ASC LIMIT ? OFFSET ?";
+    $params[] = $limit;
+    $params[] = $offset;
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get single event by ID
+ */
+function getEvent($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT * FROM " . table('events') . " WHERE id = ?");
+    $stmt->execute([$eventId]);
+    return $stmt->fetch();
+}
+
+/**
+ * Create new event
+ */
+function createEvent($data) {
+    global $pdo;
+    require_once __DIR__ . '/audit.php';
+    
+    $stmt = $pdo->prepare("
+        INSERT INTO " . table('events') . " 
+        (title, description, event_date, event_time, end_date, end_time,
+         event_mode, location, address, city,
+         online_link, online_platform, online_instructions, online_password,
+         max_participants, registration_deadline, cost, status, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ");
+    
+    $stmt->execute([
+        $data['title'],
+        $data['description'] ?? null,
+        $data['event_date'],
+        $data['event_time'] ?? null,
+        $data['end_date'] ?? null,
+        $data['end_time'] ?? null,
+        $data['event_mode'] ?? 'in_person',
+        $data['location'] ?? null,
+        $data['address'] ?? null,
+        $data['city'] ?? null,
+        $data['online_link'] ?? null,
+        $data['online_platform'] ?? null,
+        $data['online_instructions'] ?? null,
+        $data['online_password'] ?? null,
+        $data['max_participants'] ?? 0,
+        $data['registration_deadline'] ?? null,
+        $data['cost'] ?? 0,
+        $data['status'] ?? 'draft',
+        $data['created_by'] ?? null
+    ]);
+    
+    $eventId = $pdo->lastInsertId();
+    
+    logCreate('event', $eventId, $data['title'], $data);
+    
+    return $eventId;
+}
+
+/**
+ * Update event
+ */
+function updateEvent($eventId, $data) {
+    global $pdo;
+    require_once __DIR__ . '/audit.php';
+    
+    $oldEvent = getEvent($eventId);
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('events') . " 
+        SET title = ?, description = ?, event_date = ?, event_time = ?,
+            end_date = ?, end_time = ?, event_mode = ?,
+            location = ?, address = ?, city = ?,
+            online_link = ?, online_platform = ?, online_instructions = ?, online_password = ?,
+            max_participants = ?, registration_deadline = ?, cost = ?, status = ?
+        WHERE id = ?
+    ");
+    
+    $result = $stmt->execute([
+        $data['title'],
+        $data['description'] ?? null,
+        $data['event_date'],
+        $data['event_time'] ?? null,
+        $data['end_date'] ?? null,
+        $data['end_time'] ?? null,
+        $data['event_mode'] ?? 'in_person',
+        $data['location'] ?? null,
+        $data['address'] ?? null,
+        $data['city'] ?? null,
+        $data['online_link'] ?? null,
+        $data['online_platform'] ?? null,
+        $data['online_instructions'] ?? null,
+        $data['online_password'] ?? null,
+        $data['max_participants'] ?? 0,
+        $data['registration_deadline'] ?? null,
+        $data['cost'] ?? 0,
+        $data['status'] ?? 'draft',
+        $eventId
+    ]);
+    
+    if ($oldEvent) {
+        logUpdate('event', $eventId, $data['title'], $oldEvent, $data);
+    }
+    
+    return $result;
+}
+
+/**
+ * Delete event
+ */
+function deleteEvent($eventId) {
+    global $pdo;
+    require_once __DIR__ . '/audit.php';
+    
+    $event = getEvent($eventId);
+    
+    // Delete registrations first
+    $stmt = $pdo->prepare("DELETE FROM " . table('event_registrations') . " WHERE event_id = ?");
+    $stmt->execute([$eventId]);
+    
+    // Delete event
+    $stmt = $pdo->prepare("DELETE FROM " . table('events') . " WHERE id = ?");
+    $result = $stmt->execute([$eventId]);
+    
+    if ($event) {
+        logDelete('event', $eventId, $event['title'], $event);
+    }
+    
+    return $result;
+}
+
+/**
+ * Get upcoming events
+ */
+function getUpcomingEvents($limit = 5) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT * FROM " . table('events') . " 
+        WHERE status = 'published' AND event_date >= CURDATE()
+        ORDER BY event_date ASC, event_time ASC
+        LIMIT ?
+    ");
+    $stmt->execute([$limit]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get events by mode
+ */
+function getEventsByMode($mode) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT * FROM " . table('events') . " 
+        WHERE event_mode = ? AND status = 'published'
+        ORDER BY event_date ASC
+    ");
+    $stmt->execute([$mode]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Register member for event
+ */
+function registerForEvent($eventId, $memberId) {
+    global $pdo;
+    require_once __DIR__ . '/audit.php';
+    
+    $event = getEvent($eventId);
+    if (!$event) {
+        return false;
+    }
+    
+    // Check if already registered
+    if (isRegisteredForEvent($eventId, $memberId)) {
+        return false;
+    }
+    
+    // Check available spots
+    $availableSpots = getAvailableSpots($eventId);
+    if ($availableSpots !== null && $availableSpots <= 0) {
+        // Add to waitlist
+        $attendanceStatus = 'waitlist';
+    } else {
+        $attendanceStatus = 'registered';
+    }
+    
+    // Determine payment status
+    $paymentStatus = ($event['cost'] > 0) ? 'pending' : 'not_required';
+    
+    $stmt = $pdo->prepare("
+        INSERT INTO " . table('event_registrations') . " 
+        (event_id, member_id, payment_status, attendance_status)
+        VALUES (?, ?, ?, ?)
+    ");
+    $result = $stmt->execute([$eventId, $memberId, $paymentStatus, $attendanceStatus]);
+    
+    if ($result) {
+        logCreate('event_registration', $pdo->lastInsertId(), "Event {$eventId} - Member {$memberId}", [
+            'event_id' => $eventId,
+            'member_id' => $memberId
+        ]);
+    }
+    
+    return $result;
+}
+
+/**
+ * Unregister from event
+ */
+function unregisterFromEvent($eventId, $memberId) {
+    global $pdo;
+    require_once __DIR__ . '/audit.php';
+    
+    $stmt = $pdo->prepare("
+        DELETE FROM " . table('event_registrations') . " 
+        WHERE event_id = ? AND member_id = ?
+    ");
+    $result = $stmt->execute([$eventId, $memberId]);
+    
+    if ($result) {
+        logDelete('event_registration', 0, "Event {$eventId} - Member {$memberId}", [
+            'event_id' => $eventId,
+            'member_id' => $memberId
+        ]);
+    }
+    
+    return $result;
+}
+
+/**
+ * Get event registrations
+ */
+function getEventRegistrations($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT er.*, m.first_name, m.last_name, m.email, m.membership_number
+        FROM " . table('event_registrations') . " er
+        JOIN " . table('members') . " m ON er.member_id = m.id
+        WHERE er.event_id = ?
+        ORDER BY er.registered_at ASC
+    ");
+    $stmt->execute([$eventId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get member registrations
+ */
+function getMemberRegistrations($memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT er.*, e.title, e.event_date, e.event_time, e.event_mode, e.status
+        FROM " . table('event_registrations') . " er
+        JOIN " . table('events') . " e ON er.event_id = e.id
+        WHERE er.member_id = ?
+        ORDER BY e.event_date DESC
+    ");
+    $stmt->execute([$memberId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Check if member is registered for event
+ */
+function isRegisteredForEvent($eventId, $memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count FROM " . table('event_registrations') . " 
+        WHERE event_id = ? AND member_id = ?
+    ");
+    $stmt->execute([$eventId, $memberId]);
+    $result = $stmt->fetch();
+    return $result['count'] > 0;
+}
+
+/**
+ * Get available spots for event
+ */
+function getAvailableSpots($eventId) {
+    global $pdo;
+    
+    $event = getEvent($eventId);
+    if (!$event || $event['max_participants'] == 0) {
+        return null; // Unlimited
+    }
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count FROM " . table('event_registrations') . " 
+        WHERE event_id = ? AND attendance_status != 'waitlist'
+    ");
+    $stmt->execute([$eventId]);
+    $result = $stmt->fetch();
+    
+    return max(0, $event['max_participants'] - $result['count']);
+}
+
+/**
+ * Get waitlist position
+ */
+function getWaitlistPosition($eventId, $memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) + 1 as position FROM " . table('event_registrations') . " 
+        WHERE event_id = ? 
+        AND attendance_status = 'waitlist'
+        AND registered_at < (
+            SELECT registered_at FROM " . table('event_registrations') . " 
+            WHERE event_id = ? AND member_id = ?
+        )
+    ");
+    $stmt->execute([$eventId, $eventId, $memberId]);
+    $result = $stmt->fetch();
+    return $result['position'] ?? null;
+}
+
+/**
+ * Send event confirmation email
+ */
+function sendEventConfirmation($eventId, $memberId) {
+    global $pdo;
+    require_once __DIR__ . '/email.php';
+    
+    $event = getEvent($eventId);
+    $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
+    $stmt->execute([$memberId]);
+    $member = $stmt->fetch();
+    
+    if (!$event || !$member || !$member['email']) {
+        return false;
+    }
+    
+    $detailsMode = '';
+    if ($event['event_mode'] == 'in_person') {
+        $detailsMode = '<p><strong>Luogo:</strong> ' . h($event['location']) . '<br>';
+        if ($event['address']) $detailsMode .= h($event['address']) . ', ';
+        if ($event['city']) $detailsMode .= h($event['city']);
+        $detailsMode .= '</p>';
+    } elseif ($event['event_mode'] == 'online') {
+        $detailsMode = '<p><strong>Modalità:</strong> Online su ' . h($event['online_platform']) . '<br>';
+        $detailsMode .= 'Il link sarà inviato prima dell\'evento.</p>';
+    } elseif ($event['event_mode'] == 'hybrid') {
+        $detailsMode = '<p><strong>Modalità:</strong> Ibrido (In presenza e Online)</p>';
+    }
+    
+    $variables = [
+        'nome' => $member['first_name'],
+        'cognome' => $member['last_name'],
+        'titolo' => $event['title'],
+        'data' => formatDate($event['event_date']),
+        'ora' => $event['event_time'] ? substr($event['event_time'], 0, 5) : 'TBD',
+        'dettagli_modalita' => $detailsMode
+    ];
+    
+    return sendEmailFromTemplate($member['email'], 'event_registration', $variables);
+}
+
+/**
+ * Send event reminder to all registered members
+ */
+function sendEventReminder($eventId) {
+    global $pdo;
+    require_once __DIR__ . '/email.php';
+    
+    $event = getEvent($eventId);
+    if (!$event) {
+        return 0;
+    }
+    
+    $registrations = getEventRegistrations($eventId);
+    $sent = 0;
+    
+    foreach ($registrations as $reg) {
+        if (!$reg['email']) continue;
+        
+        $detailsMode = '';
+        if ($event['event_mode'] == 'in_person') {
+            $detailsMode = '<p><strong>Luogo:</strong> ' . h($event['location']) . '<br>';
+            if ($event['address']) $detailsMode .= h($event['address']) . ', ';
+            if ($event['city']) $detailsMode .= h($event['city']);
+            $detailsMode .= '</p>';
+        } elseif ($event['event_mode'] == 'online') {
+            $detailsMode = '<p><strong>Modalità:</strong> Online</p>';
+        }
+        
+        $variables = [
+            'nome' => $reg['first_name'],
+            'cognome' => $reg['last_name'],
+            'titolo' => $event['title'],
+            'data' => formatDate($event['event_date']),
+            'ora' => $event['event_time'] ? substr($event['event_time'], 0, 5) : 'TBD',
+            'dettagli_modalita' => $detailsMode
+        ];
+        
+        if (sendEmailFromTemplate($reg['email'], 'event_reminder', $variables)) {
+            $sent++;
+        }
+    }
+    
+    return $sent;
+}
+
+/**
+ * Send online link to registered members
+ */
+function sendOnlineLinkToRegistrants($eventId) {
+    global $pdo;
+    require_once __DIR__ . '/email.php';
+    
+    $event = getEvent($eventId);
+    if (!$event || !in_array($event['event_mode'], ['online', 'hybrid'])) {
+        return 0;
+    }
+    
+    $registrations = getEventRegistrations($eventId);
+    $sent = 0;
+    
+    foreach ($registrations as $reg) {
+        if (!$reg['email']) continue;
+        
+        $passwordInfo = '';
+        if ($event['online_password']) {
+            $passwordInfo = '<p><strong>Password:</strong> ' . h($event['online_password']) . '</p>';
+        }
+        
+        $instructions = '';
+        if ($event['online_instructions']) {
+            $instructions = '<p><strong>Istruzioni:</strong><br>' . nl2br(h($event['online_instructions'])) . '</p>';
+        }
+        
+        $variables = [
+            'nome' => $reg['first_name'],
+            'cognome' => $reg['last_name'],
+            'titolo' => $event['title'],
+            'data' => formatDate($event['event_date']),
+            'ora' => $event['event_time'] ? substr($event['event_time'], 0, 5) : 'TBD',
+            'piattaforma' => $event['online_platform'] ?? 'Piattaforma Online',
+            'link' => $event['online_link'] ?? '',
+            'password_info' => $passwordInfo,
+            'istruzioni' => $instructions
+        ];
+        
+        if (sendEmailFromTemplate($reg['email'], 'event_online_link', $variables)) {
+            $sent++;
+        }
+    }
+    
+    return $sent;
+}
+
+// ============================================================================
+// MASS EMAIL FUNCTIONS
+// ============================================================================
+
+/**
+ * Get mass email recipients based on filter
+ */
+function getMassEmailRecipients($filter, $params = []) {
+    global $pdo;
+    
+    $sql = "SELECT DISTINCT m.id, m.first_name, m.last_name, m.email, m.membership_number 
+            FROM " . table('members') . " m WHERE m.email IS NOT NULL AND m.email != ''";
+    $queryParams = [];
+    
+    switch ($filter) {
+        case 'all':
+            // All members with email
+            break;
+            
+        case 'active_paid':
+            // Members with paid fee for current year
+            $currentYear = getCurrentSocialYear();
+            if ($currentYear) {
+                $sql .= " AND EXISTS (
+                    SELECT 1 FROM " . table('member_fees') . " mf 
+                    WHERE mf.member_id = m.id 
+                    AND mf.social_year_id = ? 
+                    AND mf.status = 'paid'
+                )";
+                $queryParams[] = $currentYear['id'];
+            }
+            break;
+            
+        case 'overdue':
+            // Members with overdue fees
+            $currentYear = getCurrentSocialYear();
+            if ($currentYear) {
+                $sql .= " AND EXISTS (
+                    SELECT 1 FROM " . table('member_fees') . " mf 
+                    WHERE mf.member_id = m.id 
+                    AND mf.social_year_id = ? 
+                    AND mf.status = 'overdue'
+                )";
+                $queryParams[] = $currentYear['id'];
+            }
+            break;
+            
+        case 'no_fee_current_year':
+            // Members without fee for current year
+            $currentYear = getCurrentSocialYear();
+            if ($currentYear) {
+                $sql .= " AND NOT EXISTS (
+                    SELECT 1 FROM " . table('member_fees') . " mf 
+                    WHERE mf.member_id = m.id 
+                    AND mf.social_year_id = ?
+                )";
+                $queryParams[] = $currentYear['id'];
+            }
+            break;
+            
+        case 'event_registered':
+            // Members registered for specific event
+            if (!empty($params['event_id'])) {
+                $sql .= " AND EXISTS (
+                    SELECT 1 FROM " . table('event_registrations') . " er 
+                    WHERE er.member_id = m.id 
+                    AND er.event_id = ?
+                )";
+                $queryParams[] = $params['event_id'];
+            }
+            break;
+            
+        case 'manual':
+            // Specific member IDs
+            if (!empty($params['member_ids']) && is_array($params['member_ids'])) {
+                $placeholders = str_repeat('?,', count($params['member_ids']) - 1) . '?';
+                $sql .= " AND m.id IN ($placeholders)";
+                $queryParams = array_merge($queryParams, $params['member_ids']);
+            }
+            break;
+    }
+    
+    $sql .= " ORDER BY m.last_name, m.first_name";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($queryParams);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Count mass email recipients
+ */
+function countMassEmailRecipients($filter, $params = []) {
+    $recipients = getMassEmailRecipients($filter, $params);
+    return count($recipients);
+}
+
+/**
+ * Queue mass email batch
+ */
+function queueMassEmail($recipientIds, $subject, $bodyHtml, $senderId) {
+    global $pdo;
+    require_once __DIR__ . '/audit.php';
+    
+    // Create batch record
+    $stmt = $pdo->prepare("
+        INSERT INTO " . table('mass_email_batches') . " 
+        (subject, body_html, filter_type, total_recipients, created_by, status)
+        VALUES (?, ?, 'manual', ?, ?, 'pending')
+    ");
+    $stmt->execute([$subject, $bodyHtml, count($recipientIds), $senderId]);
+    $batchId = $pdo->lastInsertId();
+    
+    // Queue individual emails
+    $recipients = getMassEmailRecipients('manual', ['member_ids' => $recipientIds]);
+    
+    foreach ($recipients as $recipient) {
+        // Replace variables in subject and body
+        $personalizedSubject = str_replace(
+            ['{nome}', '{cognome}', '{email}', '{tessera}'],
+            [$recipient['first_name'], $recipient['last_name'], $recipient['email'], $recipient['membership_number']],
+            $subject
+        );
+        
+        $personalizedBody = str_replace(
+            ['{nome}', '{cognome}', '{email}', '{tessera}'],
+            [h($recipient['first_name']), h($recipient['last_name']), h($recipient['email']), h($recipient['membership_number'])],
+            $bodyHtml
+        );
+        
+        queueEmail($recipient['email'], $personalizedSubject, $personalizedBody);
+    }
+    
+    logCreate('mass_email_batch', $batchId, $subject, [
+        'total_recipients' => count($recipientIds),
+        'subject' => $subject
+    ]);
+    
+    return $batchId;
+}
+
+/**
+ * Get mass email batch status
+ */
+function getMassEmailStatus($batchId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT * FROM " . table('mass_email_batches') . " WHERE id = ?");
+    $stmt->execute([$batchId]);
+    return $stmt->fetch();
+}

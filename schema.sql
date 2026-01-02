@@ -262,4 +262,100 @@ INSERT INTO email_templates (code, name, subject, body_html, body_text, variable
 ('generic_notification', 'Notifica Generica', '{subject}', 
 '<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>{message}</p><p>Cordiali saluti,<br>{app_name}</p>', 
 'Gentile {nome} {cognome},\n\n{message}\n\nCordiali saluti,\n{app_name}',
-'["nome", "cognome", "subject", "message", "app_name"]');
+'["nome", "cognome", "subject", "message", "app_name"]'),
+
+('event_registration', 'Conferma Iscrizione Evento', 'Conferma Iscrizione: {titolo}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>La tua iscrizione all\'evento <strong>{titolo}</strong> è confermata!</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}</p>{dettagli_modalita}<p>Ci vediamo all\'evento!</p><p>Cordiali saluti,<br>{app_name}</p>',
+'Gentile {nome} {cognome},\n\nLa tua iscrizione all\'evento {titolo} è confermata!\n\nData: {data}\nOra: {ora}\n{dettagli_modalita}\n\nCi vediamo all\'evento!\n\nCordiali saluti,\n{app_name}',
+'["nome", "cognome", "titolo", "data", "ora", "dettagli_modalita", "app_name"]'),
+
+('event_reminder', 'Promemoria Evento', 'Promemoria: {titolo}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ti ricordiamo che l\'evento <strong>{titolo}</strong> si terrà:</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}</p>{dettagli_modalita}<p>Ti aspettiamo!</p><p>Cordiali saluti,<br>{app_name}</p>',
+'Gentile {nome} {cognome},\n\nTi ricordiamo che l\'evento {titolo} si terrà:\n\nData: {data}\nOra: {ora}\n{dettagli_modalita}\n\nTi aspettiamo!\n\nCordiali saluti,\n{app_name}',
+'["nome", "cognome", "titolo", "data", "ora", "dettagli_modalita", "app_name"]'),
+
+('event_online_link', 'Link Evento Online', 'Link per partecipare: {titolo}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ecco le informazioni per partecipare all\'evento online <strong>{titolo}</strong>:</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}<br><strong>Piattaforma:</strong> {piattaforma}</p><p><strong>Link di accesso:</strong><br><a href="{link}">{link}</a></p>{password_info}{istruzioni}<p>Ti aspettiamo online!</p><p>Cordiali saluti,<br>{app_name}</p>',
+'Gentile {nome} {cognome},\n\nEcco le informazioni per partecipare all\'evento online {titolo}:\n\nData: {data}\nOra: {ora}\nPiattaforma: {piattaforma}\n\nLink di accesso:\n{link}\n{password_info}{istruzioni}\n\nTi aspettiamo online!\n\nCordiali saluti,\n{app_name}',
+'["nome", "cognome", "titolo", "data", "ora", "piattaforma", "link", "password_info", "istruzioni", "app_name"]'),
+
+('event_cancelled', 'Evento Annullato', 'Annullamento Evento: {titolo}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Siamo spiacenti di informarti che l\'evento <strong>{titolo}</strong> previsto per il <strong>{data}</strong> è stato annullato.</p><p>{motivo}</p><p>Ci scusiamo per l\'inconveniente.</p><p>Cordiali saluti,<br>{app_name}</p>',
+'Gentile {nome} {cognome},\n\nSiamo spiacenti di informarti che l\'evento {titolo} previsto per il {data} è stato annullato.\n\n{motivo}\n\nCi scusiamo per l\'inconveniente.\n\nCordiali saluti,\n{app_name}',
+'["nome", "cognome", "titolo", "data", "motivo", "app_name"]');
+
+-- Events table
+CREATE TABLE IF NOT EXISTS events (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    event_date DATE NOT NULL,
+    event_time TIME,
+    end_date DATE,
+    end_time TIME,
+    
+    -- Event mode: in person, online or hybrid
+    event_mode ENUM('in_person', 'online', 'hybrid') DEFAULT 'in_person',
+    
+    -- Fields for IN PERSON events
+    location VARCHAR(255),
+    address VARCHAR(255),
+    city VARCHAR(100),
+    
+    -- Fields for ONLINE events
+    online_link VARCHAR(500),
+    online_platform VARCHAR(100),
+    online_instructions TEXT,
+    online_password VARCHAR(100),
+    
+    max_participants INT DEFAULT 0,  -- 0 = unlimited
+    registration_deadline DATE,
+    cost DECIMAL(10,2) DEFAULT 0,
+    status ENUM('draft', 'published', 'cancelled', 'completed') DEFAULT 'draft',
+    
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_event_date (event_date),
+    INDEX idx_status (status),
+    INDEX idx_event_mode (event_mode)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Event registrations table
+CREATE TABLE IF NOT EXISTS event_registrations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    member_id INT NOT NULL,
+    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    payment_status ENUM('pending', 'paid', 'refunded', 'not_required') DEFAULT 'pending',
+    attendance_status ENUM('registered', 'confirmed', 'attended', 'absent', 'waitlist') DEFAULT 'registered',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    UNIQUE KEY unique_registration (event_id, member_id),
+    INDEX idx_event (event_id),
+    INDEX idx_member (member_id),
+    INDEX idx_attendance (attendance_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Mass email batches table
+CREATE TABLE IF NOT EXISTS mass_email_batches (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    subject VARCHAR(255) NOT NULL,
+    body_html TEXT NOT NULL,
+    filter_type VARCHAR(50) NOT NULL,
+    filter_params TEXT,
+    total_recipients INT DEFAULT 0,
+    sent_count INT DEFAULT 0,
+    failed_count INT DEFAULT 0,
+    status ENUM('pending', 'processing', 'completed', 'failed') DEFAULT 'pending',
+    created_by INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP NULL,
+    
+    INDEX idx_status (status),
+    INDEX idx_created_by (created_by),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
