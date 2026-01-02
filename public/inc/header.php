@@ -116,6 +116,26 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                                 <i class="bi bi-tags"></i> Categorie
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'bulk_fees.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>bulk_fees.php">
+                                <i class="bi bi-arrow-repeat"></i> Rinnovo Quote
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'send_reminders.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>send_reminders.php">
+                                <i class="bi bi-envelope-exclamation"></i> Invio Solleciti
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'admin_email_templates.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>admin_email_templates.php">
+                                <i class="bi bi-envelope-paper"></i> Template Email
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'audit_log.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>audit_log.php">
+                                <i class="bi bi-clock-history"></i> Audit Log
+                            </a>
+                        </li>
                         <?php endif; ?>
                         
                         <hr>

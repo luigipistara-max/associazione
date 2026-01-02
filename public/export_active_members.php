@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/db.php';
+require_once __DIR__ . '/../src/audit.php';
 
 requireLogin();
 
@@ -33,6 +34,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Export data
         $exportData = exportActiveMembersCsv($socialYearId, $fields);
+        
+        // Log export
+        logExport('member', "Export soci attivi {$yearName} (" . count($exportData['data']) . " record)");
         
         if ($format === 'csv') {
             $filename = "soci_attivi_{$yearName}_" . date('Y-m-d') . ".csv";

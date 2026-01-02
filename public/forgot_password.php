@@ -48,9 +48,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ");
             $stmt->execute([$user['id'], $resetToken, $expiresAt]);
             
-            // In development, show the reset link instead of sending email
-            // In production, you would send this link via email
+            // Build reset link
             $resetLink = $basePath . 'reset_password.php?token=' . urlencode($resetToken);
+            
+            // Try to send email
+            require_once __DIR__ . '/../src/email.php';
+            $emailConfig = $config['email'] ?? [];
+            
+            if ($emailConfig['enabled'] ?? false) {
+                // Use email system
+                $variables = [
+                    'nome' => $user['username'],
+                    'cognome' => '',
+                    'link' => $resetLink
+                ];
+                
+                $emailSent = sendEmailFromTemplate($email, 'password_reset', $variables);
+                
+                if ($emailSent) {
+                    // Email sent successfully
+                    $resetLink = null; // Don't show link if email was sent
+                }
+            }
             
             $success = true;
         } else {
