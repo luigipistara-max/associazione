@@ -472,6 +472,67 @@ include __DIR__ . '/inc/header.php';
     </div>
 </div>
 
+<!-- Charts Section -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <h4 class="mb-3"><i class="bi bi-graph-up"></i> Grafici e Statistiche</h4>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Financial Trend Chart -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Andamento Finanziario (12 mesi)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="financialTrendChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Income by Category Chart -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Entrate per Categoria</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="incomeByCategoryChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Members by Status Chart -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-people"></i> Soci per Stato</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="membersByStatusChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Fees Status Chart -->
+    <?php if ($currentYear): ?>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-credit-card"></i> Stato Quote Anno Corrente</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="feesStatusChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+</div>
+
 <!-- Quick Actions -->
 <div class="row mt-4 mb-4">
     <div class="col-md-4 mb-3">
@@ -508,5 +569,221 @@ include __DIR__ . '/inc/header.php';
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Fetch dashboard statistics
+fetch('<?php echo $basePath; ?>api/dashboard_stats.php')
+    .then(response => response.json())
+    .then(data => {
+        // Financial Trend Chart (Line)
+        if (data.financial_trend) {
+            const ftCtx = document.getElementById('financialTrendChart');
+            if (ftCtx) {
+                new Chart(ftCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.financial_trend.labels,
+                        datasets: [
+                            {
+                                label: 'Entrate',
+                                data: data.financial_trend.income,
+                                borderColor: '#28a745',
+                                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            },
+                            {
+                                label: 'Uscite',
+                                data: data.financial_trend.expenses,
+                                borderColor: '#dc3545',
+                                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'top'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        label += new Intl.NumberFormat('it-IT', {
+                                            style: 'currency',
+                                            currency: 'EUR'
+                                        }).format(context.parsed.y);
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '€ ' + value.toLocaleString('it-IT');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Income by Category Chart (Doughnut)
+        if (data.income_by_category && data.income_by_category.data.length > 0) {
+            const icCtx = document.getElementById('incomeByCategoryChart');
+            if (icCtx) {
+                // Generate colors
+                const colors = [
+                    '#28a745', '#007bff', '#ffc107', '#dc3545', '#17a2b8',
+                    '#6f42c1', '#fd7e14', '#20c997', '#e83e8c', '#6c757d'
+                ];
+                
+                new Chart(icCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.income_by_category.labels,
+                        datasets: [{
+                            data: data.income_by_category.data,
+                            backgroundColor: colors.slice(0, data.income_by_category.labels.length),
+                            borderWidth: 2,
+                            borderColor: '#fff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'right'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        label += new Intl.NumberFormat('it-IT', {
+                                            style: 'currency',
+                                            currency: 'EUR'
+                                        }).format(context.parsed);
+                                        
+                                        // Add percentage
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                        label += ' (' + percentage + '%)';
+                                        
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Members by Status Chart (Bar)
+        if (data.members_by_status) {
+            const mbsCtx = document.getElementById('membersByStatusChart');
+            if (mbsCtx) {
+                new Chart(mbsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.members_by_status.labels,
+                        datasets: [{
+                            label: 'Numero Soci',
+                            data: data.members_by_status.data,
+                            backgroundColor: data.members_by_status.colors,
+                            borderWidth: 1,
+                            borderColor: '#fff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Fees Status Chart (Doughnut)
+        if (data.fees_status && data.fees_status.data.length > 0) {
+            const fsCtx = document.getElementById('feesStatusChart');
+            if (fsCtx) {
+                new Chart(fsCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.fees_status.labels,
+                        datasets: [{
+                            data: data.fees_status.data,
+                            backgroundColor: data.fees_status.colors,
+                            borderWidth: 2,
+                            borderColor: '#fff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'right'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        label += context.parsed;
+                                        
+                                        // Add percentage
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        if (total > 0) {
+                                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                            label += ' (' + percentage + '%)';
+                                        }
+                                        
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error loading dashboard stats:', error);
+    });
+</script>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>

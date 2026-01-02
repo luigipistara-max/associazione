@@ -717,3 +717,186 @@ function bulkCreateFees($memberIds, $socialYearId, $amount, $dueDate, $feeType =
     
     return $stats;
 }
+
+/**
+ * Genera token univoco per tessera socio
+ */
+function generateCardToken() {
+    return bin2hex(random_bytes(32));
+}
+
+/**
+ * Verifica se socio ha quota pagata per anno corrente
+ */
+function isMemberActive($memberId) {
+    global $pdo;
+    $currentYear = getCurrentSocialYear();
+    if (!$currentYear) return false;
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count FROM " . table('member_fees') . "
+        WHERE member_id = ? AND social_year_id = ? AND status = 'paid'
+    ");
+    $stmt->execute([$memberId, $currentYear['id']]);
+    $result = $stmt->fetch();
+    return $result['count'] > 0;
+}
+
+/**
+ * Verifica tessera tramite token
+ */
+function verifyMemberCard($token) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT m.*, 
+               (SELECT COUNT(*) FROM " . table('member_fees') . " mf 
+                JOIN " . table('social_years') . " sy ON mf.social_year_id = sy.id 
+                WHERE mf.member_id = m.id AND mf.status = 'paid' AND sy.is_current = 1) as has_paid_current
+        FROM " . table('members') . " m
+        WHERE m.card_token = ?
+    ");
+    $stmt->execute([$token]);
+    return $stmt->fetch();
+}
+
+/**
+ * Andamento finanziario ultimi N mesi
+ */
+function getFinancialTrend($months = 12) {
+    global $pdo;
+    
+    $data = ['labels' => [], 'income' => [], 'expenses' => []];
+    
+    for ($i = $months - 1; $i >= 0; $i--) {
+        $date = date('Y-m', strtotime("-$i months"));
+        $data['labels'][] = date('M Y', strtotime("-$i months"));
+        
+        // Entrate del mese
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total 
+            FROM " . table('income') . "
+            WHERE DATE_FORMAT(transaction_date, '%Y-%m') = ?
+        ");
+        $stmt->execute([$date]);
+        $data['income'][] = floatval($stmt->fetch()['total']);
+        
+        // Uscite del mese
+        $stmt = $pdo->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total 
+            FROM " . table('expenses') . "
+            WHERE DATE_FORMAT(transaction_date, '%Y-%m') = ?
+        ");
+        $stmt->execute([$date]);
+        $data['expenses'][] = floatval($stmt->fetch()['total']);
+    }
+    
+    return $data;
+}
+
+/**
+ * Entrate per categoria (anno corrente)
+ */
+function getIncomeByCategory($yearId = null) {
+    global $pdo;
+    
+    if (!$yearId) {
+        $currentYear = getCurrentSocialYear();
+        $yearId = $currentYear['id'] ?? null;
+    }
+    
+    if ($yearId) {
+        $sql = "
+            SELECT ic.name, COALESCE(SUM(i.amount), 0) as total
+            FROM " . table('income_categories') . " ic
+            LEFT JOIN " . table('income') . " i ON ic.id = i.category_id AND i.social_year_id = ?
+            GROUP BY ic.id, ic.name 
+            ORDER BY total DESC
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$yearId]);
+    } else {
+        $sql = "
+            SELECT ic.name, COALESCE(SUM(i.amount), 0) as total
+            FROM " . table('income_categories') . " ic
+            LEFT JOIN " . table('income') . " i ON ic.id = i.category_id
+            GROUP BY ic.id, ic.name 
+            ORDER BY total DESC
+        ";
+        $stmt = $pdo->query($sql);
+    }
+    
+    $results = $stmt->fetchAll();
+    
+    return [
+        'labels' => array_column($results, 'name'),
+        'data' => array_map('floatval', array_column($results, 'total'))
+    ];
+}
+
+/**
+ * Soci per stato
+ */
+function getMembersByStatus() {
+    global $pdo;
+    
+    $stmt = $pdo->query("
+        SELECT status, COUNT(*) as count
+        FROM " . table('members') . "
+        GROUP BY status
+    ");
+    
+    $results = [];
+    while ($row = $stmt->fetch()) {
+        $results[$row['status']] = intval($row['count']);
+    }
+    
+    return [
+        'labels' => ['Attivi', 'Sospesi', 'Cessati'],
+        'data' => [
+            $results['attivo'] ?? 0,
+            $results['sospeso'] ?? 0,
+            $results['cessato'] ?? 0
+        ],
+        'colors' => ['#28a745', '#ffc107', '#dc3545']
+    ];
+}
+
+/**
+ * Stato quote anno corrente
+ */
+function getFeesStatus($yearId = null) {
+    global $pdo;
+    
+    if (!$yearId) {
+        $currentYear = getCurrentSocialYear();
+        $yearId = $currentYear['id'] ?? null;
+    }
+    
+    if (!$yearId) {
+        return ['labels' => [], 'data' => [], 'colors' => []];
+    }
+    
+    $stmt = $pdo->prepare("
+        SELECT status, COUNT(*) as count
+        FROM " . table('member_fees') . "
+        WHERE social_year_id = ?
+        GROUP BY status
+    ");
+    $stmt->execute([$yearId]);
+    
+    $results = [];
+    while ($row = $stmt->fetch()) {
+        $results[$row['status']] = intval($row['count']);
+    }
+    
+    return [
+        'labels' => ['Pagate', 'In attesa', 'Scadute'],
+        'data' => [
+            $results['paid'] ?? 0,
+            $results['pending'] ?? 0,
+            $results['overdue'] ?? 0
+        ],
+        'colors' => ['#28a745', '#ffc107', '#dc3545']
+    ];
+}

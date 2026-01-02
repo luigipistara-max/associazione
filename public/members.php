@@ -191,6 +191,10 @@ include __DIR__ . '/inc/header.php';
                             </td>
                             <td><?php echo formatDate($member['registration_date']); ?></td>
                             <td class="text-end">
+                                <a href="<?php echo $basePath; ?>member_card.php?member_id=<?php echo $member['id']; ?>" 
+                                   class="btn btn-sm btn-outline-info" title="Tessera">
+                                    <i class="bi bi-credit-card"></i>
+                                </a>
                                 <a href="<?php echo $basePath; ?>member_edit.php?id=<?php echo $member['id']; ?>" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-pencil"></i>
                                 </a>
