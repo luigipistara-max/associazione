@@ -805,19 +805,27 @@ function getIncomeByCategory($yearId = null) {
         $yearId = $currentYear['id'] ?? null;
     }
     
-    $sql = "
-        SELECT ic.name, COALESCE(SUM(i.amount), 0) as total
-        FROM " . table('income_categories') . " ic
-        LEFT JOIN " . table('income') . " i ON ic.id = i.category_id
-    ";
-    
     if ($yearId) {
-        $sql .= " AND i.social_year_id = " . intval($yearId);
+        $sql = "
+            SELECT ic.name, COALESCE(SUM(i.amount), 0) as total
+            FROM " . table('income_categories') . " ic
+            LEFT JOIN " . table('income') . " i ON ic.id = i.category_id AND i.social_year_id = ?
+            GROUP BY ic.id, ic.name 
+            ORDER BY total DESC
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([$yearId]);
+    } else {
+        $sql = "
+            SELECT ic.name, COALESCE(SUM(i.amount), 0) as total
+            FROM " . table('income_categories') . " ic
+            LEFT JOIN " . table('income') . " i ON ic.id = i.category_id
+            GROUP BY ic.id, ic.name 
+            ORDER BY total DESC
+        ";
+        $stmt = $pdo->query($sql);
     }
     
-    $sql .= " GROUP BY ic.id, ic.name ORDER BY total DESC";
-    
-    $stmt = $pdo->query($sql);
     $results = $stmt->fetchAll();
     
     return [

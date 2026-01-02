@@ -73,9 +73,13 @@ $yearDisplay = $currentYear ? $currentYear['name'] : date('Y');
 // Build verification URL
 $verifyUrl = '';
 if ($member['card_token']) {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'];
-    $verifyUrl = $protocol . '://' . $host . $basePath . 'verify_member.php?token=' . urlencode($member['card_token']);
+    // Use base_path from config for secure URL generation
+    $verifyUrl = rtrim($basePath, '/') . '/verify_member.php?token=' . urlencode($member['card_token']);
+    
+    // If we need full URL for QR code, prepend with protocol and host from config or SERVER_NAME
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $serverName = $_SERVER['SERVER_NAME'] ?? 'localhost';
+    $verifyUrl = $protocol . '://' . $serverName . $verifyUrl;
 }
 
 $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_name'];
@@ -256,7 +260,7 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
                 <div class="card-info">
                     <strong>Nome:</strong> <?php echo h($member['first_name'] . ' ' . $member['last_name']); ?><br>
                     <strong>N. Tessera:</strong> <?php echo h($member['membership_number'] ?: sprintf('%05d', $member['id'])); ?><br>
-                    <strong>C.F.:</strong> <?php echo h(substr($member['fiscal_code'], 0, 6) . '******' . substr($member['fiscal_code'], -3)); ?><br>
+                    <strong>C.F.:</strong> <?php echo h(substr($member['fiscal_code'], 0, 3) . '***********' . substr($member['fiscal_code'], -2)); ?><br>
                     <br>
                     <strong>Valida per:</strong> Anno <?php echo h($yearDisplay); ?>
                 </div>
