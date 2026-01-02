@@ -8,6 +8,41 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
 
 /**
+ * Controlla se siamo su hosting AlterVista
+ * 
+ * @return bool True se su AlterVista
+ */
+function isAlterVista() {
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    return (strpos($host, 'altervista.org') !== false || strpos($host, 'it.altervista.org') !== false);
+}
+
+/**
+ * Verifica rate limiting email (specialmente per AlterVista)
+ * 
+ * @return bool True se possiamo ancora inviare email
+ */
+function checkEmailRateLimit() {
+    global $pdo;
+    
+    try {
+        // Conta email inviate oggi
+        $stmt = $pdo->query("
+            SELECT COUNT(*) as count FROM " . table('email_log') . "
+            WHERE DATE(sent_at) = CURDATE() AND status = 'sent'
+        ");
+        $result = $stmt->fetch();
+        
+        // AlterVista free: 50/giorno, altrimenti 500/giorno
+        $dailyLimit = isAlterVista() ? 50 : 500;
+        return $result['count'] < $dailyLimit;
+    } catch (PDOException $e) {
+        // Se tabella non esiste ancora, permetti l'invio
+        return true;
+    }
+}
+
+/**
  * Invia email tramite SMTP o mail() come fallback
  * 
  * @param string $to Destinatario email
@@ -25,10 +60,21 @@ function sendEmail($to, $subject, $bodyHtml, $bodyText = null) {
         return false;
     }
     
+    // Verifica rate limiting
+    if (!checkEmailRateLimit()) {
+        logEmailError($to, $subject, 'Rate limit giornaliero raggiunto');
+        return false;
+    }
+    
     $emailConfig = $config['email'] ?? [];
     $enabled = $emailConfig['enabled'] ?? false;
     
     try {
+        // Se su AlterVista, usa sempre sendEmailAlterVista per compatibilità
+        if (isAlterVista()) {
+            return sendEmailAlterVista($to, $subject, $bodyHtml);
+        }
+        
         if ($enabled && !empty($emailConfig['smtp_host'])) {
             // Invio tramite SMTP
             return sendEmailSMTP($to, $subject, $bodyHtml, $bodyText);
@@ -40,6 +86,36 @@ function sendEmail($to, $subject, $bodyHtml, $bodyText = null) {
         logEmailError($to, $subject, $e->getMessage());
         return false;
     }
+}
+
+/**
+ * Invia email su AlterVista con headers semplificati
+ * AlterVista non supporta SMTP diretto e ha limitazioni su mail()
+ * 
+ * @param string $to Destinatario email
+ * @param string $subject Oggetto
+ * @param string $bodyHtml Corpo HTML
+ * @return bool True se inviata con successo
+ */
+function sendEmailAlterVista($to, $subject, $bodyHtml) {
+    // Headers semplificati per AlterVista
+    $headers = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-type: text/html; charset=UTF-8\r\n";
+    
+    // AlterVista richiede From con dominio altervista
+    $fromEmail = 'noreply@' . ($_SERVER['HTTP_HOST'] ?? 'associazione.altervista.org');
+    $headers .= "From: " . $fromEmail . "\r\n";
+    
+    // Usa @ per sopprimere eventuali warning
+    $success = @mail($to, $subject, $bodyHtml, $headers);
+    
+    if ($success) {
+        logEmailSuccess($to, $subject);
+    } else {
+        logEmailError($to, $subject, 'Invio mail() su AlterVista fallito');
+    }
+    
+    return $success;
 }
 
 /**
@@ -182,10 +258,23 @@ function sendEmailFromTemplate($to, $templateCode, $variables = []) {
 }
 
 /**
- * Sostituisce le variabili nel testo del template
+ * Sostituisce le variabili nel testo del template con protezione XSS
+ * 
+ * @param string $text Testo template
+ * @param array $variables Variabili da sostituire
+ * @param bool $escapeHtml Se true, esegue escape HTML (default: true)
+ * @return string Testo con variabili sostituite
  */
-function replaceTemplateVariables($text, $variables) {
+function replaceTemplateVariables($text, $variables, $escapeHtml = true) {
+    // Lista di variabili che contengono link HTML e NON devono essere escapate
+    $safeVariables = ['reset_link', 'link_ricevuta', 'unsubscribe_link', 'link', 'verification_link'];
+    
     foreach ($variables as $key => $value) {
+        // Escape HTML per prevenire XSS injection via variabili
+        // Tranne per i link che devono rimanere funzionanti
+        if ($escapeHtml && !in_array($key, $safeVariables)) {
+            $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+        }
         $text = str_replace('{' . $key . '}', $value, $text);
     }
     return $text;
