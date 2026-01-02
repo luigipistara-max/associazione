@@ -367,6 +367,45 @@ include __DIR__ . '/inc/header.php';
     </div>
     <?php endif; ?>
     
+    <?php if ($memberId): ?>
+    <!-- Member Card Section -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-credit-card"></i> Tessera Socio</h5>
+        </div>
+        <div class="card-body">
+            <?php if ($member['card_token']): ?>
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> 
+                    <strong>Tessera generata</strong><br>
+                    <small>Generata il <?php echo formatDate(date('Y-m-d', strtotime($member['card_generated_at']))); ?> 
+                    alle <?php echo date('H:i', strtotime($member['card_generated_at'])); ?></small>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <a href="<?php echo h($config['app']['base_path']); ?>member_card.php?member_id=<?php echo $memberId; ?>" 
+                       class="btn btn-primary">
+                        <i class="bi bi-eye"></i> Visualizza Tessera
+                    </a>
+                    <a href="<?php echo h($config['app']['base_path']); ?>member_card.php?member_id=<?php echo $memberId; ?>" 
+                       class="btn btn-outline-warning">
+                        <i class="bi bi-arrow-clockwise"></i> Rigenera Tessera
+                    </a>
+                </div>
+            <?php else: ?>
+                <p class="text-muted mb-2">
+                    <i class="bi bi-info-circle"></i> 
+                    Nessuna tessera generata per questo socio.
+                </p>
+                <a href="<?php echo h($config['app']['base_path']); ?>member_card.php?member_id=<?php echo $memberId; ?>" 
+                   class="btn btn-success">
+                    <i class="bi bi-plus-circle"></i> Genera Tessera
+                </a>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+    
     <div class="d-flex justify-content-between mb-4">
         <a href="/members.php" class="btn btn-secondary">
             <i class="bi bi-x"></i> Annulla

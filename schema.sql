@@ -43,10 +43,13 @@ CREATE TABLE IF NOT EXISTS members (
     registration_date DATE NOT NULL,
     status ENUM('attivo', 'sospeso', 'cessato') DEFAULT 'attivo',
     notes TEXT,
+    card_token VARCHAR(64) NULL UNIQUE,
+    card_generated_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_status (status),
-    INDEX idx_fiscal_code (fiscal_code)
+    INDEX idx_fiscal_code (fiscal_code),
+    INDEX idx_card_token (card_token)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Social years table
