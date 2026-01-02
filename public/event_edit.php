@@ -47,8 +47,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'registration_deadline' => $_POST['registration_deadline'] ?: null,
             'cost' => floatval($_POST['cost'] ?? 0),
             'status' => $_POST['status'] ?? 'draft',
+            'target_type' => $_POST['target_type'] ?? 'all',
             'created_by' => getCurrentUser()['id']
         ];
+        
+        $targetGroups = $_POST['target_groups'] ?? [];
         
         // Validation
         $errors = [];
@@ -58,14 +61,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($data['event_date'])) {
             $errors[] = 'La data dell\'evento è obbligatoria';
         }
+        if ($data['target_type'] === 'groups' && empty($targetGroups)) {
+            $errors[] = 'Seleziona almeno un gruppo destinatario';
+        }
         
         if (empty($errors)) {
             try {
                 if ($eventId) {
                     updateEvent($eventId, $data);
+                    setEventTargetGroups($eventId, $targetGroups);
                     setFlashMessage('Evento aggiornato con successo');
                 } else {
                     $newEventId = createEvent($data);
+                    setEventTargetGroups($newEventId, $targetGroups);
                     setFlashMessage('Evento creato con successo');
                     redirect($basePath . 'event_edit.php?id=' . $newEventId);
                 }
@@ -97,8 +105,16 @@ $formData = $event ?? [
     'max_participants' => 0,
     'registration_deadline' => '',
     'cost' => 0,
-    'status' => 'draft'
+    'status' => 'draft',
+    'target_type' => 'all'
 ];
+
+// Get target groups for this event
+$eventTargetGroups = $eventId ? getEventTargetGroups($eventId) : [];
+$eventTargetGroupIds = array_column($eventTargetGroups, 'id');
+
+// Get all groups
+$allGroups = getGroups(true);
 
 include __DIR__ . '/inc/header.php';
 ?>
@@ -299,6 +315,63 @@ include __DIR__ . '/inc/header.php';
         </div>
     </div>
     
+    <!-- Section 4: Target Members -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Destinatari Evento</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="target_type" id="target_all" 
+                           value="all" <?php echo $formData['target_type'] == 'all' ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="target_all">
+                        <strong>Tutti i soci iscritti</strong>
+                        <div class="form-text">L'evento sarà visibile a tutti i soci attivi</div>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="target_type" id="target_groups" 
+                           value="groups" <?php echo $formData['target_type'] == 'groups' ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="target_groups">
+                        <strong>Gruppi specifici</strong>
+                        <div class="form-text">Seleziona uno o più gruppi destinatari</div>
+                    </label>
+                </div>
+            </div>
+            
+            <div id="groups-selection" style="display: none;" class="ms-4">
+                <?php if (empty($allGroups)): ?>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        Nessun gruppo disponibile. <a href="<?php echo h($basePath); ?>member_groups.php">Crea un gruppo</a> prima di utilizzare questa opzione.
+                    </div>
+                <?php else: ?>
+                    <div class="row">
+                        <?php foreach ($allGroups as $group): ?>
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="target_groups[]" 
+                                           value="<?php echo $group['id']; ?>" 
+                                           id="group_<?php echo $group['id']; ?>"
+                                           <?php echo in_array($group['id'], $eventTargetGroupIds) ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="group_<?php echo $group['id']; ?>">
+                                        <span class="badge" style="background-color: <?php echo h($group['color']); ?>; width: 15px; height: 15px; display: inline-block; border-radius: 3px;"></span>
+                                        <?php echo h($group['name']); ?>
+                                        <small class="text-muted">(<?php echo getGroupMemberCount($group['id']); ?> soci)</small>
+                                    </label>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    
     <!-- Submit buttons -->
     <div class="mb-4">
         <button type="submit" class="btn btn-primary">
@@ -321,12 +394,26 @@ function updateModeFields() {
     onlineFields.style.display = (mode === 'online' || mode === 'hybrid') ? 'block' : 'none';
 }
 
+// Show/hide groups selection based on target type
+function updateTargetFields() {
+    const targetType = document.querySelector('input[name="target_type"]:checked').value;
+    const groupsSelection = document.getElementById('groups-selection');
+    
+    groupsSelection.style.display = (targetType === 'groups') ? 'block' : 'none';
+}
+
 document.querySelectorAll('input[name="event_mode"]').forEach(radio => {
     radio.addEventListener('change', updateModeFields);
 });
 
 // Initialize on page load
 updateModeFields();
+
+document.querySelectorAll('input[name="target_type"]').forEach(radio => {
+    radio.addEventListener('change', updateTargetFields);
+});
+
+updateTargetFields();
 </script>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>

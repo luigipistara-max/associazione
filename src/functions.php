@@ -966,8 +966,8 @@ function createEvent($data) {
         (title, description, event_date, event_time, end_date, end_time,
          event_mode, location, address, city,
          online_link, online_platform, online_instructions, online_password,
-         max_participants, registration_deadline, cost, status, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         max_participants, registration_deadline, cost, status, target_type, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     
     $stmt->execute([
@@ -989,6 +989,7 @@ function createEvent($data) {
         $data['registration_deadline'] ?? null,
         $data['cost'] ?? 0,
         $data['status'] ?? 'draft',
+        $data['target_type'] ?? 'all',
         $data['created_by'] ?? null
     ]);
     
@@ -1014,7 +1015,7 @@ function updateEvent($eventId, $data) {
             end_date = ?, end_time = ?, event_mode = ?,
             location = ?, address = ?, city = ?,
             online_link = ?, online_platform = ?, online_instructions = ?, online_password = ?,
-            max_participants = ?, registration_deadline = ?, cost = ?, status = ?
+            max_participants = ?, registration_deadline = ?, cost = ?, status = ?, target_type = ?
         WHERE id = ?
     ");
     
@@ -1037,6 +1038,7 @@ function updateEvent($eventId, $data) {
         $data['registration_deadline'] ?? null,
         $data['cost'] ?? 0,
         $data['status'] ?? 'draft',
+        $data['target_type'] ?? 'all',
         $eventId
     ]);
     
@@ -1638,4 +1640,347 @@ function getMassEmailStatus($batchId) {
     $stmt = $pdo->prepare("SELECT * FROM " . table('mass_email_batches') . " WHERE id = ?");
     $stmt->execute([$batchId]);
     return $stmt->fetch();
+}
+
+// =====================================================
+// MEMBER GROUPS FUNCTIONS
+// =====================================================
+
+/**
+ * Get a single member by ID
+ */
+function getMember($memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
+    $stmt->execute([$memberId]);
+    return $stmt->fetch();
+}
+
+/**
+ * Get all member groups
+ */
+function getGroups($activeOnly = true) {
+    global $pdo;
+    
+    $sql = "SELECT * FROM " . table('member_groups');
+    if ($activeOnly) {
+        $sql .= " WHERE is_active = 1";
+    }
+    $sql .= " ORDER BY name";
+    
+    $stmt = $pdo->query($sql);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get a single group by ID
+ */
+function getGroup($groupId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT * FROM " . table('member_groups') . " WHERE id = ?");
+    $stmt->execute([$groupId]);
+    return $stmt->fetch();
+}
+
+/**
+ * Create a new member group
+ */
+function createGroup($data) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        INSERT INTO " . table('member_groups') . " 
+        (name, description, color, is_active) 
+        VALUES (?, ?, ?, ?)
+    ");
+    
+    $stmt->execute([
+        $data['name'],
+        $data['description'] ?? null,
+        $data['color'] ?? '#6c757d',
+        $data['is_active'] ?? true
+    ]);
+    
+    $groupId = $pdo->lastInsertId();
+    
+    // Log the action
+    logAudit('create', 'member_group', $groupId, $data['name']);
+    
+    return $groupId;
+}
+
+/**
+ * Update a member group
+ */
+function updateGroup($groupId, $data) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('member_groups') . " 
+        SET name = ?, description = ?, color = ?, is_active = ?
+        WHERE id = ?
+    ");
+    
+    $stmt->execute([
+        $data['name'],
+        $data['description'] ?? null,
+        $data['color'] ?? '#6c757d',
+        $data['is_active'] ?? true,
+        $groupId
+    ]);
+    
+    // Log the action
+    logAudit('update', 'member_group', $groupId, $data['name']);
+    
+    return true;
+}
+
+/**
+ * Delete a member group
+ */
+function deleteGroup($groupId) {
+    global $pdo;
+    
+    $group = getGroup($groupId);
+    if (!$group) {
+        return false;
+    }
+    
+    $stmt = $pdo->prepare("DELETE FROM " . table('member_groups') . " WHERE id = ?");
+    $stmt->execute([$groupId]);
+    
+    // Log the action
+    logAudit('delete', 'member_group', $groupId, $group['name']);
+    
+    return true;
+}
+
+/**
+ * Get members in a group
+ */
+function getGroupMembers($groupId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT m.*, mgm.added_at
+        FROM " . table('members') . " m
+        INNER JOIN " . table('member_group_members') . " mgm ON m.id = mgm.member_id
+        WHERE mgm.group_id = ?
+        ORDER BY m.last_name, m.first_name
+    ");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Add a member to a group
+ */
+function addMemberToGroup($groupId, $memberId) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('member_group_members') . " 
+            (group_id, member_id) 
+            VALUES (?, ?)
+        ");
+        $stmt->execute([$groupId, $memberId]);
+        
+        // Log the action
+        $group = getGroup($groupId);
+        $member = getMember($memberId);
+        logAudit('add_member_to_group', 'member_group', $groupId, 
+                 $group['name'] . ' <- ' . $member['first_name'] . ' ' . $member['last_name']);
+        
+        return true;
+    } catch (PDOException $e) {
+        // Ignore duplicate key errors
+        if ($e->getCode() == '23000') {
+            return true;
+        }
+        throw $e;
+    }
+}
+
+/**
+ * Remove a member from a group
+ */
+function removeMemberFromGroup($groupId, $memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        DELETE FROM " . table('member_group_members') . " 
+        WHERE group_id = ? AND member_id = ?
+    ");
+    $stmt->execute([$groupId, $memberId]);
+    
+    // Log the action
+    $group = getGroup($groupId);
+    $member = getMember($memberId);
+    logAudit('remove_member_from_group', 'member_group', $groupId, 
+             $group['name'] . ' -> ' . $member['first_name'] . ' ' . $member['last_name']);
+    
+    return true;
+}
+
+/**
+ * Get groups that a member belongs to
+ */
+function getMemberGroups($memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT g.*, mgm.added_at
+        FROM " . table('member_groups') . " g
+        INNER JOIN " . table('member_group_members') . " mgm ON g.id = mgm.group_id
+        WHERE mgm.member_id = ?
+        ORDER BY g.name
+    ");
+    $stmt->execute([$memberId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Check if a member is in a group
+ */
+function isMemberInGroup($groupId, $memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count
+        FROM " . table('member_group_members') . "
+        WHERE group_id = ? AND member_id = ?
+    ");
+    $stmt->execute([$groupId, $memberId]);
+    $result = $stmt->fetch();
+    return $result['count'] > 0;
+}
+
+/**
+ * Get target groups for an event
+ */
+function getEventTargetGroups($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT g.*
+        FROM " . table('member_groups') . " g
+        INNER JOIN " . table('event_target_groups') . " etg ON g.id = etg.group_id
+        WHERE etg.event_id = ?
+        ORDER BY g.name
+    ");
+    $stmt->execute([$eventId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Set target groups for an event
+ */
+function setEventTargetGroups($eventId, $groupIds) {
+    global $pdo;
+    
+    // First, delete existing target groups
+    $stmt = $pdo->prepare("DELETE FROM " . table('event_target_groups') . " WHERE event_id = ?");
+    $stmt->execute([$eventId]);
+    
+    // Then, add the new target groups
+    if (!empty($groupIds)) {
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('event_target_groups') . " 
+            (event_id, group_id) 
+            VALUES (?, ?)
+        ");
+        
+        foreach ($groupIds as $groupId) {
+            $stmt->execute([$eventId, $groupId]);
+        }
+    }
+    
+    return true;
+}
+
+/**
+ * Get members who are targets of an event (based on target_type and groups)
+ */
+function getEventTargetMembers($eventId) {
+    global $pdo;
+    
+    $event = getEvent($eventId);
+    if (!$event) {
+        return [];
+    }
+    
+    // If target_type is 'all', return all active members with email
+    if ($event['target_type'] == 'all') {
+        $stmt = $pdo->prepare("
+            SELECT * FROM " . table('members') . "
+            WHERE status = 'attivo' AND email IS NOT NULL AND email != ''
+            ORDER BY last_name, first_name
+        ");
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+    
+    // If target_type is 'groups', return members in the target groups
+    $stmt = $pdo->prepare("
+        SELECT DISTINCT m.*
+        FROM " . table('members') . " m
+        INNER JOIN " . table('member_group_members') . " mgm ON m.id = mgm.member_id
+        INNER JOIN " . table('event_target_groups') . " etg ON mgm.group_id = etg.group_id
+        WHERE etg.event_id = ? 
+          AND m.status = 'attivo' 
+          AND m.email IS NOT NULL 
+          AND m.email != ''
+        ORDER BY m.last_name, m.first_name
+    ");
+    $stmt->execute([$eventId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Export group members to CSV
+ */
+function exportGroupMembersCsv($groupId) {
+    $group = getGroup($groupId);
+    if (!$group) {
+        return false;
+    }
+    
+    $members = getGroupMembers($groupId);
+    
+    $filename = 'gruppo_' . preg_replace('/[^a-z0-9]+/', '_', strtolower($group['name'])) . '_' . date('Y-m-d') . '.csv';
+    
+    $headers = ['Nome', 'Cognome', 'Email', 'Telefono', 'Numero Tessera', 'Data Iscrizione'];
+    
+    $data = [];
+    foreach ($members as $member) {
+        $data[] = [
+            $member['first_name'],
+            $member['last_name'],
+            $member['email'] ?? '',
+            $member['phone'] ?? '',
+            $member['membership_number'] ?? '',
+            formatDate($member['registration_date'])
+        ];
+    }
+    
+    exportCsv($filename, $data, $headers);
+}
+
+/**
+ * Get member count for a group
+ */
+function getGroupMemberCount($groupId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count
+        FROM " . table('member_group_members') . "
+        WHERE group_id = ?
+    ");
+    $stmt->execute([$groupId]);
+    $result = $stmt->fetch();
+    return $result['count'];
 }
