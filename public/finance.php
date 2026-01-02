@@ -174,51 +174,116 @@ $categoryFilter = $_GET['category'] ?? '';
 
 // Build query for list
 if ($action === 'list') {
-    // Build UNION query to combine income and expenses
-    $sql = "
-        SELECT 
-            i.id,
-            'income' as type,
-            i.category_id,
-            ic.name as category_name,
-            i.amount,
-            i.transaction_date,
-            i.payment_method,
-            i.receipt_number,
-            i.notes,
-            i.social_year_id,
-            sy.name as year_name,
-            i.member_id,
-            mem.first_name,
-            mem.last_name,
-            NULL as description
-        FROM " . table('income') . " i
-        LEFT JOIN " . table('income_categories') . " ic ON i.category_id = ic.id
-        LEFT JOIN " . table('social_years') . " sy ON i.social_year_id = sy.id
-        LEFT JOIN " . table('members') . " mem ON i.member_id = mem.id
-        WHERE 1=1
-    ";
-    
     $params = [];
     
-    // Add filters for income
-    if ($yearFilter && $typeFilter !== 'expense') {
-        $sql .= " AND i.social_year_id = ?";
-        $params[] = $yearFilter;
+    // Case 1: Only expenses
+    if ($typeFilter === 'expense') {
+        $sql = "
+            SELECT 
+                e.id,
+                'expense' as type,
+                e.category_id,
+                ec.name as category_name,
+                e.amount,
+                e.transaction_date,
+                e.payment_method,
+                e.receipt_number,
+                e.notes,
+                e.social_year_id,
+                sy.name as year_name,
+                NULL as member_id,
+                NULL as first_name,
+                NULL as last_name,
+                e.description
+            FROM " . table('expenses') . " e
+            LEFT JOIN " . table('expense_categories') . " ec ON e.category_id = ec.id
+            LEFT JOIN " . table('social_years') . " sy ON e.social_year_id = sy.id
+            WHERE 1=1
+        ";
+        
+        if ($yearFilter) {
+            $sql .= " AND e.social_year_id = ?";
+            $params[] = $yearFilter;
+        }
+        
+        if ($categoryFilter) {
+            $sql .= " AND e.category_id = ?";
+            $params[] = $categoryFilter;
+        }
     }
-    
-    if ($categoryFilter && $typeFilter !== 'expense') {
-        $sql .= " AND i.category_id = ?";
-        $params[] = $categoryFilter;
+    // Case 2: Only income
+    elseif ($typeFilter === 'income') {
+        $sql = "
+            SELECT 
+                i.id,
+                'income' as type,
+                i.category_id,
+                ic.name as category_name,
+                i.amount,
+                i.transaction_date,
+                i.payment_method,
+                i.receipt_number,
+                i.notes,
+                i.social_year_id,
+                sy.name as year_name,
+                i.member_id,
+                mem.first_name,
+                mem.last_name,
+                NULL as description
+            FROM " . table('income') . " i
+            LEFT JOIN " . table('income_categories') . " ic ON i.category_id = ic.id
+            LEFT JOIN " . table('social_years') . " sy ON i.social_year_id = sy.id
+            LEFT JOIN " . table('members') . " mem ON i.member_id = mem.id
+            WHERE 1=1
+        ";
+        
+        if ($yearFilter) {
+            $sql .= " AND i.social_year_id = ?";
+            $params[] = $yearFilter;
+        }
+        
+        if ($categoryFilter) {
+            $sql .= " AND i.category_id = ?";
+            $params[] = $categoryFilter;
+        }
     }
-    
-    // Add UNION if showing both or only expenses
-    if ($typeFilter !== 'expense') {
-        $sql .= " UNION ALL ";
-    }
-    
-    if ($typeFilter !== 'income') {
-        $sql .= "
+    // Case 3: Both (default)
+    else {
+        $sql = "
+            SELECT 
+                i.id,
+                'income' as type,
+                i.category_id,
+                ic.name as category_name,
+                i.amount,
+                i.transaction_date,
+                i.payment_method,
+                i.receipt_number,
+                i.notes,
+                i.social_year_id,
+                sy.name as year_name,
+                i.member_id,
+                mem.first_name,
+                mem.last_name,
+                NULL as description
+            FROM " . table('income') . " i
+            LEFT JOIN " . table('income_categories') . " ic ON i.category_id = ic.id
+            LEFT JOIN " . table('social_years') . " sy ON i.social_year_id = sy.id
+            LEFT JOIN " . table('members') . " mem ON i.member_id = mem.id
+            WHERE 1=1
+        ";
+        
+        if ($yearFilter) {
+            $sql .= " AND i.social_year_id = ?";
+            $params[] = $yearFilter;
+        }
+        
+        if ($categoryFilter) {
+            $sql .= " AND i.category_id = ?";
+            $params[] = $categoryFilter;
+        }
+        
+        $sql .= " UNION ALL 
             SELECT 
                 e.id,
                 'expense' as type,
@@ -483,7 +548,7 @@ include __DIR__ . '/inc/header.php';
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Tipo <span class="text-danger">*</span></label>
-                        <select name="type" id="movementType" class="form-select" required onchange="updateCategories()" <?php echo $action === 'edit' ? 'readonly disabled aria-readonly="true"' : ''; ?>>
+                        <select name="type" id="movementType" class="form-select" required onchange="updateCategories()" <?php echo $action === 'edit' ? 'disabled aria-disabled="true"' : ''; ?>>
                             <option value="">Seleziona...</option>
                             <option value="income" <?php echo ($movement['type'] ?? '') === 'income' ? 'selected' : ''; ?>>Entrata</option>
                             <option value="expense" <?php echo ($movement['type'] ?? '') === 'expense' ? 'selected' : ''; ?>>Uscita</option>
