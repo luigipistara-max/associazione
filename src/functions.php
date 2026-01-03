@@ -1984,3 +1984,236 @@ function getGroupMemberCount($groupId) {
     $result = $stmt->fetch();
     return $result['count'];
 }
+
+// ============================================================================
+// SETTINGS FUNCTIONS
+// ============================================================================
+
+/**
+ * Get a single setting value
+ * 
+ * @param string $key Setting key
+ * @param mixed $default Default value if setting not found
+ * @return mixed Setting value or default
+ */
+function getSetting($key, $default = null) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT setting_value FROM " . table('settings') . " WHERE setting_key = ?");
+        $stmt->execute([$key]);
+        $result = $stmt->fetch();
+        
+        return $result ? $result['setting_value'] : $default;
+    } catch (PDOException $e) {
+        return $default;
+    }
+}
+
+/**
+ * Get all settings as associative array
+ * 
+ * @return array Associative array of all settings
+ */
+function getAllSettings() {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->query("SELECT setting_key, setting_value FROM " . table('settings'));
+        $settings = [];
+        
+        while ($row = $stmt->fetch()) {
+            $settings[$row['setting_key']] = $row['setting_value'];
+        }
+        
+        return $settings;
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Get settings by group
+ * 
+ * @param string $group Setting group name
+ * @return array Associative array of settings in the group
+ */
+function getSettingsByGroup($group) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT setting_key, setting_value FROM " . table('settings') . " WHERE setting_group = ?");
+        $stmt->execute([$group]);
+        $settings = [];
+        
+        while ($row = $stmt->fetch()) {
+            $settings[$row['setting_key']] = $row['setting_value'];
+        }
+        
+        return $settings;
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Set a single setting value
+ * 
+ * @param string $key Setting key
+ * @param mixed $value Setting value
+ * @param string $group Setting group (default: 'general')
+ * @return bool Success
+ */
+function setSetting($key, $value, $group = 'general') {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('settings') . " (setting_key, setting_value, setting_group)
+            VALUES (?, ?, ?)
+            ON DUPLICATE KEY UPDATE setting_value = ?, setting_group = ?
+        ");
+        $stmt->execute([$key, $value, $group, $value, $group]);
+        return true;
+    } catch (PDOException $e) {
+        error_log("Error setting value: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Set multiple settings at once
+ * 
+ * @param array $settings Associative array of settings [key => value] or [[key, value, group], ...]
+ * @return bool Success
+ */
+function setSettings($settings) {
+    $allSuccess = true;
+    foreach ($settings as $key => $value) {
+        if (is_array($value)) {
+            // Format: [key, value, group]
+            $result = setSetting($value[0], $value[1], $value[2] ?? 'general');
+        } else {
+            // Format: key => value
+            $result = setSetting($key, $value);
+        }
+        if (!$result) {
+            $allSuccess = false;
+        }
+    }
+    return $allSuccess;
+}
+
+/**
+ * Get formatted association address (multiline)
+ * 
+ * @return string Formatted address
+ */
+function getAssociationAddress() {
+    $parts = [];
+    
+    if ($street = getSetting('address_street')) {
+        $parts[] = $street;
+    }
+    
+    $cityLine = '';
+    if ($cap = getSetting('address_cap')) {
+        $cityLine .= $cap . ' ';
+    }
+    if ($city = getSetting('address_city')) {
+        $cityLine .= $city;
+    }
+    if ($province = getSetting('address_province')) {
+        $cityLine .= ' (' . $province . ')';
+    }
+    if ($cityLine) {
+        $parts[] = trim($cityLine);
+    }
+    
+    return implode("\n", $parts);
+}
+
+/**
+ * Get formatted association data for receipts/emails
+ * 
+ * @return array Association information
+ */
+function getAssociationInfo() {
+    return [
+        'name' => getSetting('association_name', 'Associazione'),
+        'full_name' => getSetting('association_full_name'),
+        'logo' => getSetting('association_logo'),
+        'slogan' => getSetting('association_slogan'),
+        'address' => getAssociationAddress(),
+        'phone' => getSetting('contact_phone'),
+        'email' => getSetting('contact_email'),
+        'pec' => getSetting('contact_pec'),
+        'website' => getSetting('contact_website'),
+        'fiscal_cf' => getSetting('fiscal_cf'),
+        'fiscal_piva' => getSetting('fiscal_piva'),
+        'fiscal_rea' => getSetting('fiscal_rea'),
+        'fiscal_registry' => getSetting('fiscal_registry'),
+        'legal_representative_name' => getSetting('legal_representative_name'),
+        'legal_representative_role' => getSetting('legal_representative_role'),
+    ];
+}
+
+/**
+ * Get bank details formatted
+ * 
+ * @return array Bank details
+ */
+function getBankDetails() {
+    return [
+        'iban' => getSetting('bank_iban'),
+        'holder' => getSetting('bank_holder'),
+        'bank_name' => getSetting('bank_name'),
+        'bic' => getSetting('bank_bic'),
+    ];
+}
+
+/**
+ * Get email footer with all association info
+ * 
+ * @return string HTML formatted email footer
+ */
+function getEmailFooter() {
+    $info = getAssociationInfo();
+    
+    $footer = '<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666;">';
+    
+    // Custom signature if set
+    if ($signature = getSetting('email_signature')) {
+        $footer .= '<p>' . nl2br(h($signature)) . '</p>';
+    }
+    
+    // Association info
+    $footer .= '<p><strong>' . h($info['name']) . '</strong><br>';
+    
+    if ($info['address']) {
+        $footer .= nl2br(h($info['address'])) . '<br>';
+    }
+    
+    if ($info['phone']) {
+        $footer .= 'Tel: ' . h($info['phone']) . '<br>';
+    }
+    
+    if ($info['email']) {
+        $footer .= 'Email: ' . h($info['email']) . '<br>';
+    }
+    
+    if ($info['website']) {
+        $footer .= 'Web: ' . h($info['website']) . '<br>';
+    }
+    
+    $footer .= '</p>';
+    
+    // Custom footer if set
+    if ($customFooter = getSetting('email_footer')) {
+        $footer .= '<p style="font-size: 11px;">' . nl2br(h($customFooter)) . '</p>';
+    }
+    
+    $footer .= '</div>';
+    
+    return $footer;
+}

@@ -254,6 +254,9 @@ function sendEmailFromTemplate($to, $templateCode, $variables = []) {
     $bodyHtml = replaceTemplateVariables($template['body_html'], $variables);
     $bodyText = $template['body_text'] ? replaceTemplateVariables($template['body_text'], $variables) : null;
     
+    // Add email footer automatically
+    $bodyHtml .= getEmailFooter();
+    
     return sendEmail($to, $subject, $bodyHtml, $bodyText);
 }
 

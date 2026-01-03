@@ -23,3 +23,6 @@ Thumbs.db
 
 # Upload directories (if any)
 uploads/
+# But keep .htaccess and .gitkeep
+!public/uploads/.htaccess
+!public/uploads/.gitkeep
