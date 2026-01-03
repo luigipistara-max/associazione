@@ -184,6 +184,22 @@ include __DIR__ . '/inc/header.php';
                     <?php endif; ?>
                 </p>
                 
+                <?php if ($event['target_type'] == 'groups'): 
+                    $targetGroups = getEventTargetGroups($event['id']);
+                    if (!empty($targetGroups)):
+                ?>
+                <p class="mb-2">
+                    <i class="bi bi-diagram-3"></i> 
+                    <small class="text-muted">
+                        Destinato a: 
+                        <?php 
+                        $groupNames = array_map(function($g) { return h($g['name']); }, $targetGroups);
+                        echo implode(', ', $groupNames);
+                        ?>
+                    </small>
+                </p>
+                <?php endif; endif; ?>
+                
                 <?php if ($event['description']): ?>
                 <p class="card-text text-muted small">
                     <?php echo h(mb_substr($event['description'], 0, 100)); ?>

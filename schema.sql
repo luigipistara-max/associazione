@@ -312,6 +312,7 @@ CREATE TABLE IF NOT EXISTS events (
     registration_deadline DATE,
     cost DECIMAL(10,2) DEFAULT 0,
     status ENUM('draft', 'published', 'cancelled', 'completed') DEFAULT 'draft',
+    target_type ENUM('all', 'groups') DEFAULT 'all',  -- all = all members, groups = specific groups
     
     created_by INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -319,7 +320,8 @@ CREATE TABLE IF NOT EXISTS events (
     
     INDEX idx_event_date (event_date),
     INDEX idx_status (status),
-    INDEX idx_event_mode (event_mode)
+    INDEX idx_event_mode (event_mode),
+    INDEX idx_target_type (target_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Event registrations table
@@ -361,4 +363,40 @@ CREATE TABLE IF NOT EXISTS mass_email_batches (
     INDEX idx_created_by (created_by),
     INDEX idx_created_at (created_at),
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Member groups table
+CREATE TABLE IF NOT EXISTS member_groups (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    color VARCHAR(7) DEFAULT '#6c757d',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Member group members table (N:N relationship)
+CREATE TABLE IF NOT EXISTS member_group_members (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    group_id INT NOT NULL,
+    member_id INT NOT NULL,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_group_member (group_id, member_id),
+    INDEX idx_group (group_id),
+    INDEX idx_member (member_id),
+    FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Event target groups table (N:N relationship)
+CREATE TABLE IF NOT EXISTS event_target_groups (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    group_id INT NOT NULL,
+    UNIQUE KEY unique_event_group (event_id, group_id),
+    INDEX idx_event (event_id),
+    INDEX idx_group (group_id),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

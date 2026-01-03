@@ -211,6 +211,24 @@ include __DIR__ . '/inc/header.php';
                         <?php endif; ?>
                     </div>
                 </div>
+                
+                <?php if ($event['target_type'] == 'groups'): 
+                    $targetGroups = getEventTargetGroups($event['id']);
+                    if (!empty($targetGroups)):
+                ?>
+                <hr>
+                <div class="mb-3">
+                    <h6><i class="bi bi-diagram-3"></i> Gruppi Destinatari</h6>
+                    <p class="mb-1">Questo evento è destinato ai seguenti gruppi:</p>
+                    <div class="mt-2">
+                        <?php foreach ($targetGroups as $group): ?>
+                            <span class="badge me-1" style="background-color: <?php echo h($group['color']); ?>;">
+                                <?php echo h($group['name']); ?>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; endif; ?>
             </div>
         </div>
     </div>

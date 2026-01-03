@@ -122,6 +122,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link <?php echo in_array($currentPage, ['member_groups.php', 'member_group_members.php']) ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>member_groups.php">
+                                <i class="bi bi-diagram-3"></i> Gruppi Soci
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link <?php echo $currentPage === 'bulk_fees.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>bulk_fees.php">
                                 <i class="bi bi-arrow-repeat"></i> Rinnovo Quote
                             </a>
