@@ -151,6 +151,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                                 <i class="bi bi-clock-history"></i> Audit Log
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'settings.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>settings.php">
+                                <i class="bi bi-gear"></i> Impostazioni
+                            </a>
+                        </li>
                         <?php endif; ?>
                         
                         <hr>
