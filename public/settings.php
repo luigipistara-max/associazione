@@ -15,7 +15,8 @@ $pageTitle = 'Impostazioni Associazione';
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // CSRF protection would go here in production
+    // TODO: Add CSRF protection in production
+    // Example: if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) { die('CSRF token mismatch'); }
     
     $settings = [];
     
@@ -82,16 +83,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mkdir($uploadDir, 0755, true);
         }
         
-        $fileInfo = pathinfo($_FILES['association_logo']['name']);
-        $extension = strtolower($fileInfo['extension']);
-        
-        // Validate file type
-        if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif'])) {
-            $newFileName = 'logo.' . $extension;
-            $uploadPath = $uploadDir . $newFileName;
+        // Validate file size (max 2MB)
+        $maxSize = 2 * 1024 * 1024;
+        if ($_FILES['association_logo']['size'] > $maxSize) {
+            setFlash('Il file è troppo grande. Dimensione massima: 2MB', 'danger');
+        } else {
+            $fileInfo = pathinfo($_FILES['association_logo']['name']);
+            $extension = strtolower($fileInfo['extension']);
             
-            if (move_uploaded_file($_FILES['association_logo']['tmp_name'], $uploadPath)) {
-                $settings[] = ['association_logo', 'uploads/' . $newFileName, 'association'];
+            // Validate file type by extension and MIME type
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/gif'];
+            $fileMime = mime_content_type($_FILES['association_logo']['tmp_name']);
+            
+            if (in_array($extension, $allowedExtensions) && in_array($fileMime, $allowedMimes)) {
+                $newFileName = 'logo.' . $extension;
+                $uploadPath = $uploadDir . $newFileName;
+                
+                if (move_uploaded_file($_FILES['association_logo']['tmp_name'], $uploadPath)) {
+                    $settings[] = ['association_logo', 'uploads/' . $newFileName, 'association'];
+                } else {
+                    setFlash('Errore durante il caricamento del logo', 'danger');
+                }
+            } else {
+                setFlash('Tipo di file non valido. Sono ammessi solo JPG, PNG e GIF', 'danger');
             }
         }
     }

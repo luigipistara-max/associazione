@@ -2088,16 +2088,20 @@ function setSetting($key, $value, $group = 'general') {
  * @return bool Success
  */
 function setSettings($settings) {
+    $allSuccess = true;
     foreach ($settings as $key => $value) {
         if (is_array($value)) {
             // Format: [key, value, group]
-            setSetting($value[0], $value[1], $value[2] ?? 'general');
+            $result = setSetting($value[0], $value[1], $value[2] ?? 'general');
         } else {
             // Format: key => value
-            setSetting($key, $value);
+            $result = setSetting($key, $value);
+        }
+        if (!$result) {
+            $allSuccess = false;
         }
     }
-    return true;
+    return $allSuccess;
 }
 
 /**

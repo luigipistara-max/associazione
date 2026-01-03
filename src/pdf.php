@@ -270,10 +270,6 @@ function generateReceiptHTML($feeId) {
                 <div class="info-label">Sede:</div>
                 <div class="info-value">' . nl2br(h($assocInfo['address'])) . '</div>
             </div>' : '') . '
-            ' . ($assocInfo['fiscal_cf'] ? '<div class="info-row">
-                <div class="info-label">Codice Fiscale:</div>
-                <div class="info-value">' . h($assocInfo['fiscal_cf']) . '</div>
-            </div>' : '') . '
             ' . ($assocInfo['email'] ? '<div class="info-row">
                 <div class="info-label">Email:</div>
                 <div class="info-value">' . h($assocInfo['email']) . '</div>
