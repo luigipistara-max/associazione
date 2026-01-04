@@ -11,6 +11,7 @@ require_once __DIR__ . '/inc/auth.php';
 
 session_start();
 $member = requirePortalLogin();
+$config = require __DIR__ . '/../../src/config.php';
 $basePath = $config['app']['base_path'];
 
 $success = '';
