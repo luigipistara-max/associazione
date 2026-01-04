@@ -3725,6 +3725,7 @@ function sendEventNotification($eventId) {
 /**
  * Get next receipt number for current year
  * Format: YYYY/NNNN (es. 2026/0001)
+ * Uses SELECT FOR UPDATE to prevent race conditions
  * 
  * @return string Next receipt number
  */
@@ -3734,24 +3735,37 @@ function getNextReceiptNumber() {
     $year = date('Y');
     $prefix = $year . '/';
     
-    $stmt = $pdo->prepare("
-        SELECT receipt_number 
-        FROM " . table('receipts') . " 
-        WHERE receipt_number LIKE ? 
-        ORDER BY receipt_number DESC 
-        LIMIT 1
-    ");
-    $stmt->execute([$prefix . '%']);
-    $last = $stmt->fetchColumn();
+    // Use transaction with FOR UPDATE to prevent race conditions
+    $pdo->beginTransaction();
     
-    if ($last) {
-        $lastNumber = (int) substr($last, strlen($prefix));
-        $nextNumber = $lastNumber + 1;
-    } else {
-        $nextNumber = 1;
+    try {
+        $stmt = $pdo->prepare("
+            SELECT receipt_number 
+            FROM " . table('receipts') . " 
+            WHERE receipt_number LIKE ? 
+            ORDER BY receipt_number DESC 
+            LIMIT 1
+            FOR UPDATE
+        ");
+        $stmt->execute([$prefix . '%']);
+        $last = $stmt->fetchColumn();
+        
+        if ($last) {
+            $lastNumber = (int) substr($last, strlen($prefix));
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+        
+        $receiptNumber = $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        
+        $pdo->commit();
+        return $receiptNumber;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Error generating receipt number: " . $e->getMessage());
+        return $prefix . '0001'; // Fallback to first number
     }
-    
-    return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
 }
 
 /**
@@ -3765,6 +3779,13 @@ function getNextReceiptNumber() {
  */
 function generateReceipt($memberFeeId, $paymentMethod = 'cash', $paymentDetails = null, $createdBy = null) {
     global $pdo;
+    
+    // Check if receipt already exists first (optimization)
+    $stmt = $pdo->prepare("SELECT id FROM " . table('receipts') . " WHERE member_fee_id = ?");
+    $stmt->execute([$memberFeeId]);
+    if ($stmt->fetch()) {
+        return false; // Receipt already exists
+    }
     
     // Get fee details
     $stmt = $pdo->prepare("
@@ -3780,13 +3801,6 @@ function generateReceipt($memberFeeId, $paymentMethod = 'cash', $paymentDetails 
     
     if (!$fee) {
         return false;
-    }
-    
-    // Check if receipt already exists
-    $stmt = $pdo->prepare("SELECT id FROM " . table('receipts') . " WHERE member_fee_id = ?");
-    $stmt->execute([$memberFeeId]);
-    if ($stmt->fetch()) {
-        return false; // Receipt already exists
     }
     
     // Default payment details
@@ -3815,27 +3829,32 @@ function generateReceipt($memberFeeId, $paymentMethod = 'cash', $paymentDetails 
         $description .= ' - Anno sociale ' . $fee['year_name'];
     }
     
-    // Generate receipt
+    // Generate receipt number (handles its own transaction)
     $receiptNumber = getNextReceiptNumber();
     
-    $stmt = $pdo->prepare("
-        INSERT INTO " . table('receipts') . " 
-        (receipt_number, member_id, member_fee_id, amount, description, payment_method, payment_method_details, issue_date, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)
-    ");
-    
-    $stmt->execute([
-        $receiptNumber,
-        $fee['member_id'],
-        $memberFeeId,
-        $fee['amount'],
-        $description,
-        $paymentMethod,
-        $paymentDetails,
-        $createdBy
-    ]);
-    
-    return $pdo->lastInsertId();
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('receipts') . " 
+            (receipt_number, member_id, member_fee_id, amount, description, payment_method, payment_method_details, issue_date, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)
+        ");
+        
+        $stmt->execute([
+            $receiptNumber,
+            $fee['member_id'],
+            $memberFeeId,
+            $fee['amount'],
+            $description,
+            $paymentMethod,
+            $paymentDetails,
+            $createdBy
+        ]);
+        
+        return $pdo->lastInsertId();
+    } catch (Exception $e) {
+        error_log("Error generating receipt: " . $e->getMessage());
+        return false;
+    }
 }
 
 /**

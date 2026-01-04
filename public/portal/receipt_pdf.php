@@ -21,7 +21,13 @@ if (!$receipt || $receipt['member_id'] !== $member['id']) {
     die('Ricevuta non trovata');
 }
 
-$assocInfo = getAssociationInfo();
+// Get association info with fallback
+$assocInfo = getAssociationInfo() ?: [
+    'name' => 'Associazione',
+    'address' => '',
+    'city' => '',
+    'fiscal_code' => ''
+];
 ?>
 <!DOCTYPE html>
 <html lang="it">
