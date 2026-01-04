@@ -22,11 +22,23 @@ $debugInfo = [];
 // Auto-detect base path
 function detectBasePath() {
     $scriptName = $_SERVER['SCRIPT_NAME'];
-    $basePath = dirname(dirname($scriptName));
-    if ($basePath === '/' || $basePath === '\\') {
-        return '/';
+    $scriptDir = dirname($scriptName);
+    
+    // Il path deve sempre terminare con /public/
+    // Esempi corretti:
+    // /gest/public/
+    // /associazione/public/
+    // /public/
+    
+    // Se siamo già in /public/, usa il path così com'è
+    if (preg_match('#/public/?$#', $scriptDir)) {
+        $basePath = rtrim($scriptDir, '/') . '/';
+    } else {
+        // Aggiungi /public/ se non presente
+        $basePath = rtrim($scriptDir, '/') . '/public/';
     }
-    return rtrim($basePath, '/') . '/';
+    
+    return $basePath;
 }
 
 // Step 1: Database Configuration

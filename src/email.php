@@ -49,9 +49,11 @@ function checkEmailRateLimit() {
  * @param string $subject Oggetto
  * @param string $bodyHtml Corpo HTML
  * @param string|null $bodyText Corpo testo plain (opzionale)
+ * @param string|null $fromEmail Email mittente (opzionale)
+ * @param string|null $fromName Nome mittente (opzionale)
  * @return bool True se inviata con successo
  */
-function sendEmail($to, $subject, $bodyHtml, $bodyText = null) {
+function sendEmail($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = null, $fromName = null) {
     global $config;
     
     // Validazione email destinatario
@@ -66,8 +68,8 @@ function sendEmail($to, $subject, $bodyHtml, $bodyText = null) {
         return false;
     }
     
-    $emailConfig = $config['email'] ?? [];
-    $enabled = $emailConfig['enabled'] ?? false;
+    // Verifica se SMTP è abilitato tramite settings
+    $smtpEnabled = getSetting('smtp_enabled') == '1';
     
     try {
         // Se su AlterVista, usa sempre sendEmailAlterVista per compatibilità
@@ -75,12 +77,12 @@ function sendEmail($to, $subject, $bodyHtml, $bodyText = null) {
             return sendEmailAlterVista($to, $subject, $bodyHtml);
         }
         
-        if ($enabled && !empty($emailConfig['smtp_host'])) {
+        if ($smtpEnabled) {
             // Invio tramite SMTP
-            return sendEmailSMTP($to, $subject, $bodyHtml, $bodyText);
+            return sendEmailSmtp($to, $subject, $bodyHtml, $bodyText, $fromEmail, $fromName);
         } else {
             // Fallback a mail()
-            return sendEmailBuiltin($to, $subject, $bodyHtml, $bodyText);
+            return sendEmailNative($to, $subject, $bodyHtml, $bodyText, $fromEmail, $fromName);
         }
     } catch (Exception $e) {
         logEmailError($to, $subject, $e->getMessage());
@@ -119,74 +121,163 @@ function sendEmailAlterVista($to, $subject, $bodyHtml) {
 }
 
 /**
- * Invia email tramite SMTP usando fsockopen
+ * Send email via SMTP
  */
-function sendEmailSMTP($to, $subject, $bodyHtml, $bodyText = null) {
-    global $config;
+function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = null, $fromName = null) {
+    $host = getSetting('smtp_host');
+    $port = (int) getSetting('smtp_port');
+    $security = getSetting('smtp_security');
+    $username = getSetting('smtp_username');
+    $password = getSetting('smtp_password');
     
-    $emailConfig = $config['email'];
-    $host = $emailConfig['smtp_host'];
-    $port = $emailConfig['smtp_port'] ?? 587;
-    $user = $emailConfig['smtp_user'] ?? '';
-    $pass = $emailConfig['smtp_pass'] ?? '';
-    $secure = $emailConfig['smtp_secure'] ?? 'tls';
-    $fromEmail = $emailConfig['from_email'] ?? 'noreply@associazione.it';
-    $fromName = $emailConfig['from_name'] ?? 'AssoLife';
+    $fromEmail = $fromEmail ?: getSetting('smtp_from_email') ?: $username;
+    $fromName = $fromName ?: getSetting('smtp_from_name') ?: '';
     
-    // Prepara il messaggio multipart
-    $boundary = md5(uniqid(time()));
+    // Connessione SMTP
+    $smtp = null;
+    $errno = 0;
+    $errstr = '';
     
-    // Headers
-    $headers = "From: " . $fromName . " <" . $fromEmail . ">\r\n";
-    $headers .= "Reply-To: " . $fromEmail . "\r\n";
-    $headers .= "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: multipart/alternative; boundary=\"" . $boundary . "\"\r\n";
-    
-    // Corpo del messaggio
-    $message = "--" . $boundary . "\r\n";
-    
-    // Parte testo
-    if ($bodyText) {
-        $message .= "Content-Type: text/plain; charset=UTF-8\r\n";
-        $message .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-        $message .= $bodyText . "\r\n\r\n";
-        $message .= "--" . $boundary . "\r\n";
+    // Determina protocollo
+    if ($security === 'ssl') {
+        $smtp = @fsockopen('ssl://' . $host, $port, $errno, $errstr, 30);
+    } elseif ($security === 'tls') {
+        $smtp = @fsockopen($host, $port, $errno, $errstr, 30);
+    } else {
+        $smtp = @fsockopen($host, $port, $errno, $errstr, 30);
     }
     
-    // Parte HTML
-    $message .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $message .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-    $message .= $bodyHtml . "\r\n\r\n";
-    $message .= "--" . $boundary . "--";
-    
-    // Tentativo di connessione SMTP
-    try {
-        // Per semplicità e compatibilità, usiamo mail() con headers custom
-        // Una implementazione SMTP completa richiederebbe più codice
-        $success = mail($to, $subject, $message, $headers);
-        
-        if ($success) {
-            logEmailSuccess($to, $subject);
-        } else {
-            logEmailError($to, $subject, 'Invio mail() fallito');
-        }
-        
-        return $success;
-    } catch (Exception $e) {
-        logEmailError($to, $subject, $e->getMessage());
+    if (!$smtp) {
+        error_log("SMTP connection failed: $errstr ($errno)");
         return false;
     }
+    
+    // Leggi risposta iniziale
+    $response = fgets($smtp, 515);
+    if (substr($response, 0, 3) != '220') {
+        fclose($smtp);
+        return false;
+    }
+    
+    // EHLO
+    fputs($smtp, "EHLO " . $_SERVER['SERVER_NAME'] . "\r\n");
+    $response = '';
+    while ($line = fgets($smtp, 515)) {
+        $response .= $line;
+        if (substr($line, 3, 1) == ' ') break;
+    }
+    
+    // STARTTLS se necessario
+    if ($security === 'tls') {
+        fputs($smtp, "STARTTLS\r\n");
+        $response = fgets($smtp, 515);
+        if (substr($response, 0, 3) != '220') {
+            fclose($smtp);
+            return false;
+        }
+        
+        stream_socket_enable_crypto($smtp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        
+        // EHLO di nuovo dopo STARTTLS
+        fputs($smtp, "EHLO " . $_SERVER['SERVER_NAME'] . "\r\n");
+        $response = '';
+        while ($line = fgets($smtp, 515)) {
+            $response .= $line;
+            if (substr($line, 3, 1) == ' ') break;
+        }
+    }
+    
+    // AUTH LOGIN
+    fputs($smtp, "AUTH LOGIN\r\n");
+    $response = fgets($smtp, 515);
+    if (substr($response, 0, 3) != '334') {
+        fclose($smtp);
+        return false;
+    }
+    
+    fputs($smtp, base64_encode($username) . "\r\n");
+    $response = fgets($smtp, 515);
+    if (substr($response, 0, 3) != '334') {
+        fclose($smtp);
+        return false;
+    }
+    
+    fputs($smtp, base64_encode($password) . "\r\n");
+    $response = fgets($smtp, 515);
+    if (substr($response, 0, 3) != '235') {
+        error_log("SMTP auth failed: $response");
+        fclose($smtp);
+        return false;
+    }
+    
+    // MAIL FROM
+    fputs($smtp, "MAIL FROM:<$fromEmail>\r\n");
+    $response = fgets($smtp, 515);
+    if (substr($response, 0, 3) != '250') {
+        fclose($smtp);
+        return false;
+    }
+    
+    // RCPT TO
+    fputs($smtp, "RCPT TO:<$to>\r\n");
+    $response = fgets($smtp, 515);
+    if (substr($response, 0, 3) != '250') {
+        fclose($smtp);
+        return false;
+    }
+    
+    // DATA
+    fputs($smtp, "DATA\r\n");
+    $response = fgets($smtp, 515);
+    if (substr($response, 0, 3) != '354') {
+        fclose($smtp);
+        return false;
+    }
+    
+    // Headers
+    $boundary = md5(uniqid(time()));
+    $headers = "From: " . ($fromName ? "\"$fromName\" <$fromEmail>" : $fromEmail) . "\r\n";
+    $headers .= "To: $to\r\n";
+    $headers .= "Subject: $subject\r\n";
+    $headers .= "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: multipart/alternative; boundary=\"$boundary\"\r\n";
+    $headers .= "\r\n";
+    
+    // Body
+    $body = "--$boundary\r\n";
+    $body .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
+    $body .= ($bodyText ?: strip_tags($bodyHtml)) . "\r\n\r\n";
+    $body .= "--$boundary\r\n";
+    $body .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
+    $body .= $bodyHtml . "\r\n\r\n";
+    $body .= "--$boundary--\r\n";
+    
+    // Invia messaggio
+    fputs($smtp, $headers . $body . "\r\n.\r\n");
+    $response = fgets($smtp, 515);
+    if (substr($response, 0, 3) != '250') {
+        fclose($smtp);
+        return false;
+    }
+    
+    // QUIT
+    fputs($smtp, "QUIT\r\n");
+    fclose($smtp);
+    
+    logEmailSuccess($to, $subject);
+    return true;
+}
 }
 
 /**
  * Invia email usando la funzione mail() di PHP
  */
-function sendEmailBuiltin($to, $subject, $bodyHtml, $bodyText = null) {
+function sendEmailNative($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = null, $fromName = null) {
     global $config;
     
     $emailConfig = $config['email'] ?? [];
-    $fromEmail = $emailConfig['from_email'] ?? 'noreply@associazione.it';
-    $fromName = $emailConfig['from_name'] ?? 'AssoLife';
+    $fromEmail = $fromEmail ?: ($emailConfig['from_email'] ?? 'noreply@associazione.it');
+    $fromName = $fromName ?: ($emailConfig['from_name'] ?? 'AssoLife');
     
     // Prepara il messaggio multipart
     $boundary = md5(uniqid(time()));
@@ -474,4 +565,15 @@ function getQueuedEmailsCount() {
     ");
     $result = $stmt->fetch();
     return $result['count'];
+}
+
+/**
+ * Test SMTP connection and send test email
+ */
+function testSmtpConnection($testEmail) {
+    $subject = "Test Email - " . getSetting('app_name', 'AssoLife');
+    $body = "<h1>Test Email</h1><p>Se ricevi questa email, la configurazione SMTP è corretta!</p>";
+    $body .= "<p>Inviata il: " . date('d/m/Y H:i:s') . "</p>";
+    
+    return sendEmailSmtp($testEmail, $subject, $body);
 }
