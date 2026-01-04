@@ -150,6 +150,12 @@ function getExpenseCategories($activeOnly = true) {
  */
 function categoryExists($name, $type, $excludeId = null) {
     global $pdo;
+    
+    // Validate type parameter to prevent SQL injection
+    if (!in_array($type, ['income', 'expense'], true)) {
+        throw new InvalidArgumentException('Invalid category type. Must be "income" or "expense".');
+    }
+    
     $table = $type === 'income' ? table('income_categories') : table('expense_categories');
     
     $sql = "SELECT COUNT(*) as count FROM $table WHERE name = ?";
