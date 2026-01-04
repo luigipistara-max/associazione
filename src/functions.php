@@ -2276,7 +2276,7 @@ function sendPortalActivationEmail($memberId) {
         return false;
     }
     
-    require_once __DIR__ . '/portal_auth.php';
+    require_once __DIR__ . '/../public/portal/inc/auth.php';
     $token = generatePortalToken($memberId);
     $activationLink = getBaseUrl() . 'portal/register.php?token=' . $token;
     
