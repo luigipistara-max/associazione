@@ -3657,7 +3657,7 @@ function sendEventNotification($eventId) {
     $baseUrl = getBaseUrl();
     $eventUrl = $baseUrl . 'portal/events.php';
     
-    $subject = "[{$assocName}] Nuovo evento: " . $event['title'];
+    $subject = "[{$assocName}] Nuovo evento: " . str_replace(["\r", "\n"], ' ', $event['title']);
     
     // Format date
     $eventDate = date('d/m/Y', strtotime($event['event_date']));
