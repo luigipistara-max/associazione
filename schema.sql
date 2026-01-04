@@ -528,6 +528,10 @@ INSERT INTO settings (setting_key, setting_value, setting_group) VALUES
 ('smtp_from_email', '', 'email'),
 ('smtp_from_name', '', 'email');
 
+-- API/Integration settings
+INSERT INTO settings (setting_key, setting_value, setting_group) VALUES
+('tinymce_api_key', '', 'api');
+
 -- ============================================================================
 -- MIGRATION: Add fee_amount column to social_years (for existing installations)
 -- Run this if upgrading from a previous version
