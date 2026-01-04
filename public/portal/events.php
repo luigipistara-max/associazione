@@ -22,7 +22,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['event_id'], $_POST['r
     $notes = $_POST['notes'] ?? null;
     
     if (setMemberEventResponse($eventId, $member['id'], $response, $notes)) {
-        echo json_encode(['success' => true, 'message' => 'Risposta salvata con successo']);
+        // Get updated counts
+        $counts = countEventResponses($eventId);
+        echo json_encode([
+            'success' => true, 
+            'message' => 'Risposta salvata con successo',
+            'counts' => $counts
+        ]);
     } else {
         echo json_encode(['success' => false, 'message' => 'Errore nel salvare la risposta']);
     }
@@ -160,9 +166,11 @@ require_once __DIR__ . '/inc/header.php';
                         <div class="mt-3">
                             <small class="text-muted">
                                 <i class="bi bi-people"></i> Risposte: 
-                                <span class="badge bg-success"><?php echo $responseCounts['yes']; ?> Sì</span>
-                                <span class="badge bg-warning"><?php echo $responseCounts['maybe']; ?> Forse</span>
-                                <span class="badge bg-danger"><?php echo $responseCounts['no']; ?> No</span>
+                                <span id="counts-<?php echo $event['id']; ?>">
+                                    <span class="badge bg-success"><?php echo $responseCounts['yes']; ?> Sì</span>
+                                    <span class="badge bg-warning"><?php echo $responseCounts['maybe']; ?> Forse</span>
+                                    <span class="badge bg-danger"><?php echo $responseCounts['no']; ?> No</span>
+                                </span>
                             </small>
                         </div>
                     </div>
@@ -197,8 +205,18 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success) {
                     messageDiv.innerHTML = '<small class="text-success"><i class="bi bi-check-circle"></i> ' + data.message + '</small>';
-                    // Reload page after 1 second to update counts
-                    setTimeout(() => window.location.reload(), 1000);
+                    
+                    // Update response counts if provided
+                    if (data.counts) {
+                        const countsDiv = document.querySelector('#counts-' + eventId);
+                        if (countsDiv) {
+                            countsDiv.innerHTML = `
+                                <span class="badge bg-success">${data.counts.yes} Sì</span>
+                                <span class="badge bg-warning">${data.counts.maybe} Forse</span>
+                                <span class="badge bg-danger">${data.counts.no} No</span>
+                            `;
+                        }
+                    }
                 } else {
                     messageDiv.innerHTML = '<small class="text-danger"><i class="bi bi-x-circle"></i> ' + data.message + '</small>';
                 }

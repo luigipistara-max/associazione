@@ -206,7 +206,7 @@ require_once __DIR__ . '/inc/header.php';
                                                    id="reference<?php echo $fee['id']; ?>" 
                                                    name="payment_reference" 
                                                    required
-                                                   placeholder="es. Bonifico del 04/01/2026">
+                                                   placeholder="es. Bonifico del <?php echo date('d/m/Y'); ?>">
                                             <small class="text-muted">
                                                 Inserisci la data o un riferimento del bonifico per facilitare la verifica.
                                             </small>

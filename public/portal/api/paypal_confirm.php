@@ -80,24 +80,37 @@ try {
     require_once __DIR__ . '/../../../src/pdf.php';
     generateReceipt($feeId);
     
-    // Create financial movement (income)
+    // Get or create income category for membership fees
     $stmt = $pdo->prepare("
-        INSERT INTO " . table('income') . "
-        (social_year_id, category_id, member_id, amount, payment_method, 
-         receipt_number, transaction_date, notes)
-        SELECT f.social_year_id, 
-               (SELECT id FROM " . table('income_categories') . " WHERE name = 'Quote associative' LIMIT 1),
-               f.member_id,
-               f.amount,
-               'PayPal',
-               f.receipt_number,
-               f.paid_date,
-               CONCAT('Quota associativa - ', sy.name, ' - PayPal: ', ?)
-        FROM " . table('member_fees') . " f
-        LEFT JOIN " . table('social_years') . " sy ON f.social_year_id = sy.id
-        WHERE f.id = ?
+        SELECT id FROM " . table('income_categories') . " 
+        WHERE name = 'Quote associative' 
+        LIMIT 1
     ");
-    $stmt->execute([$transactionId, $feeId]);
+    $stmt->execute();
+    $category = $stmt->fetch();
+    $categoryId = $category ? $category['id'] : null;
+    
+    // Only create financial movement if category exists
+    if ($categoryId) {
+        // Create financial movement (income)
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('income') . "
+            (social_year_id, category_id, member_id, amount, payment_method, 
+             receipt_number, transaction_date, notes)
+            SELECT f.social_year_id, 
+                   ?,
+                   f.member_id,
+                   f.amount,
+                   'PayPal',
+                   f.receipt_number,
+                   f.paid_date,
+                   CONCAT('Quota associativa - ', sy.name, ' - PayPal: ', ?)
+            FROM " . table('member_fees') . " f
+            LEFT JOIN " . table('social_years') . " sy ON f.social_year_id = sy.id
+            WHERE f.id = ?
+        ");
+        $stmt->execute([$categoryId, $transactionId, $feeId]);
+    }
     
     $pdo->commit();
     

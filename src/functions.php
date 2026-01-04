@@ -2258,14 +2258,6 @@ function getBaseUrl() {
  * @param int $memberId Member ID
  * @return array|false Member data or false if not found
  */
-function getMember($memberId) {
-    global $pdo;
-    
-    $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
-    $stmt->execute([$memberId]);
-    return $stmt->fetch();
-}
-
 /**
  * Send portal activation email
  * 
