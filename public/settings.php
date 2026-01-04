@@ -17,20 +17,53 @@ $pageTitle = 'Impostazioni Associazione';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'test_smtp') {
     header('Content-Type: application/json');
     
-    // Salva prima le impostazioni SMTP
-    $smtpSettings = ['smtp_enabled', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_username', 'smtp_password', 'smtp_from_email', 'smtp_from_name'];
-    foreach ($smtpSettings as $key) {
-        if (isset($_POST[$key])) {
-            setSetting($key, $_POST[$key]);
-        }
+    // Validate and sanitize SMTP settings before saving
+    $smtpSettings = [];
+    
+    // Validate enabled flag
+    $smtpSettings['smtp_enabled'] = isset($_POST['smtp_enabled']) && $_POST['smtp_enabled'] === '1' ? '1' : '0';
+    
+    // Validate and sanitize host (alphanumeric, dots, hyphens only)
+    $smtpSettings['smtp_host'] = preg_replace('/[^a-zA-Z0-9.-]/', '', $_POST['smtp_host'] ?? '');
+    
+    // Validate port (must be 1-65535)
+    $port = (int) ($_POST['smtp_port'] ?? 587);
+    $smtpSettings['smtp_port'] = ($port > 0 && $port <= 65535) ? (string) $port : '587';
+    
+    // Validate security (must be one of allowed values)
+    $security = $_POST['smtp_security'] ?? 'tls';
+    $smtpSettings['smtp_security'] = in_array($security, ['none', 'ssl', 'tls']) ? $security : 'tls';
+    
+    // Validate emails
+    $username = trim($_POST['smtp_username'] ?? '');
+    $fromEmail = trim($_POST['smtp_from_email'] ?? '');
+    
+    if (!empty($username) && !filter_var($username, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode(['success' => false, 'message' => 'Username SMTP non è un indirizzo email valido']);
+        exit;
+    }
+    
+    if (!empty($fromEmail) && !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode(['success' => false, 'message' => 'Email mittente non è valida']);
+        exit;
+    }
+    
+    $smtpSettings['smtp_username'] = $username;
+    $smtpSettings['smtp_password'] = $_POST['smtp_password'] ?? ''; // Password is not sanitized
+    $smtpSettings['smtp_from_email'] = $fromEmail;
+    $smtpSettings['smtp_from_name'] = htmlspecialchars(trim($_POST['smtp_from_name'] ?? ''), ENT_QUOTES, 'UTF-8');
+    
+    // Save settings
+    foreach ($smtpSettings as $key => $value) {
+        setSetting($key, $value);
     }
     
     // Invia email di test - usa smtp_from_email se disponibile, altrimenti smtp_username
-    $testEmail = getSetting('smtp_from_email') ?: getSetting('smtp_username');
+    $testEmail = $fromEmail ?: $username;
     
     // Valida che sia un'email valida
     if (empty($testEmail) || !filter_var($testEmail, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['success' => false, 'message' => 'Inserisci un indirizzo email valido']);
+        echo json_encode(['success' => false, 'message' => 'Configura un indirizzo email valido nelle impostazioni SMTP']);
         exit;
     }
     
@@ -116,16 +149,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $settings[] = ['email_footer', $_POST['email_footer'] ?? '', 'email'];
     }
     
-    // SMTP settings
+    // SMTP settings with validation
     if (isset($_POST['smtp_enabled'])) {
-        $settings[] = ['smtp_enabled', $_POST['smtp_enabled'] ?? '0', 'email'];
-        $settings[] = ['smtp_host', $_POST['smtp_host'] ?? '', 'email'];
-        $settings[] = ['smtp_port', $_POST['smtp_port'] ?? '587', 'email'];
-        $settings[] = ['smtp_security', $_POST['smtp_security'] ?? 'tls', 'email'];
-        $settings[] = ['smtp_username', $_POST['smtp_username'] ?? '', 'email'];
+        // Validate enabled flag
+        $smtpEnabled = isset($_POST['smtp_enabled']) && $_POST['smtp_enabled'] === '1' ? '1' : '0';
+        $settings[] = ['smtp_enabled', $smtpEnabled, 'email'];
+        
+        // Validate and sanitize host
+        $smtpHost = preg_replace('/[^a-zA-Z0-9.-]/', '', $_POST['smtp_host'] ?? '');
+        $settings[] = ['smtp_host', $smtpHost, 'email'];
+        
+        // Validate port
+        $port = (int) ($_POST['smtp_port'] ?? 587);
+        $smtpPort = ($port > 0 && $port <= 65535) ? (string) $port : '587';
+        $settings[] = ['smtp_port', $smtpPort, 'email'];
+        
+        // Validate security
+        $security = $_POST['smtp_security'] ?? 'tls';
+        $smtpSecurity = in_array($security, ['none', 'ssl', 'tls']) ? $security : 'tls';
+        $settings[] = ['smtp_security', $smtpSecurity, 'email'];
+        
+        // Validate emails
+        $username = trim($_POST['smtp_username'] ?? '');
+        if (!empty($username) && !filter_var($username, FILTER_VALIDATE_EMAIL)) {
+            setFlash('Username SMTP non è un indirizzo email valido', 'danger');
+            redirect('settings.php');
+        }
+        $settings[] = ['smtp_username', $username, 'email'];
+        
         $settings[] = ['smtp_password', $_POST['smtp_password'] ?? '', 'email'];
-        $settings[] = ['smtp_from_email', $_POST['smtp_from_email'] ?? '', 'email'];
-        $settings[] = ['smtp_from_name', $_POST['smtp_from_name'] ?? '', 'email'];
+        
+        $fromEmail = trim($_POST['smtp_from_email'] ?? '');
+        if (!empty($fromEmail) && !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+            setFlash('Email mittente non è valida', 'danger');
+            redirect('settings.php');
+        }
+        $settings[] = ['smtp_from_email', $fromEmail, 'email'];
+        
+        $fromName = htmlspecialchars(trim($_POST['smtp_from_name'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $settings[] = ['smtp_from_name', $fromName, 'email'];
     }
     
     // Handle logo upload

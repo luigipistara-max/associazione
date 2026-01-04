@@ -130,6 +130,17 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     $username = getSetting('smtp_username');
     $password = getSetting('smtp_password');
     
+    // Validate required settings
+    if (empty($host) || empty($username) || empty($password)) {
+        error_log("SMTP configuration incomplete: missing host, username, or password");
+        return false;
+    }
+    
+    if ($port <= 0 || $port > 65535) {
+        error_log("SMTP port invalid: $port");
+        return false;
+    }
+    
     $fromEmail = $fromEmail ?: getSetting('smtp_from_email') ?: $username;
     $fromName = $fromName ?: getSetting('smtp_from_name') ?: '';
     
@@ -159,9 +170,10 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
         return false;
     }
     
-    // Sanitize server name to prevent header injection
-    $serverName = preg_replace('/[^a-zA-Z0-9\.-]/', '', $_SERVER['SERVER_NAME'] ?? 'localhost');
-    if (empty($serverName)) {
+    // Sanitize server name to prevent header injection - only allow alphanumeric and hyphens
+    $serverName = preg_replace('/[^a-zA-Z0-9-]/', '', $_SERVER['SERVER_NAME'] ?? 'localhost');
+    // Validate it looks like a hostname (not empty, doesn't start/end with hyphen)
+    if (empty($serverName) || $serverName[0] === '-' || substr($serverName, -1) === '-') {
         $serverName = 'localhost';
     }
     
@@ -182,7 +194,12 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
             return false;
         }
         
-        $tlsResult = stream_socket_enable_crypto($smtp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        // Use appropriate TLS method with fallback for compatibility
+        $cryptoMethod = defined('STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT') 
+            ? STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT | STREAM_CRYPTO_METHOD_TLS_CLIENT
+            : STREAM_CRYPTO_METHOD_TLS_CLIENT;
+        
+        $tlsResult = stream_socket_enable_crypto($smtp, true, $cryptoMethod);
         if (!$tlsResult) {
             error_log("SMTP TLS encryption failed");
             fclose($smtp);
