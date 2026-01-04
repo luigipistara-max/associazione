@@ -134,3 +134,44 @@ function getCurrentUser() {
         'role' => $_SESSION['role']
     ];
 }
+
+/**
+ * Check if a member is logged in (portal)
+ */
+function isMemberLoggedIn() {
+    return isset($_SESSION['member_id']) && !empty($_SESSION['member_id']);
+}
+
+/**
+ * Get current logged in member ID
+ */
+function getCurrentMemberId() {
+    return $_SESSION['member_id'] ?? null;
+}
+
+/**
+ * Get current logged in member data
+ */
+function getCurrentMember() {
+    if (!isMemberLoggedIn()) {
+        return null;
+    }
+    
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ? AND status = 'attivo'");
+    $stmt->execute([$_SESSION['member_id']]);
+    return $stmt->fetch();
+}
+
+/**
+ * Require member login - redirect to portal login if not authenticated
+ */
+function requireMemberLogin() {
+    global $config;
+    if (!isMemberLoggedIn()) {
+        $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
+        $basePath = $config['app']['base_path'] ?? '/';
+        header('Location: ' . $basePath . 'portal/login.php');
+        exit;
+    }
+}

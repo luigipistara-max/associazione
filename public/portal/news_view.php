@@ -9,9 +9,9 @@ require_once __DIR__ . '/../../src/db.php';
 require_once __DIR__ . '/../../src/functions.php';
 require_once __DIR__ . '/inc/auth.php';
 
-requireMemberLogin();
+requirePortalLogin();
 
-$memberId = $_SESSION['member_id'];
+$memberId = $_SESSION['portal_member_id'];
 
 // Get news by slug
 $slug = $_GET['slug'] ?? '';
