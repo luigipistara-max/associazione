@@ -2474,6 +2474,65 @@ function countEventResponses($eventId) {
 }
 
 /**
+ * Delete an event response by ID
+ * 
+ * @param int $responseId Response ID
+ * @return bool Success
+ */
+function deleteEventResponse($responseId) {
+    global $pdo;
+    
+    // Get response details for logging
+    $stmt = $pdo->prepare("
+        SELECT er.*, m.first_name, m.last_name, e.title
+        FROM " . table('event_responses') . " er
+        JOIN " . table('members') . " m ON er.member_id = m.id
+        JOIN " . table('events') . " e ON er.event_id = e.id
+        WHERE er.id = ?
+    ");
+    $stmt->execute([$responseId]);
+    $response = $stmt->fetch();
+    
+    if (!$response) {
+        return false;
+    }
+    
+    // Delete the response
+    $stmt = $pdo->prepare("DELETE FROM " . table('event_responses') . " WHERE id = ?");
+    $result = $stmt->execute([$responseId]);
+    
+    // Log the action
+    if ($result) {
+        logAudit('delete', 'event_response', $responseId, 
+                 $response['title'] . ' - ' . $response['first_name'] . ' ' . $response['last_name']);
+    }
+    
+    return $result;
+}
+
+/**
+ * Get members NOT in a specific group (for add dropdown)
+ * 
+ * @param int $groupId Group ID
+ * @return array List of members not in the group
+ */
+function getMembersNotInGroup($groupId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT m.* 
+        FROM " . table('members') . " m
+        WHERE m.status = 'attivo'
+        AND m.id NOT IN (
+            SELECT member_id FROM " . table('member_group_members') . " WHERE group_id = ?
+        )
+        ORDER BY m.last_name, m.first_name
+    ");
+    $stmt->execute([$groupId]);
+    return $stmt->fetchAll();
+}
+
+/**
  * =============================================================================
  * GROUP REQUEST FUNCTIONS (Portal Soci - Part 2)
  * =============================================================================
