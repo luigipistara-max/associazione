@@ -193,6 +193,10 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
             opacity: 0.5;
         }
         
+        .card-status-badge {
+            font-size: 9px;
+        }
+        
         .card-qr {
             position: absolute;
             bottom: 8mm;
@@ -328,11 +332,21 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
                     <strong>Nome:</strong> <?php echo h($member['first_name'] . ' ' . $member['last_name']); ?><br>
                     <strong>N. Tessera:</strong> <?php echo h($member['membership_number'] ?: sprintf('%05d', $member['id'])); ?><br>
                     <?php if (!empty($member['fiscal_code'])): ?>
-                        <strong>C.F.:</strong> <?php echo h(substr($member['fiscal_code'], 0, 3) . '***********' . substr($member['fiscal_code'], -2)); ?><br>
+                        <?php 
+                        // Mask fiscal code: show first 3 and last 2 characters, mask the rest
+                        $fc = $member['fiscal_code'];
+                        $fcLen = strlen($fc);
+                        if ($fcLen >= 5) {
+                            $maskedFC = substr($fc, 0, 3) . str_repeat('*', $fcLen - 5) . substr($fc, -2);
+                        } else {
+                            $maskedFC = str_repeat('*', $fcLen); // Fully mask if too short
+                        }
+                        ?>
+                        <strong>C.F.:</strong> <?php echo h($maskedFC); ?><br>
                     <?php endif; ?>
                     <br>
                     <strong>Valida per:</strong> Anno <?php echo h($yearDisplay); ?>
-                    <span class="badge bg-<?php echo $isActive ? 'success' : 'warning'; ?>" style="font-size: 9px;">
+                    <span class="badge bg-<?php echo $isActive ? 'success' : 'warning'; ?> card-status-badge">
                         <?php echo $isActive ? 'ATTIVO' : 'QUOTA NON PAGATA'; ?>
                     </span>
                 </div>

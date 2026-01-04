@@ -81,6 +81,8 @@ include __DIR__ . '/inc/header.php';
         width: auto;
         height: auto;
         object-fit: contain;
+        /* Removed filter: brightness(0) invert(1) that was making logos white */
+        /* Logo now displays in original colors for better brand visibility */
     }
     .card-body-section {
         display: flex;
@@ -131,6 +133,9 @@ include __DIR__ . '/inc/header.php';
     .card-back-content {
         font-size: 0.9rem;
         line-height: 1.6;
+    }
+    .card-status-badge {
+        font-size: 9px;
     }
     @media print {
         body {
