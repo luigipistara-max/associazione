@@ -170,10 +170,10 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
         return false;
     }
     
-    // Sanitize server name to prevent header injection - only allow alphanumeric and hyphens
-    $serverName = preg_replace('/[^a-zA-Z0-9-]/', '', $_SERVER['SERVER_NAME'] ?? 'localhost');
-    // Validate it looks like a hostname (not empty, doesn't start/end with hyphen)
-    if (empty($serverName) || $serverName[0] === '-' || substr($serverName, -1) === '-') {
+    // Sanitize server name to prevent header injection - allow alphanumeric, dots, and hyphens
+    $serverName = preg_replace('/[^a-zA-Z0-9.-]/', '', $_SERVER['SERVER_NAME'] ?? 'localhost');
+    // Validate it looks like a hostname (not empty, doesn't start/end with hyphen or dot)
+    if (empty($serverName) || preg_match('/^[.-]|[.-]$/', $serverName)) {
         $serverName = 'localhost';
     }
     
@@ -261,6 +261,12 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
         fclose($smtp);
         return false;
     }
+    
+    // Sanitize subject and to address to prevent header injection
+    $subject = str_replace(["\r", "\n"], '', $subject);
+    $to = str_replace(["\r", "\n"], '', $to);
+    $fromEmail = str_replace(["\r", "\n"], '', $fromEmail);
+    $fromName = str_replace(["\r", "\n"], '', $fromName);
     
     // Headers
     $boundary = md5(uniqid(time()));
