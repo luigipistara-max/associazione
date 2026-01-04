@@ -1369,7 +1369,8 @@ function sendEventReminder($eventId) {
         return 0;
     }
     
-    $registrations = getEventRegistrations($eventId);
+    // Get approved registrations from event_responses
+    $registrations = getApprovedEventRegistrations($eventId);
     $sent = 0;
     
     foreach ($registrations as $reg) {
@@ -1414,7 +1415,8 @@ function sendOnlineLinkToRegistrants($eventId) {
         return 0;
     }
     
-    $registrations = getEventRegistrations($eventId);
+    // Get approved registrations from event_responses
+    $registrations = getApprovedEventRegistrations($eventId);
     $sent = 0;
     
     foreach ($registrations as $reg) {
