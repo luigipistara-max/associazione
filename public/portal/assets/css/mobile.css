@@ -1,0 +1,443 @@
+/**
+ * Mobile CSS - Responsive and PWA optimized styles
+ * Touch-friendly, iOS-safe, dark mode support
+ */
+
+/* ============================================
+   Base Mobile Optimizations
+   ============================================ */
+
+/* Prevent text size adjustment on iOS */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    font-size: 16px; /* Prevent iOS zoom on input focus */
+}
+
+/* Safe areas for notch (iPhone X and newer) */
+body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+}
+
+/* Touch target minimum size (44x44px for accessibility) */
+.btn,
+.nav-link,
+.dropdown-item,
+a.btn,
+button {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Improved touch feedback */
+.btn:active,
+.nav-link:active,
+.card:active {
+    opacity: 0.7;
+    transform: scale(0.98);
+}
+
+/* ============================================
+   PWA Install Banner
+   ============================================ */
+
+.pwa-install-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 9999;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+.pwa-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.pwa-banner-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.pwa-banner-text {
+    flex-grow: 1;
+}
+
+.pwa-banner-text p {
+    margin: 0;
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
+.pwa-install-banner .btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.pwa-install-banner .btn-close {
+    flex-shrink: 0;
+}
+
+/* ============================================
+   Card Fullscreen & Flip Animation
+   ============================================ */
+
+/* Card container with flip */
+.card-flip-container {
+    perspective: 1000px;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.card-flip-inner {
+    position: relative;
+    width: 100%;
+    transition: transform 0.6s;
+    transform-style: preserve-3d;
+}
+
+.card-flip-container.flipped .card-flip-inner {
+    transform: rotateY(180deg);
+}
+
+.member-card-front,
+.member-card-back {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+.member-card-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    transform: rotateY(180deg);
+}
+
+/* Fullscreen mode */
+.fullscreen-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow: auto;
+}
+
+.fullscreen-container .member-card {
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+/* Fullscreen exit button */
+.fullscreen-exit-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10001;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid white;
+    color: white;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.fullscreen-exit-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Card action buttons */
+.card-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.card-actions .btn {
+    flex: 1;
+    min-width: 120px;
+}
+
+/* ============================================
+   Dark Mode Support
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+    body {
+        background: #1a1a2e;
+        color: #eee;
+    }
+    
+    .card {
+        background: #16213e;
+        color: #eee;
+    }
+    
+    .bg-light {
+        background: #16213e !important;
+    }
+    
+    .text-muted {
+        color: #aaa !important;
+    }
+    
+    .navbar-portal {
+        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%) !important;
+    }
+    
+    /* Keep member card bright even in dark mode */
+    .member-card {
+        /* Card keeps its gradient background */
+    }
+}
+
+/* ============================================
+   Responsive Breakpoints
+   ============================================ */
+
+/* Extra small devices (phones, less than 576px) */
+@media (max-width: 575.98px) {
+    .member-card {
+        max-width: 100%;
+        font-size: 0.9rem;
+    }
+    
+    .card-body-section {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .member-photo,
+    .member-photo-placeholder {
+        width: 120px;
+        height: 160px;
+    }
+    
+    .info-value {
+        font-size: 0.95rem;
+    }
+    
+    /* Stack navigation items */
+    .navbar-nav {
+        gap: 8px;
+    }
+    
+    .navbar-nav .nav-link {
+        padding: 12px 16px !important;
+    }
+}
+
+/* Small devices (landscape phones, 576px and up) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .member-card {
+        max-width: 380px;
+    }
+}
+
+/* Medium devices (tablets, 768px and up) */
+@media (min-width: 768px) {
+    .card-flip-container {
+        max-width: 450px;
+    }
+}
+
+/* ============================================
+   Touch Gestures
+   ============================================ */
+
+/* Disable text selection on card (for better touch experience) */
+.member-card {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* Touch feedback for tappable cards */
+.card-tappable {
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.card-tappable:active {
+    transform: scale(0.98);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* ============================================
+   iOS Specific Fixes
+   ============================================ */
+
+/* Prevent bounce scrolling on body (only on iOS PWA) */
+@media (display-mode: standalone) {
+    body {
+        overscroll-behavior-y: contain;
+    }
+}
+
+/* Fix iOS input zoom */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+select,
+textarea {
+    font-size: 16px !important;
+}
+
+/* iOS safe area for fixed elements */
+.navbar-portal {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+}
+
+/* ============================================
+   Accessibility Enhancements
+   ============================================ */
+
+/* Focus visible for keyboard navigation */
+*:focus-visible {
+    outline: 3px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .btn {
+        border: 2px solid currentColor;
+    }
+    
+    .card {
+        border: 2px solid currentColor;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .card-flip-inner {
+        transition: none;
+    }
+}
+
+/* ============================================
+   Landscape Orientation
+   ============================================ */
+
+@media (orientation: landscape) and (max-height: 500px) {
+    .member-card {
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+    
+    .card-body-section {
+        flex-direction: row;
+    }
+    
+    .member-photo,
+    .member-photo-placeholder {
+        width: 100px;
+        height: 133px;
+    }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+
+@media print {
+    .pwa-install-banner,
+    .card-actions,
+    .fullscreen-exit-btn {
+        display: none !important;
+    }
+    
+    .member-card {
+        box-shadow: none !important;
+        border: 2px solid #000;
+        page-break-inside: avoid;
+    }
+}
+
+/* ============================================
+   Animation Utilities
+   ============================================ */
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.pulse-animation {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes shake {
+    0%, 100% {
+        transform: translateX(0);
+    }
+    25% {
+        transform: translateX(-10px);
+    }
+    75% {
+        transform: translateX(10px);
+    }
+}
+
+.shake-animation {
+    animation: shake 0.5s ease-in-out;
+}
