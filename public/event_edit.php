@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         
         $targetGroups = $_POST['target_groups'] ?? [];
+        $sendNotification = isset($_POST['send_notification']);
         
         // Validation
         $errors = [];
@@ -68,13 +69,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             try {
                 if ($eventId) {
+                    // This is an update - don't send notification
                     updateEvent($eventId, $data);
                     setEventTargetGroups($eventId, $targetGroups);
                     setFlashMessage('Evento aggiornato con successo');
                 } else {
+                    // This is a new event
                     $newEventId = createEvent($data);
                     setEventTargetGroups($newEventId, $targetGroups);
-                    setFlashMessage('Evento creato con successo');
+                    
+                    // Send notification emails if requested
+                    if ($sendNotification) {
+                        $sentCount = sendEventNotification($newEventId);
+                        
+                        if ($sentCount > 0) {
+                            setFlashMessage("Evento creato con successo! Email inviata a {$sentCount} soci.", 'success');
+                        } else {
+                            setFlashMessage('Evento creato con successo!', 'success');
+                        }
+                    } else {
+                        setFlashMessage('Evento creato con successo!', 'success');
+                    }
+                    
                     redirect($basePath . 'event_edit.php?id=' . $newEventId);
                 }
             } catch (PDOException $e) {
@@ -371,6 +387,26 @@ include __DIR__ . '/inc/header.php';
             </div>
         </div>
     </div>
+    
+    <!-- Email Notification Section -->
+    <?php if (!$eventId): // Only show for new events ?>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-envelope"></i> Notifica Email</h5>
+        </div>
+        <div class="card-body">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="send_notification" id="send_notification" value="1" checked>
+                <label class="form-check-label" for="send_notification">
+                    <i class="bi bi-envelope"></i> <strong>Invia email di notifica ai soci destinatari</strong>
+                </label>
+                <div class="form-text">
+                    Quando l'evento viene creato, verrà inviata una email di notifica a tutti i soci destinatari (tutti i soci attivi o solo quelli dei gruppi selezionati).
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
     
     <!-- Submit buttons -->
     <div class="mb-4">
