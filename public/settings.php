@@ -622,14 +622,14 @@ include __DIR__ . '/inc/header.php';
                 <div class="mb-3">
                     <label class="form-label">reCAPTCHA Site Key</label>
                     <input type="text" class="form-control" name="recaptcha_site_key" 
-                           value="<?php echo htmlspecialchars(getSetting('recaptcha_site_key', '')); ?>"
+                           value="<?php echo h(getSetting('recaptcha_site_key', '')); ?>"
                            placeholder="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI">
                     <div class="form-text">Chiave pubblica per il client-side</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">reCAPTCHA Secret Key</label>
                     <input type="password" class="form-control" name="recaptcha_secret_key" 
-                           value="<?php echo htmlspecialchars(getSetting('recaptcha_secret_key', '')); ?>"
+                           value="<?php echo h(getSetting('recaptcha_secret_key', '')); ?>"
                            placeholder="6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe">
                     <div class="form-text">Chiave privata per la verifica server-side</div>
                 </div>
@@ -650,7 +650,7 @@ include __DIR__ . '/inc/header.php';
                 <div class="mb-3">
                     <label class="form-label">TinyMCE API Key</label>
                     <input type="text" class="form-control" name="tinymce_api_key" 
-                           value="<?php echo htmlspecialchars(getSetting('tinymce_api_key', '')); ?>"
+                           value="<?php echo h(getSetting('tinymce_api_key', '')); ?>"
                            placeholder="Ottieni gratis da tiny.cloud">
                     <div class="form-text">
                         <a href="https://www.tiny.cloud/get-tiny/" target="_blank">
@@ -1143,6 +1143,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!activeTab) return;
         
         const tabId = activeTab.getAttribute('id');
+        if (!tabId) return;
         
         // Hide all save buttons initially
         if (saveButtonGeneral) saveButtonGeneral.style.display = 'none';
@@ -1169,7 +1170,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle URL hash to show the correct tab on page load
     const urlParams = new URLSearchParams(window.location.search);
     const tab = urlParams.get('tab');
-    if (tab) {
+    // Whitelist of allowed tab names to prevent XSS
+    const allowedTabs = ['association', 'legal', 'address', 'fiscal', 'banking', 'paypal', 'api', 'email', 'security'];
+    if (tab && allowedTabs.includes(tab)) {
         const tabButton = document.getElementById(tab + '-tab');
         if (tabButton) {
             const bsTab = new bootstrap.Tab(tabButton);
