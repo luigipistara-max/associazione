@@ -79,6 +79,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     exit;
 }
 
+// Handle API settings form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_api_settings') {
+    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        setFlash('Token di sicurezza non valido', 'danger');
+        redirect('settings.php?tab=api');
+    }
+    
+    // Save reCAPTCHA settings
+    setSetting('recaptcha_site_key', trim($_POST['recaptcha_site_key'] ?? ''), 'api');
+    setSetting('recaptcha_secret_key', trim($_POST['recaptcha_secret_key'] ?? ''), 'api');
+    
+    // Save TinyMCE API key
+    setSetting('tinymce_api_key', trim($_POST['tinymce_api_key'] ?? ''), 'api');
+    
+    // Save ImgBB API key
+    setSetting('imgbb_api_key', trim($_POST['imgbb_api_key'] ?? ''), 'api');
+    
+    // Save PayPal settings
+    setSetting('paypal_mode', $_POST['paypal_mode'] ?? 'sandbox', 'api');
+    setSetting('paypal_client_id', trim($_POST['paypal_client_id'] ?? ''), 'api');
+    setSetting('paypal_client_secret', trim($_POST['paypal_client_secret'] ?? ''), 'api');
+    setSetting('paypal_webhook_id', trim($_POST['paypal_webhook_id'] ?? ''), 'api');
+    
+    setFlash('Impostazioni API salvate con successo!', 'success');
+    redirect('settings.php?tab=api');
+}
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // TODO: Add CSRF protection in production
@@ -290,61 +317,62 @@ include __DIR__ . '/inc/header.php';
     <h1 class="h2"><i class="bi bi-gear"></i> Impostazioni Associazione</h1>
 </div>
 
-<form method="POST" enctype="multipart/form-data">
-    <!-- Tab Navigation -->
-    <ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="association-tab" data-bs-toggle="tab" data-bs-target="#association" type="button" role="tab">
-                <i class="bi bi-building"></i> Associazione
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="legal-tab" data-bs-toggle="tab" data-bs-target="#legal" type="button" role="tab">
-                <i class="bi bi-person-badge"></i> Rappresentante
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="address-tab" data-bs-toggle="tab" data-bs-target="#address" type="button" role="tab">
-                <i class="bi bi-geo-alt"></i> Sede
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="fiscal-tab" data-bs-toggle="tab" data-bs-target="#fiscal" type="button" role="tab">
-                <i class="bi bi-file-earmark-text"></i> Fiscali
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="banking-tab" data-bs-toggle="tab" data-bs-target="#banking" type="button" role="tab">
-                <i class="bi bi-bank"></i> Banca
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="paypal-tab" data-bs-toggle="tab" data-bs-target="#paypal" type="button" role="tab">
-                <i class="bi bi-paypal"></i> PayPal
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="api-tab" data-bs-toggle="tab" data-bs-target="#api" type="button" role="tab">
-                <i class="bi bi-plug"></i> API
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="email-tab" data-bs-toggle="tab" data-bs-target="#email" type="button" role="tab">
-                <i class="bi bi-envelope"></i> Email
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
-                <i class="bi bi-shield-lock"></i> Sicurezza
-            </button>
-        </li>
-    </ul>
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs mb-4" id="settingsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="association-tab" data-bs-toggle="tab" data-bs-target="#association" type="button" role="tab">
+            <i class="bi bi-building"></i> Associazione
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="legal-tab" data-bs-toggle="tab" data-bs-target="#legal" type="button" role="tab">
+            <i class="bi bi-person-badge"></i> Rappresentante
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="address-tab" data-bs-toggle="tab" data-bs-target="#address" type="button" role="tab">
+            <i class="bi bi-geo-alt"></i> Sede
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="fiscal-tab" data-bs-toggle="tab" data-bs-target="#fiscal" type="button" role="tab">
+            <i class="bi bi-file-earmark-text"></i> Fiscali
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="banking-tab" data-bs-toggle="tab" data-bs-target="#banking" type="button" role="tab">
+            <i class="bi bi-bank"></i> Banca
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="paypal-tab" data-bs-toggle="tab" data-bs-target="#paypal" type="button" role="tab">
+            <i class="bi bi-paypal"></i> PayPal
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="api-tab" data-bs-toggle="tab" data-bs-target="#api" type="button" role="tab">
+            <i class="bi bi-plug"></i> API
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="email-tab" data-bs-toggle="tab" data-bs-target="#email" type="button" role="tab">
+            <i class="bi bi-envelope"></i> Email
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
+            <i class="bi bi-shield-lock"></i> Sicurezza
+        </button>
+    </li>
+</ul>
 
-    <!-- Tab Content -->
-    <div class="tab-content" id="settingsTabContent">
-        
-        <!-- Association Tab -->
-        <div class="tab-pane fade show active" id="association" role="tabpanel">
+<!-- Tab Content -->
+<div class="tab-content" id="settingsTabContent">
+
+<form method="POST" enctype="multipart/form-data">
+    
+    <!-- Association Tab -->
+    <div class="tab-pane fade show active" id="association" role="tabpanel">
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3">
@@ -572,58 +600,123 @@ include __DIR__ . '/inc/header.php';
             </div>
         </div>
         
+        <!-- Save Button for General Settings -->
+        <div class="mt-4 pt-3 border-top" id="general-save-button">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-save"></i> Salva Impostazioni
+            </button>
+        </div>
+    </form>
+    
         <!-- API / Integrations Tab -->
         <div class="tab-pane fade" id="api" role="tabpanel">
-            <h5>ImgBB (Upload Immagini)</h5>
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Necessario per permettere ai soci di caricare le fototessere dal portale
-            </div>
-            <div class="mb-3">
-                <label class="form-label">API Key ImgBB</label>
-                <input type="text" class="form-control" name="imgbb_api_key" 
-                       value="<?php echo h($currentSettings['imgbb_api_key'] ?? ''); ?>"
-                       placeholder="Ottieni la chiave da api.imgbb.com">
-                <div class="form-text">Necessaria per l'upload delle fototessere dei soci nel portale</div>
-            </div>
-            
-            <hr class="my-4">
-            <h5>PayPal (Pagamenti Online)</h5>
-            <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i> Configurazione avanzata per integrare pagamenti PayPal nel portale soci
-            </div>
-            
-            <div class="mb-3">
-                <label class="form-label">Modalità</label>
-                <select class="form-select" name="paypal_mode">
-                    <option value="sandbox" <?php echo ($currentSettings['paypal_mode'] ?? '') === 'sandbox' ? 'selected' : ''; ?>>Sandbox (Test)</option>
-                    <option value="live" <?php echo ($currentSettings['paypal_mode'] ?? '') === 'live' ? 'selected' : ''; ?>>Live (Produzione)</option>
-                </select>
-                <div class="form-text">Usa Sandbox per test, Live per pagamenti reali</div>
-            </div>
-            
-            <div class="mb-3">
-                <label class="form-label">Client ID</label>
-                <input type="text" class="form-control" name="paypal_client_id" 
-                       value="<?php echo h($currentSettings['paypal_client_id'] ?? ''); ?>"
-                       placeholder="Client ID da PayPal Developer">
-            </div>
-            
-            <div class="mb-3">
-                <label class="form-label">Client Secret</label>
-                <input type="password" class="form-control" name="paypal_client_secret" 
-                       value="<?php echo h($currentSettings['paypal_client_secret'] ?? ''); ?>"
-                       placeholder="Client Secret da PayPal Developer">
-            </div>
-            
-            <div class="mb-3">
-                <label class="form-label">Webhook ID</label>
-                <input type="text" class="form-control" name="paypal_webhook_id" 
-                       value="<?php echo h($currentSettings['paypal_webhook_id'] ?? ''); ?>"
-                       placeholder="ID del webhook configurato su PayPal">
-                <div class="form-text">ID del webhook configurato su PayPal Developer per ricevere notifiche di pagamento</div>
-            </div>
+            <form method="POST" action="settings.php">
+                <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                <input type="hidden" name="action" value="save_api_settings">
+                
+                <!-- reCAPTCHA -->
+                <h5><i class="bi bi-robot"></i> Google reCAPTCHA v2</h5>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Protegge il form di login da bot e accessi automatizzati
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">reCAPTCHA Site Key</label>
+                    <input type="text" class="form-control" name="recaptcha_site_key" 
+                           value="<?php echo h(getSetting('recaptcha_site_key', '')); ?>"
+                           placeholder="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI">
+                    <div class="form-text">Chiave pubblica per il client-side</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">reCAPTCHA Secret Key</label>
+                    <input type="password" class="form-control" name="recaptcha_secret_key" 
+                           value="<?php echo h(getSetting('recaptcha_secret_key', '')); ?>"
+                           placeholder="6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe">
+                    <div class="form-text">Chiave privata per la verifica server-side</div>
+                </div>
+                <div class="alert alert-secondary mb-4">
+                    <strong><i class="bi bi-link-45deg"></i> Ottieni le chiavi:</strong><br>
+                    <a href="https://www.google.com/recaptcha/admin" target="_blank" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-box-arrow-up-right"></i> Google reCAPTCHA Admin Console
+                    </a>
+                </div>
+                
+                <hr class="my-4">
+                
+                <!-- TinyMCE -->
+                <h5><i class="bi bi-pencil-square"></i> TinyMCE Editor</h5>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Editor WYSIWYG per la creazione e modifica di contenuti (news, comunicazioni, ecc.)
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">TinyMCE API Key</label>
+                    <input type="text" class="form-control" name="tinymce_api_key" 
+                           value="<?php echo h(getSetting('tinymce_api_key', '')); ?>"
+                           placeholder="Ottieni gratis da tiny.cloud">
+                    <div class="form-text">
+                        <a href="https://www.tiny.cloud/get-tiny/" target="_blank">
+                            <i class="bi bi-box-arrow-up-right"></i> Registrati su tiny.cloud per ottenere una API key gratuita
+                        </a>
+                    </div>
+                </div>
+                
+                <hr class="my-4">
+                
+                <h5>ImgBB (Upload Immagini)</h5>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Necessario per permettere ai soci di caricare le fototessere dal portale
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">API Key ImgBB</label>
+                    <input type="text" class="form-control" name="imgbb_api_key" 
+                           value="<?php echo h(getSetting('imgbb_api_key', '')); ?>"
+                           placeholder="Ottieni la chiave da api.imgbb.com">
+                    <div class="form-text">Necessaria per l'upload delle fototessere dei soci nel portale</div>
+                </div>
+                
+                <hr class="my-4">
+                <h5>PayPal (Pagamenti Online)</h5>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Configurazione avanzata per integrare pagamenti PayPal nel portale soci
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Modalità</label>
+                    <select class="form-select" name="paypal_mode">
+                        <option value="sandbox" <?php echo (getSetting('paypal_mode', '') === 'sandbox') ? 'selected' : ''; ?>>Sandbox (Test)</option>
+                        <option value="live" <?php echo (getSetting('paypal_mode', '') === 'live') ? 'selected' : ''; ?>>Live (Produzione)</option>
+                    </select>
+                    <div class="form-text">Usa Sandbox per test, Live per pagamenti reali</div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Client ID</label>
+                    <input type="text" class="form-control" name="paypal_client_id" 
+                           value="<?php echo h(getSetting('paypal_client_id', '')); ?>"
+                           placeholder="Client ID da PayPal Developer">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Client Secret</label>
+                    <input type="password" class="form-control" name="paypal_client_secret" 
+                           value="<?php echo h(getSetting('paypal_client_secret', '')); ?>"
+                           placeholder="Client Secret da PayPal Developer">
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Webhook ID</label>
+                    <input type="text" class="form-control" name="paypal_webhook_id" 
+                           value="<?php echo h(getSetting('paypal_webhook_id', '')); ?>"
+                           placeholder="ID del webhook configurato su PayPal">
+                    <div class="form-text">ID del webhook configurato su PayPal Developer per ricevere notifiche di pagamento</div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save"></i> Salva Impostazioni API
+                </button>
+            </form>
         </div>
         
+    <form method="POST" enctype="multipart/form-data">
         <!-- Email Customization Tab -->
         <div class="tab-pane fade" id="email" role="tabpanel">
             <div class="mb-3">
@@ -939,15 +1032,15 @@ include __DIR__ . '/inc/header.php';
             </div>
         </div>
         
-    </div>
+        <!-- Save Button for Email and Security Settings -->
+        <div class="mt-4 pt-3 border-top" id="email-security-save-button">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-save"></i> Salva Impostazioni
+            </button>
+        </div>
+    </form>
     
-    <!-- Save Button -->
-    <div class="mt-4 pt-3 border-top">
-        <button type="submit" class="btn btn-primary btn-lg">
-            <i class="bi bi-save"></i> Salva Impostazioni
-        </button>
-    </div>
-</form>
+</div><!-- End of tab-content -->
 
 <script>
 // Preset SMTP per provider comuni
@@ -1038,6 +1131,53 @@ document.addEventListener('DOMContentLoaded', function() {
         twoFaCheckbox.addEventListener('change', function() {
             twoFaFields.style.display = this.checked ? 'block' : 'none';
         });
+    }
+    
+    // Handle tab switching to show correct save button
+    const saveButtonGeneral = document.getElementById('general-save-button');
+    const saveButtonEmailSecurity = document.getElementById('email-security-save-button');
+    
+    // Function to update save button visibility
+    function updateSaveButtonVisibility() {
+        const activeTab = document.querySelector('.tab-pane.active');
+        if (!activeTab) return;
+        
+        const tabId = activeTab.getAttribute('id');
+        if (!tabId) return;
+        
+        // Hide all save buttons initially
+        if (saveButtonGeneral) saveButtonGeneral.style.display = 'none';
+        if (saveButtonEmailSecurity) saveButtonEmailSecurity.style.display = 'none';
+        
+        // Show appropriate save button based on active tab
+        if (tabId === 'email' || tabId === 'security') {
+            if (saveButtonEmailSecurity) saveButtonEmailSecurity.style.display = 'block';
+        } else if (tabId !== 'api') {
+            // All tabs except API and Email/Security use the general save button
+            if (saveButtonGeneral) saveButtonGeneral.style.display = 'block';
+        }
+        // API tab has its own save button within the form, so we don't need to show any external button
+    }
+    
+    // Initialize on page load
+    updateSaveButtonVisibility();
+    
+    // Update on tab change
+    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(button => {
+        button.addEventListener('shown.bs.tab', updateSaveButtonVisibility);
+    });
+    
+    // Handle URL hash to show the correct tab on page load
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get('tab');
+    // Whitelist of allowed tab names to prevent XSS
+    const allowedTabs = ['association', 'legal', 'address', 'fiscal', 'banking', 'paypal', 'api', 'email', 'security'];
+    if (tab && allowedTabs.includes(tab)) {
+        const tabButton = document.getElementById(tab + '-tab');
+        if (tabButton && typeof bootstrap !== 'undefined') {
+            const bsTab = new bootstrap.Tab(tabButton);
+            bsTab.show();
+        }
     }
 });
 

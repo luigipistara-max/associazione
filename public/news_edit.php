@@ -244,7 +244,13 @@ include __DIR__ . '/inc/header.php';
 </form>
 
 <!-- TinyMCE Editor -->
+<?php $tinymceKey = getSetting('tinymce_api_key', ''); ?>
+<?php if (!empty($tinymceKey)): ?>
+<script src="https://cdn.tiny.cloud/1/<?php echo h($tinymceKey); ?>/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<?php else: ?>
+<!-- Fallback to CDN without API key (with watermark) -->
 <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<?php endif; ?>
 <script>
 tinymce.init({
     selector: '#content',
