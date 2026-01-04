@@ -1554,5 +1554,313 @@ Questo test plan copre tutte le funzionalità principali di AssoLife:
 
 ---
 
+## 13. Test Workflow Approvazione Iscrizioni Eventi
+
+### 13.1 Socio: Dare Disponibilità "Sì"
+**Obiettivo**: Verificare che un socio possa dare disponibilità a un evento e che questa entri in stato "pending".
+
+**Prerequisiti**:
+- Socio loggato nel portale
+- Evento pubblicato disponibile
+
+**Passi**:
+1. Navigare su `/public/portal/events.php`
+2. Visualizzare un evento disponibile
+3. Cliccare sul pulsante "✅ Parteciperò"
+4. Verificare messaggio di conferma
+
+**Risultato Atteso**:
+- Risposta salvata con successo
+- Badge "⏳ In attesa di approvazione" visibile sotto la scelta
+- Messaggio "La tua disponibilità è stata registrata e sarà valutata dall'organizzatore"
+- Contatore "Sì" incrementato
+
+---
+
+### 13.2 Admin: Visualizzare Disponibilità in Attesa
+**Obiettivo**: Verificare che l'admin veda le disponibilità in attesa nella sezione dedicata.
+
+**Prerequisiti**:
+- Admin loggato
+- Almeno una disponibilità "Sì" in stato pending
+
+**Passi**:
+1. Navigare su `/public/event_view.php?id=[event_id]`
+2. Scorrere alla sezione "Disponibilità in Attesa"
+
+**Risultato Atteso**:
+- Card con header giallo "Disponibilità in Attesa"
+- Badge con numero di disponibilità pending
+- Tabella con lista soci che hanno dato disponibilità
+- Pulsanti "Approva" e "Rifiuta" per ogni riga
+- Pulsanti "Approva Tutti" e "Rifiuta Tutti" visibili
+
+---
+
+### 13.3 Admin: Approvare Singola Iscrizione
+**Obiettivo**: Verificare che l'admin possa approvare una singola disponibilità.
+
+**Prerequisiti**:
+- Admin loggato
+- Disponibilità in stato pending
+
+**Passi**:
+1. Navigare su `/public/event_view.php?id=[event_id]`
+2. Nella sezione "Disponibilità in Attesa", cliccare pulsante verde "✓"
+3. Confermare l'azione
+
+**Risultato Atteso**:
+- Messaggio "Iscrizione approvata con successo"
+- La disponibilità scompare dalla sezione "In Attesa"
+- La disponibilità appare nella sezione "Iscritti Confermati" (card verde)
+- Tabella mostra: socio, email, tessera, chi ha approvato, data approvazione
+
+---
+
+### 13.4 Admin: Rifiutare Singola Iscrizione con Motivo
+**Obiettivo**: Verificare che l'admin possa rifiutare una disponibilità con motivo.
+
+**Prerequisiti**:
+- Admin loggato
+- Disponibilità in stato pending
+
+**Passi**:
+1. Navigare su `/public/event_view.php?id=[event_id]`
+2. Nella sezione "Disponibilità in Attesa", cliccare pulsante rosso "✗"
+3. Nel modal inserire motivo: "Posti esauriti"
+4. Confermare
+
+**Risultato Atteso**:
+- Messaggio "Iscrizione rifiutata"
+- La disponibilità scompare dalla sezione "In Attesa"
+- La disponibilità appare nella sezione "Rifiutati" (card rossa)
+- Motivo visibile nella tabella
+
+---
+
+### 13.5 Admin: Approva Tutti (Bulk)
+**Obiettivo**: Verificare l'approvazione in blocco di tutte le disponibilità "Sì" pending.
+
+**Prerequisiti**:
+- Admin loggato
+- Almeno 2 disponibilità "Sì" in stato pending
+
+**Passi**:
+1. Navigare su `/public/event_view.php?id=[event_id]`
+2. Cliccare "Approva Tutti"
+3. Confermare nel modal
+
+**Risultato Atteso**:
+- Messaggio "N iscrizioni approvate" (dove N = numero approvate)
+- Tutte le disponibilità "Sì" passano a "Iscritti Confermati"
+- Sezione "Disponibilità in Attesa" vuota o con solo "Forse/No"
+
+---
+
+### 13.6 Admin: Rifiuta Tutti con Motivo (Bulk)
+**Obiettivo**: Verificare il rifiuto in blocco con motivo comune.
+
+**Prerequisiti**:
+- Admin loggato
+- Disponibilità in stato pending
+
+**Passi**:
+1. Navigare su `/public/event_view.php?id=[event_id]`
+2. Cliccare "Rifiuta Tutti"
+3. Nel modal inserire motivo: "Evento annullato"
+4. Confermare
+
+**Risultato Atteso**:
+- Messaggio "N iscrizioni rifiutate"
+- Tutte le pending passano a "Rifiutati"
+- Motivo "Evento annullato" visibile per tutte
+
+---
+
+### 13.7 Admin: Revocare Iscrizione Approvata
+**Obiettivo**: Verificare che l'admin possa riportare un'iscrizione approvata in stato pending.
+
+**Prerequisiti**:
+- Admin loggato
+- Iscrizione in stato "approved"
+
+**Passi**:
+1. Navigare su `/public/event_view.php?id=[event_id]`
+2. Nella sezione "Iscritti Confermati", cliccare pulsante "↶" (revoca)
+3. Confermare
+
+**Risultato Atteso**:
+- Messaggio "Iscrizione revocata"
+- L'iscrizione scompare da "Iscritti Confermati"
+- L'iscrizione riappare in "Disponibilità in Attesa"
+- approved_by e approved_at azzerati
+
+---
+
+### 13.8 Admin: Revocare Iscrizione Rifiutata
+**Obiettivo**: Verificare che l'admin possa riportare un rifiutato in pending.
+
+**Prerequisiti**:
+- Admin loggato
+- Iscrizione in stato "rejected"
+
+**Passi**:
+1. Navigare su `/public/event_view.php?id=[event_id]`
+2. Nella sezione "Rifiutati", cliccare pulsante "↶" (revoca)
+3. Confermare
+
+**Risultato Atteso**:
+- Messaggio "Iscrizione revocata"
+- L'iscrizione scompare da "Rifiutati"
+- L'iscrizione riappare in "Disponibilità in Attesa"
+- rejection_reason azzerato
+
+---
+
+### 13.9 Socio: Visualizzare Stato "In Attesa"
+**Obiettivo**: Verificare che il socio veda il badge "In attesa" dopo aver dato disponibilità.
+
+**Prerequisiti**:
+- Socio loggato nel portale
+- Disponibilità "Sì" data ma non ancora approvata
+
+**Passi**:
+1. Navigare su `/public/portal/events.php`
+2. Verificare l'evento
+
+**Risultato Atteso**:
+- Badge giallo "⏳ In attesa di approvazione"
+- Messaggio "La tua disponibilità è stata registrata e sarà valutata dall'organizzatore"
+
+---
+
+### 13.10 Socio: Visualizzare Stato "Approvata"
+**Obiettivo**: Verificare che il socio veda il badge "Confermata" dopo approvazione.
+
+**Prerequisiti**:
+- Socio loggato nel portale
+- Disponibilità approvata dall'admin
+
+**Passi**:
+1. Navigare su `/public/portal/events.php`
+2. Verificare l'evento
+
+**Risultato Atteso**:
+- Badge verde "✅ Iscrizione confermata"
+- Messaggio "La tua partecipazione è stata approvata!"
+
+---
+
+### 13.11 Socio: Visualizzare Stato "Rifiutata" con Motivo
+**Obiettivo**: Verificare che il socio veda il motivo del rifiuto.
+
+**Prerequisiti**:
+- Socio loggato nel portale
+- Disponibilità rifiutata con motivo
+
+**Passi**:
+1. Navigare su `/public/portal/events.php`
+2. Verificare l'evento
+
+**Risultato Atteso**:
+- Badge rosso "❌ Iscrizione rifiutata"
+- Messaggio "Motivo: [motivo inserito dall'admin]"
+
+---
+
+### 13.12 Database: Verificare Struttura Tabella
+**Obiettivo**: Verificare che la migrazione abbia creato correttamente le colonne.
+
+**Prerequisiti**:
+- Accesso al database
+- Migrazione eseguita
+
+**Passi**:
+1. Eseguire query: `DESCRIBE event_responses;`
+
+**Risultato Atteso**:
+Colonne presenti:
+- `registration_status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending'
+- `approved_by` INT NULL
+- `approved_at` DATETIME NULL
+- `rejection_reason` VARCHAR(255) NULL
+- Foreign key `fk_event_responses_approved_by` su `approved_by → users(id)`
+
+---
+
+### 13.13 Retrocompatibilità: Risposte Esistenti
+**Obiettivo**: Verificare che le risposte pre-esistenti funzionino correttamente.
+
+**Prerequisiti**:
+- Database con risposte esistenti prima della migrazione
+- Migrazione eseguita
+
+**Passi**:
+1. Verificare che tutte le risposte abbiano `registration_status = 'pending'` di default
+2. Admin può approvarle normalmente
+
+**Risultato Atteso**:
+- Nessun errore nel caricamento delle pagine
+- Le risposte esistenti sono tutte in stato "pending"
+- L'admin può gestirle normalmente
+
+---
+
+### 13.14 Sicurezza: CSRF Protection
+**Obiettivo**: Verificare che le azioni di approvazione siano protette da CSRF.
+
+**Prerequisiti**:
+- Admin loggato
+
+**Passi**:
+1. Tentare POST a `/public/event_view.php` con action=approve senza token CSRF valido
+2. Verificare che l'azione sia bloccata
+
+**Risultato Atteso**:
+- Richiesta bloccata
+- Nessuna modifica al database
+
+---
+
+### 13.15 Permessi: Solo Admin
+**Obiettivo**: Verificare che solo admin possa approvare/rifiutare.
+
+**Prerequisiti**:
+- Utente operatore loggato (non admin)
+
+**Passi**:
+1. Tentare di accedere a `/public/event_view.php`
+2. Verificare che le sezioni di approvazione non siano visibili
+
+**Risultato Atteso**:
+- Sezioni "Disponibilità in Attesa", "Iscritti Confermati", "Rifiutati" NON visibili
+- Solo riepilogo disponibilità visibile
+
+---
+
+### 13.16 Riepilogo Disponibilità
+**Obiettivo**: Verificare che il riepilogo mostri sempre i conteggi corretti.
+
+**Prerequisiti**:
+- Admin loggato
+- Mix di risposte: Sì (3), Forse (2), No (1)
+
+**Passi**:
+1. Navigare su `/public/event_view.php?id=[event_id]`
+2. Verificare card "Riepilogo Disponibilità"
+
+**Risultato Atteso**:
+- ✓ Parteciperò: 3
+- ? Forse: 2
+- ✗ Non parteciperò: 1
+- I conteggi NON cambiano in base allo stato di approvazione (contano tutte le risposte)
+
+---
+
+**Priorità Test**: Alta  
+**Area**: Eventi - Workflow Approvazione
+
+---
+
 **AssoLife Testing Documentation v1.0**  
 *Powered by Luigi Pistarà*
