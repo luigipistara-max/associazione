@@ -25,10 +25,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
     
-    // Invia email di test
-    $testEmail = getSetting('smtp_username'); // Invia a se stesso
-    if (empty($testEmail)) {
-        echo json_encode(['success' => false, 'message' => 'Inserisci prima un indirizzo email']);
+    // Invia email di test - usa smtp_from_email se disponibile, altrimenti smtp_username
+    $testEmail = getSetting('smtp_from_email') ?: getSetting('smtp_username');
+    
+    // Valida che sia un'email valida
+    if (empty($testEmail) || !filter_var($testEmail, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode(['success' => false, 'message' => 'Inserisci un indirizzo email valido']);
         exit;
     }
     

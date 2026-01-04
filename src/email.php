@@ -159,8 +159,14 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
         return false;
     }
     
+    // Sanitize server name to prevent header injection
+    $serverName = preg_replace('/[^a-zA-Z0-9\.-]/', '', $_SERVER['SERVER_NAME'] ?? 'localhost');
+    if (empty($serverName)) {
+        $serverName = 'localhost';
+    }
+    
     // EHLO
-    fputs($smtp, "EHLO " . $_SERVER['SERVER_NAME'] . "\r\n");
+    fputs($smtp, "EHLO " . $serverName . "\r\n");
     $response = '';
     while ($line = fgets($smtp, 515)) {
         $response .= $line;
@@ -176,10 +182,15 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
             return false;
         }
         
-        stream_socket_enable_crypto($smtp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        $tlsResult = stream_socket_enable_crypto($smtp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        if (!$tlsResult) {
+            error_log("SMTP TLS encryption failed");
+            fclose($smtp);
+            return false;
+        }
         
         // EHLO di nuovo dopo STARTTLS
-        fputs($smtp, "EHLO " . $_SERVER['SERVER_NAME'] . "\r\n");
+        fputs($smtp, "EHLO " . $serverName . "\r\n");
         $response = '';
         while ($line = fgets($smtp, 515)) {
             $response .= $line;
