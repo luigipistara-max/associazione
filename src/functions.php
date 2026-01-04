@@ -2770,3 +2770,15 @@ function countPendingPayments() {
     $result = $stmt->fetch();
     return (int)$result['count'];
 }
+
+/**
+ * Generate a secure token for receipt viewing
+ * 
+ * @param int $receiptId Receipt/Fee ID
+ * @param int $memberId Member ID
+ * @return string Secure token
+ */
+function generateReceiptToken($receiptId, $memberId) {
+    // Simple token generation - can be enhanced with more security
+    return hash('sha256', $receiptId . '-' . $memberId . '-receipt-' . date('Y-m-d'));
+}

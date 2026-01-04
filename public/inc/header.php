@@ -127,6 +127,28 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'group_requests.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>group_requests.php">
+                                <i class="bi bi-person-plus"></i> Richieste Gruppi
+                                <?php 
+                                $pendingGroupRequests = countPendingGroupRequests();
+                                if ($pendingGroupRequests > 0): 
+                                ?>
+                                    <span class="badge bg-danger"><?php echo $pendingGroupRequests; ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'payment_confirm.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>payment_confirm.php">
+                                <i class="bi bi-cash-coin"></i> Conferma Pagamenti
+                                <?php 
+                                $pendingPayments = countPendingPayments();
+                                if ($pendingPayments > 0): 
+                                ?>
+                                    <span class="badge bg-warning"><?php echo $pendingPayments; ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link <?php echo $currentPage === 'bulk_fees.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>bulk_fees.php">
                                 <i class="bi bi-arrow-repeat"></i> Rinnovo Quote
                             </a>
