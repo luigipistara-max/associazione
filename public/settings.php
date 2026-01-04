@@ -109,8 +109,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     redirect('settings.php?tab=api');
 }
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Handle Email settings form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_email_settings') {
+    // Email customization
+    $settings = [];
+    $settings[] = ['email_signature', $_POST['email_signature'] ?? '', 'email'];
+    $settings[] = ['email_footer', $_POST['email_footer'] ?? '', 'email'];
+    
+    // SMTP settings with validation
+    if (isset($_POST['smtp_enabled'])) {
+        // Validate enabled flag
+        $smtpEnabled = isset($_POST['smtp_enabled']) && $_POST['smtp_enabled'] === '1' ? '1' : '0';
+        $settings[] = ['smtp_enabled', $smtpEnabled, 'email'];
+        
+        // Validate and sanitize host
+        $smtpHost = preg_replace('/[^a-zA-Z0-9.-]/', '', $_POST['smtp_host'] ?? '');
+        $settings[] = ['smtp_host', $smtpHost, 'email'];
+        
+        // Validate port
+        $port = (int) ($_POST['smtp_port'] ?? 587);
+        $smtpPort = ($port > 0 && $port <= 65535) ? (string) $port : '587';
+        $settings[] = ['smtp_port', $smtpPort, 'email'];
+        
+        // Validate security
+        $security = $_POST['smtp_security'] ?? 'tls';
+        $smtpSecurity = in_array($security, ['none', 'ssl', 'tls']) ? $security : 'tls';
+        $settings[] = ['smtp_security', $smtpSecurity, 'email'];
+        
+        // Validate emails
+        $username = trim($_POST['smtp_username'] ?? '');
+        if (!empty($username) && !filter_var($username, FILTER_VALIDATE_EMAIL)) {
+            setFlash('Username SMTP non è un indirizzo email valido', 'danger');
+            redirect('settings.php?tab=email');
+        }
+        $settings[] = ['smtp_username', $username, 'email'];
+        
+        // Password is stored as-is to preserve exact value for SMTP authentication
+        $settings[] = ['smtp_password', $_POST['smtp_password'] ?? '', 'email'];
+        
+        $fromEmail = trim($_POST['smtp_from_email'] ?? '');
+        if (!empty($fromEmail) && !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+            setFlash('Email mittente non è valida', 'danger');
+            redirect('settings.php?tab=email');
+        }
+        $settings[] = ['smtp_from_email', $fromEmail, 'email'];
+        
+        $fromName = htmlspecialchars(trim($_POST['smtp_from_name'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $settings[] = ['smtp_from_name', $fromName, 'email'];
+        
+        // Email send mode
+        $emailSendMode = $_POST['email_send_mode'] ?? 'direct';
+        $emailSendMode = in_array($emailSendMode, ['direct', 'queue']) ? $emailSendMode : 'direct';
+        $settings[] = ['email_send_mode', $emailSendMode, 'email'];
+    }
+    
+    // Save all settings
+    setSettings($settings);
+    
+    setFlash('Impostazioni Email salvate con successo!', 'success');
+    redirect('settings.php?tab=email');
+}
+
+// Handle Security settings form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_security_settings') {
+    $settings = [];
+    
+    // Security settings
+    if (isset($_POST['recaptcha_enabled'])) {
+        $settings[] = ['recaptcha_enabled', $_POST['recaptcha_enabled'] === '1' ? '1' : '0', 'security'];
+        $settings[] = ['recaptcha_site_key', trim($_POST['recaptcha_site_key'] ?? ''), 'security'];
+        $settings[] = ['recaptcha_secret_key', trim($_POST['recaptcha_secret_key'] ?? ''), 'security'];
+    }
+    
+    if (isset($_POST['2fa_enabled'])) {
+        $settings[] = ['2fa_enabled', $_POST['2fa_enabled'] === '1' ? '1' : '0', 'security'];
+        $twoFaRequired = $_POST['2fa_required_for'] ?? 'none';
+        $validOptions = ['none', 'admin', 'staff', 'all'];
+        $settings[] = ['2fa_required_for', in_array($twoFaRequired, $validOptions) ? $twoFaRequired : 'none', 'security'];
+    }
+    
+    if (isset($_POST['password_expiry_users'])) {
+        $expiryUsers = (int) ($_POST['password_expiry_users'] ?? 0);
+        $settings[] = ['password_expiry_users', $expiryUsers >= 0 ? (string) $expiryUsers : '0', 'security'];
+        
+        $expiryMembers = (int) ($_POST['password_expiry_members'] ?? 0);
+        $settings[] = ['password_expiry_members', $expiryMembers >= 0 ? (string) $expiryMembers : '0', 'security'];
+    }
+    
+    // Save all settings
+    setSettings($settings);
+    
+    setFlash('Impostazioni Sicurezza salvate con successo!', 'success');
+    redirect('settings.php?tab=security');
+}
+
+// Handle form submission for general settings (Association, Legal, Address, Fiscal, Banking, PayPal)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     // TODO: Add CSRF protection in production
     // Example: if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) { die('CSRF token mismatch'); }
     
@@ -162,92 +256,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['paypal_email'])) {
         $settings[] = ['paypal_email', $_POST['paypal_email'] ?? '', 'paypal'];
         $settings[] = ['paypal_me_link', $_POST['paypal_me_link'] ?? '', 'paypal'];
-    }
-    
-    // API / Integrations
-    if (isset($_POST['imgbb_api_key'])) {
-        $settings[] = ['imgbb_api_key', $_POST['imgbb_api_key'] ?? '', 'api'];
-    }
-    if (isset($_POST['paypal_mode'])) {
-        $settings[] = ['paypal_mode', $_POST['paypal_mode'] ?? 'sandbox', 'api'];
-        $settings[] = ['paypal_client_id', $_POST['paypal_client_id'] ?? '', 'api'];
-        $settings[] = ['paypal_client_secret', $_POST['paypal_client_secret'] ?? '', 'api'];
-        $settings[] = ['paypal_webhook_id', $_POST['paypal_webhook_id'] ?? '', 'api'];
-    }
-    
-    // Email customization
-    if (isset($_POST['email_signature'])) {
-        $settings[] = ['email_signature', $_POST['email_signature'] ?? '', 'email'];
-        $settings[] = ['email_footer', $_POST['email_footer'] ?? '', 'email'];
-    }
-    
-    // Security settings
-    if (isset($_POST['recaptcha_enabled'])) {
-        $settings[] = ['recaptcha_enabled', $_POST['recaptcha_enabled'] === '1' ? '1' : '0', 'security'];
-        $settings[] = ['recaptcha_site_key', trim($_POST['recaptcha_site_key'] ?? ''), 'security'];
-        $settings[] = ['recaptcha_secret_key', trim($_POST['recaptcha_secret_key'] ?? ''), 'security'];
-    }
-    
-    if (isset($_POST['2fa_enabled'])) {
-        $settings[] = ['2fa_enabled', $_POST['2fa_enabled'] === '1' ? '1' : '0', 'security'];
-        $twoFaRequired = $_POST['2fa_required_for'] ?? 'none';
-        $validOptions = ['none', 'admin', 'staff', 'all'];
-        $settings[] = ['2fa_required_for', in_array($twoFaRequired, $validOptions) ? $twoFaRequired : 'none', 'security'];
-    }
-    
-    if (isset($_POST['password_expiry_users'])) {
-        $expiryUsers = (int) ($_POST['password_expiry_users'] ?? 0);
-        $settings[] = ['password_expiry_users', $expiryUsers >= 0 ? (string) $expiryUsers : '0', 'security'];
-        
-        $expiryMembers = (int) ($_POST['password_expiry_members'] ?? 0);
-        $settings[] = ['password_expiry_members', $expiryMembers >= 0 ? (string) $expiryMembers : '0', 'security'];
-    }
-    
-    // SMTP settings with validation
-    if (isset($_POST['smtp_enabled'])) {
-        // Validate enabled flag
-        $smtpEnabled = isset($_POST['smtp_enabled']) && $_POST['smtp_enabled'] === '1' ? '1' : '0';
-        $settings[] = ['smtp_enabled', $smtpEnabled, 'email'];
-        
-        // Validate and sanitize host
-        $smtpHost = preg_replace('/[^a-zA-Z0-9.-]/', '', $_POST['smtp_host'] ?? '');
-        $settings[] = ['smtp_host', $smtpHost, 'email'];
-        
-        // Validate port
-        $port = (int) ($_POST['smtp_port'] ?? 587);
-        $smtpPort = ($port > 0 && $port <= 65535) ? (string) $port : '587';
-        $settings[] = ['smtp_port', $smtpPort, 'email'];
-        
-        // Validate security
-        $security = $_POST['smtp_security'] ?? 'tls';
-        $smtpSecurity = in_array($security, ['none', 'ssl', 'tls']) ? $security : 'tls';
-        $settings[] = ['smtp_security', $smtpSecurity, 'email'];
-        
-        // Validate emails
-        $username = trim($_POST['smtp_username'] ?? '');
-        if (!empty($username) && !filter_var($username, FILTER_VALIDATE_EMAIL)) {
-            setFlash('Username SMTP non è un indirizzo email valido', 'danger');
-            redirect('settings.php');
-        }
-        $settings[] = ['smtp_username', $username, 'email'];
-        
-        // Password is stored as-is to preserve exact value for SMTP authentication
-        $settings[] = ['smtp_password', $_POST['smtp_password'] ?? '', 'email'];
-        
-        $fromEmail = trim($_POST['smtp_from_email'] ?? '');
-        if (!empty($fromEmail) && !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
-            setFlash('Email mittente non è valida', 'danger');
-            redirect('settings.php');
-        }
-        $settings[] = ['smtp_from_email', $fromEmail, 'email'];
-        
-        $fromName = htmlspecialchars(trim($_POST['smtp_from_name'] ?? ''), ENT_QUOTES, 'UTF-8');
-        $settings[] = ['smtp_from_name', $fromName, 'email'];
-        
-        // Email send mode
-        $emailSendMode = $_POST['email_send_mode'] ?? 'direct';
-        $emailSendMode = in_array($emailSendMode, ['direct', 'queue']) ? $emailSendMode : 'direct';
-        $settings[] = ['email_send_mode', $emailSendMode, 'email'];
     }
     
     // Handle logo upload
@@ -606,14 +614,15 @@ include __DIR__ . '/inc/header.php';
                        value="<?php echo h($currentSettings['paypal_me_link'] ?? ''); ?>" 
                        placeholder="https://paypal.me/nomeassociazione">
             </div>
+            
+            <!-- Save Button for General Settings -->
+            <div class="mt-4 pt-3 border-top">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save"></i> Salva Impostazioni Generali
+                </button>
+            </div>
         </div>
         
-        <!-- Save Button for General Settings -->
-        <div class="mt-4 pt-3 border-top" id="general-save-button">
-            <button type="submit" class="btn btn-primary btn-lg">
-                <i class="bi bi-save"></i> Salva Impostazioni
-            </button>
-        </div>
     </form>
     
         <!-- API / Integrations Tab -->
@@ -749,6 +758,7 @@ include __DIR__ . '/inc/header.php';
     <!-- Email Customization Tab -->
     <div class="tab-pane fade" id="email" role="tabpanel">
         <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="save_email_settings">
             <div class="mb-3">
                 <label for="email_signature" class="form-label">Firma Email</label>
                 <textarea class="form-control" id="email_signature" name="email_signature" rows="3"><?php echo h($currentSettings['email_signature'] ?? ''); ?></textarea>
@@ -945,6 +955,7 @@ include __DIR__ . '/inc/header.php';
     <!-- Security Tab -->
     <div class="tab-pane fade" id="security" role="tabpanel">
         <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="save_security_settings">
             <div class="alert alert-info">
                 <i class="bi bi-shield-lock"></i> Configura le impostazioni di sicurezza avanzate per proteggere l'accesso al sistema
             </div>
