@@ -76,9 +76,10 @@ try {
     ");
     $stmt->execute([$transactionId, $feeId]);
     
-    // Generate receipt
-    require_once __DIR__ . '/../../../src/pdf.php';
-    generateReceipt($feeId);
+    // Generate receipt using new receipts table
+    // Payment details include the transaction ID
+    $paymentDetails = 'Pagamento PayPal - ID: ' . $transactionId;
+    generateReceipt($feeId, 'paypal', $paymentDetails, null);
     
     // Get or create income category for membership fees
     $stmt = $pdo->prepare("
