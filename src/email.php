@@ -266,7 +266,8 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     $subject = str_replace(["\r", "\n"], '', $subject);
     $to = str_replace(["\r", "\n"], '', $to);
     $fromEmail = str_replace(["\r", "\n"], '', $fromEmail);
-    $fromName = str_replace(["\r", "\n"], '', $fromName);
+    // Also strip quotes from fromName to prevent header injection
+    $fromName = str_replace(["\r", "\n", '"', '\\'], '', $fromName);
     
     // Headers
     $boundary = md5(uniqid(time()));
@@ -277,10 +278,13 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     $headers .= "Content-Type: multipart/alternative; boundary=\"$boundary\"\r\n";
     $headers .= "\r\n";
     
-    // Body
+    // Body - ensure content doesn't contain the boundary string
+    $bodyText = $bodyText ? str_replace($boundary, 'boundary-removed', $bodyText) : strip_tags($bodyHtml);
+    $bodyHtml = str_replace($boundary, 'boundary-removed', $bodyHtml);
+    
     $body = "--$boundary\r\n";
     $body .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
-    $body .= ($bodyText ?: strip_tags($bodyHtml)) . "\r\n\r\n";
+    $body .= $bodyText . "\r\n\r\n";
     $body .= "--$boundary\r\n";
     $body .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
     $body .= $bodyHtml . "\r\n\r\n";

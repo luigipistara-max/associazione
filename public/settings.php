@@ -49,7 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
     
     $smtpSettings['smtp_username'] = $username;
-    $smtpSettings['smtp_password'] = $_POST['smtp_password'] ?? ''; // Password is not sanitized
+    // Password is stored as-is (not sanitized) to preserve exact value for SMTP authentication
+    // Note: Consider implementing encryption for password storage in a future update
+    $smtpSettings['smtp_password'] = $_POST['smtp_password'] ?? '';
     $smtpSettings['smtp_from_email'] = $fromEmail;
     $smtpSettings['smtp_from_name'] = htmlspecialchars(trim($_POST['smtp_from_name'] ?? ''), ENT_QUOTES, 'UTF-8');
     
@@ -177,6 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $settings[] = ['smtp_username', $username, 'email'];
         
+        // Password is stored as-is to preserve exact value for SMTP authentication
         $settings[] = ['smtp_password', $_POST['smtp_password'] ?? '', 'email'];
         
         $fromEmail = trim($_POST['smtp_from_email'] ?? '');
