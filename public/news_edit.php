@@ -265,7 +265,20 @@ tinymce.init({
     content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }',
     language: 'it',
     branding: false,
-    promotion: false
+    promotion: false,
+    setup: function(editor) {
+        editor.on('change', function() {
+            editor.save(); // Sincronizza automaticamente ad ogni modifica
+        });
+    }
+});
+
+// Force TinyMCE to save content before form submit
+document.querySelector('form').addEventListener('submit', function(e) {
+    // Forza TinyMCE a salvare il contenuto nel textarea
+    if (typeof tinymce !== 'undefined') {
+        tinymce.triggerSave();
+    }
 });
 
 // Toggle publish options

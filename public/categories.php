@@ -42,6 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $errors[] = 'Tipo categoria non valido';
         } elseif (empty($name)) {
             $errors[] = 'Il nome è obbligatorio';
+        } elseif (categoryExists($name, $type, $categoryId)) {
+            // Check for duplicates (excluding current ID when editing)
+            $errors[] = 'Categoria già esistente con questo nome';
         } else {
             try {
                 $table = $type === 'income' ? table('income_categories') : table('expense_categories');

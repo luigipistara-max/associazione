@@ -146,6 +146,29 @@ function getExpenseCategories($activeOnly = true) {
 }
 
 /**
+ * Check if category already exists
+ */
+function categoryExists($name, $type, $excludeId = null) {
+    global $pdo;
+    $table = $type === 'income' ? table('income_categories') : table('expense_categories');
+    
+    $sql = "SELECT COUNT(*) as count FROM $table WHERE name = ?";
+    $params = [$name];
+    
+    // Exclude current ID when editing
+    if ($excludeId !== null) {
+        $sql .= " AND id != ?";
+        $params[] = $excludeId;
+    }
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $result = $stmt->fetch();
+    
+    return $result['count'] > 0;
+}
+
+/**
  * Set flash message
  */
 function setFlash($message, $type = 'success') {
