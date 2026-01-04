@@ -145,7 +145,7 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
                 UPDATE " . table('member_fees') . " 
                 SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
                     due_date = ?, paid_date = ?, payment_method = ?, receipt_number = ?, 
-                    status = ?, notes = ?
+                    status = ?, notes = ?, payment_pending = 0
                 WHERE id = ?
             ");
         }
