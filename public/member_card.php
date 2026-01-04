@@ -70,6 +70,15 @@ $isActive = isMemberActive($memberId);
 $currentYear = getCurrentSocialYear();
 $yearDisplay = $currentYear ? $currentYear['name'] : date('Y');
 
+// Get association info
+$assocInfo = getAssociationInfo();
+
+// Get logo URL
+$logoUrl = getLogoUrl($assocInfo['logo'] ?? null, $basePath);
+
+// Validate photo URL to prevent XSS
+$photoUrl = validateImageUrl($member['photo_url'] ?? null);
+
 // Build verification URL
 $verifyUrl = '';
 if ($member['card_token']) {
@@ -116,9 +125,22 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
         }
         
         .card-logo {
-            font-size: 24px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .card-logo img {
+            max-width: 80%;
+            max-height: 40px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+        
+        .card-logo .logo-text {
+            font-size: 18px;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-top: 5px;
         }
         
         .card-title {
@@ -137,6 +159,37 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
         
         .card-info strong {
             font-weight: 600;
+        }
+        
+        .card-photo {
+            width: 60px;
+            height: 75px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            position: absolute;
+            top: 8mm;
+            right: 8mm;
+        }
+        
+        .card-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .card-photo-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            opacity: 0.5;
+        }
+        
+        .card-status-badge {
+            font-size: 9px;
         }
         
         .card-qr {
@@ -252,17 +305,35 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
             <!-- FRONTE TESSERA -->
             <div class="member-card member-card-front">
                 <div class="card-logo">
-                    <i class="bi bi-building"></i> <?php echo h($siteName); ?>
+                    <?php if ($logoUrl): ?>
+                        <img src="<?php echo h($logoUrl); ?>" alt="Logo <?php echo h($assocInfo['name'] ?? ''); ?>">
+                    <?php endif; ?>
+                    <div class="logo-text"><?php echo h($assocInfo['name'] ?? $siteName); ?></div>
                 </div>
                 
                 <div class="card-title">TESSERA SOCIO</div>
                 
+                <div class="card-photo">
+                    <?php if ($photoUrl): ?>
+                        <img src="<?php echo h($photoUrl); ?>" alt="Foto">
+                    <?php else: ?>
+                        <div class="card-photo-placeholder">
+                            <i class="bi bi-person"></i>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
                 <div class="card-info">
                     <strong>Nome:</strong> <?php echo h($member['first_name'] . ' ' . $member['last_name']); ?><br>
                     <strong>N. Tessera:</strong> <?php echo h($member['membership_number'] ?: sprintf('%05d', $member['id'])); ?><br>
-                    <strong>C.F.:</strong> <?php echo h(substr($member['fiscal_code'], 0, 3) . '***********' . substr($member['fiscal_code'], -2)); ?><br>
+                    <?php if (!empty($member['fiscal_code'])): ?>
+                        <strong>C.F.:</strong> <?php echo h(maskFiscalCode($member['fiscal_code'])); ?><br>
+                    <?php endif; ?>
                     <br>
                     <strong>Valida per:</strong> Anno <?php echo h($yearDisplay); ?>
+                    <span class="badge bg-<?php echo $isActive ? 'success' : 'warning'; ?> card-status-badge">
+                        <?php echo $isActive ? 'ATTIVO' : 'QUOTA NON PAGATA'; ?>
+                    </span>
                 </div>
                 
                 <?php if ($verifyUrl): ?>
@@ -277,7 +348,7 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
             <div class="member-card member-card-back">
                 <div class="card-back-content">
                     <div class="text-center mb-3">
-                        <strong style="font-size: 12px;"><?php echo h($siteName); ?></strong>
+                        <strong style="font-size: 12px;"><?php echo h($assocInfo['name'] ?? $siteName); ?></strong>
                     </div>
                     
                     <p>

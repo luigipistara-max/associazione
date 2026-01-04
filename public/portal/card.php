@@ -43,6 +43,12 @@ if ($currentYear) {
 // Get association info
 $assocInfo = getAssociationInfo();
 
+// Get logo URL
+$logoUrl = getLogoUrl($assocInfo['logo'] ?? null, $basePath);
+
+// Validate photo URL to prevent XSS
+$photoUrl = validateImageUrl($member['photo_url'] ?? null);
+
 include __DIR__ . '/inc/header.php';
 ?>
 
@@ -65,8 +71,13 @@ include __DIR__ . '/inc/header.php';
         border-bottom: 1px solid rgba(255,255,255,0.3);
     }
     .card-header-section img {
+        max-width: 80%;
         max-height: 50px;
-        filter: brightness(0) invert(1);
+        width: auto;
+        height: auto;
+        object-fit: contain;
+        /* Removed filter: brightness(0) invert(1) that was making logos white */
+        /* Logo now displays in original colors for better brand visibility */
     }
     .card-body-section {
         display: flex;
@@ -110,6 +121,17 @@ include __DIR__ . '/inc/header.php';
     .status-active {
         background: #28a745;
     }
+    .member-card-back {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        margin-top: 20px;
+    }
+    .card-back-content {
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
+    .card-status-badge {
+        font-size: 9px;
+    }
     @media print {
         body {
             background: white;
@@ -145,8 +167,8 @@ include __DIR__ . '/inc/header.php';
         <div class="text-center mb-4">
             <div class="member-card">
                 <div class="card-header-section">
-                    <?php if (!empty($assocInfo['logo'])): ?>
-                        <img src="<?php echo h($basePath . $assocInfo['logo']); ?>" alt="Logo">
+                    <?php if ($logoUrl): ?>
+                        <img src="<?php echo h($logoUrl); ?>" alt="Logo">
                     <?php endif; ?>
                     <h6 class="mt-2 mb-0"><?php echo h($assocInfo['name'] ?? 'Associazione'); ?></h6>
                     <small style="opacity: 0.8;">Tessera Socio <?php echo h($yearDisplay); ?></small>
@@ -154,8 +176,8 @@ include __DIR__ . '/inc/header.php';
                 
                 <div class="card-body-section">
                     <div class="card-photo">
-                        <?php if (!empty($member['photo_url'])): ?>
-                            <img src="<?php echo h($member['photo_url']); ?>" alt="Foto" class="member-photo">
+                        <?php if ($photoUrl): ?>
+                            <img src="<?php echo h($photoUrl); ?>" alt="Foto" class="member-photo">
                         <?php else: ?>
                             <div class="member-photo-placeholder">
                                 <i class="bi bi-person-circle" style="font-size: 2rem;"></i>
@@ -188,6 +210,27 @@ include __DIR__ . '/inc/header.php';
                         </div>
                     </div>
                 <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- RETRO TESSERA -->
+        <div class="text-center mb-4">
+            <div class="member-card member-card-back">
+                <div class="card-back-content">
+                    <div class="text-center mb-3">
+                        <strong><?php echo h($assocInfo['name'] ?? 'Associazione'); ?></strong>
+                    </div>
+                    
+                    <p>La presente tessera è personale e non cedibile.</p>
+                    
+                    <p>In caso di smarrimento comunicare tempestivamente alla segreteria.</p>
+                    
+                    <p>Per verificare la validità della tessera, scansionare il QR code sul fronte.</p>
+                    
+                    <div class="text-center mt-3" style="font-size: 0.8rem; opacity: 0.7;">
+                        Powered by AssoLife
+                    </div>
+                </div>
             </div>
         </div>
         

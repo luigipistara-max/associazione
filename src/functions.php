@@ -3006,3 +3006,96 @@ function generateReceiptToken($receiptId, $memberId) {
     // Simple token generation - can be enhanced with more security
     return hash('sha256', $receiptId . '-' . $memberId . '-receipt-' . date('Y-m-d'));
 }
+
+/**
+ * Get logo URL handling both external and local paths
+ * 
+ * @param string|null $logoPath Logo path from settings
+ * @param string $basePath Base path for local files
+ * @return string Logo URL or empty string
+ */
+function getLogoUrl($logoPath, $basePath) {
+    if (empty($logoPath)) {
+        return '';
+    }
+    
+    // Check if it's an external URL (http:// or https://)
+    if (preg_match('/^https?:\/\//', $logoPath)) {
+        return $logoPath;
+    }
+    
+    // Local path - remove leading slashes and prepend basePath
+    $cleanPath = ltrim($logoPath, '/');
+    return $basePath . $cleanPath;
+}
+
+/**
+ * Validate and sanitize image URL to prevent XSS
+ * 
+ * @param string|null $url Image URL to validate
+ * @return string|null Validated URL or null if invalid
+ */
+function validateImageUrl($url) {
+    if (empty($url)) {
+        return null;
+    }
+    
+    // Check for valid HTTP/HTTPS URLs
+    if (preg_match('/^https?:\/\//i', $url)) {
+        // Validate URL format
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+        
+        // Parse and verify scheme is http or https only
+        $parsed = parse_url($url);
+        if (!isset($parsed['scheme']) || !in_array(strtolower($parsed['scheme']), ['http', 'https'], true)) {
+            return null;
+        }
+        
+        return $url;
+    }
+    
+    // Check for local paths (must start with / and not contain scheme-like patterns)
+    if (preg_match('/^\/[^:]*$/i', $url)) {
+        // Decode URL to check for malicious patterns
+        $decoded = urldecode($url);
+        
+        // Reject if decoded version contains suspicious patterns
+        if (strpos($decoded, '..') !== false || // Directory traversal
+            strpos($decoded, "\0") !== false || // Null bytes
+            strpos($decoded, "\n") !== false || // Newlines
+            strpos($decoded, "\r") !== false) { // Carriage returns
+            return null;
+        }
+        
+        return $url;
+    }
+    
+    // Reject everything else (javascript:, data:, etc.)
+    return null;
+}
+
+/**
+ * Mask fiscal code for privacy
+ * Shows first 3 characters, asterisks, and last 2 characters
+ * Fully masks codes shorter than 5 characters
+ * 
+ * @param string|null $fiscalCode Fiscal code to mask
+ * @return string Masked fiscal code
+ */
+function maskFiscalCode($fiscalCode) {
+    if (empty($fiscalCode)) {
+        return '';
+    }
+    
+    $fcLen = strlen($fiscalCode);
+    
+    // For codes with 5 or more characters, show first 3 and last 2
+    if ($fcLen >= 5) {
+        return substr($fiscalCode, 0, 3) . str_repeat('*', $fcLen - 5) . substr($fiscalCode, -2);
+    }
+    
+    // For shorter codes, fully mask for safety
+    return str_repeat('*', $fcLen);
+}
