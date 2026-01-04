@@ -4,6 +4,9 @@
  * Modern design with gradient and branding
  */
 
+require_once __DIR__ . '/../src/config.php';
+require_once __DIR__ . '/../src/db.php';
+require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/auth.php';
 
 // Load config for site name
@@ -47,8 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SESSION['login_lockout_until'] <=
         // Check reCAPTCHA if enabled
         $recaptchaValid = true;
         if (getSetting('recaptcha_enabled') == '1') {
-            require_once __DIR__ . '/../src/functions.php';
-            
             $recaptchaResponse = $_POST['g-recaptcha-response'] ?? '';
             $secretKey = getSetting('recaptcha_secret_key');
             
@@ -115,7 +116,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SESSION['login_lockout_until'] <=
 $csrfToken = generateCsrfToken();
 
 // Load reCAPTCHA settings
-require_once __DIR__ . '/../src/functions.php';
 $recaptchaEnabled = getSetting('recaptcha_enabled') == '1';
 $recaptchaSiteKey = getSetting('recaptcha_site_key');
 ?>

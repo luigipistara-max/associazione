@@ -6,6 +6,7 @@ require_once __DIR__ . '/../src/audit.php';
 
 requireAdmin();
 
+$config = require __DIR__ . '/../src/config.php';
 $basePath = $config['app']['base_path'];
 $groupId = $_GET['group_id'] ?? null;
 

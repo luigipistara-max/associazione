@@ -5,6 +5,7 @@ require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
+$config = require __DIR__ . '/../src/config.php';
 $basePath = $config['app']['base_path'];
 $pageTitle = 'Rendiconto';
 

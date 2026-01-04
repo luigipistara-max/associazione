@@ -6,6 +6,7 @@ require_once __DIR__ . '/../src/email.php';
 
 requireLogin();
 
+$config = require __DIR__ . '/../src/config.php';
 $basePath = $config['app']['base_path'];
 $eventId = $_GET['id'] ?? null;
 $action = $_GET['action'] ?? 'register';

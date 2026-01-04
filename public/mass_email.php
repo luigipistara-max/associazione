@@ -7,6 +7,7 @@ require_once __DIR__ . '/../src/email.php';
 requireLogin();
 requireAdmin();
 
+$config = require __DIR__ . '/../src/config.php';
 $pageTitle = 'Email Massiva';
 $basePath = $config['app']['base_path'];
 

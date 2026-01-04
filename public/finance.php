@@ -5,6 +5,7 @@ require_once __DIR__ . '/../src/db.php';
 
 requireLogin();
 
+$config = require __DIR__ . '/../src/config.php';
 $pageTitle = 'Movimenti Finanziari';
 
 // Get base path from config

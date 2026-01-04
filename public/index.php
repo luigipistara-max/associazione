@@ -6,6 +6,7 @@ require_once __DIR__ . '/../src/email.php';
 
 requireLogin();
 
+$config = require __DIR__ . '/../src/config.php';
 $pageTitle = 'Dashboard';
 
 // Get base path from config
