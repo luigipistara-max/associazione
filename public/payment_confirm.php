@@ -10,7 +10,6 @@ require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/auth.php';
 
 requireLogin();
-$config = require __DIR__ . '/../src/config.php';
 $pageTitle = 'Conferma Pagamenti';
 
 $success = '';
