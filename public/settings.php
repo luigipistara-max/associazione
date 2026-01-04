@@ -151,6 +151,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $settings[] = ['email_footer', $_POST['email_footer'] ?? '', 'email'];
     }
     
+    // Security settings
+    if (isset($_POST['recaptcha_enabled'])) {
+        $settings[] = ['recaptcha_enabled', $_POST['recaptcha_enabled'] === '1' ? '1' : '0', 'security'];
+        $settings[] = ['recaptcha_site_key', trim($_POST['recaptcha_site_key'] ?? ''), 'security'];
+        $settings[] = ['recaptcha_secret_key', trim($_POST['recaptcha_secret_key'] ?? ''), 'security'];
+    }
+    
+    if (isset($_POST['2fa_enabled'])) {
+        $settings[] = ['2fa_enabled', $_POST['2fa_enabled'] === '1' ? '1' : '0', 'security'];
+        $twoFaRequired = $_POST['2fa_required_for'] ?? 'none';
+        $validOptions = ['none', 'admin', 'staff', 'all'];
+        $settings[] = ['2fa_required_for', in_array($twoFaRequired, $validOptions) ? $twoFaRequired : 'none', 'security'];
+    }
+    
+    if (isset($_POST['password_expiry_users'])) {
+        $expiryUsers = (int) ($_POST['password_expiry_users'] ?? 0);
+        $settings[] = ['password_expiry_users', $expiryUsers >= 0 ? (string) $expiryUsers : '0', 'security'];
+        
+        $expiryMembers = (int) ($_POST['password_expiry_members'] ?? 0);
+        $settings[] = ['password_expiry_members', $expiryMembers >= 0 ? (string) $expiryMembers : '0', 'security'];
+    }
+    
     // SMTP settings with validation
     if (isset($_POST['smtp_enabled'])) {
         // Validate enabled flag
@@ -243,6 +265,27 @@ $currentSettings = getAllSettings();
 include __DIR__ . '/inc/header.php';
 ?>
 
+<style>
+.nav-pills .nav-link.active {
+    background-color: #0d6efd;
+    color: #fff;
+}
+
+.nav-pills .nav-link {
+    color: #0d6efd;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: #0d6efd;
+    color: #fff;
+    border-color: #0d6efd;
+}
+
+.nav-tabs .nav-link {
+    color: #0d6efd;
+}
+</style>
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><i class="bi bi-gear"></i> Impostazioni Associazione</h1>
 </div>
@@ -288,6 +331,11 @@ include __DIR__ . '/inc/header.php';
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="email-tab" data-bs-toggle="tab" data-bs-target="#email" type="button" role="tab">
                 <i class="bi bi-envelope"></i> Email
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
+                <i class="bi bi-shield-lock"></i> Sicurezza
             </button>
         </li>
     </ul>
@@ -746,6 +794,151 @@ include __DIR__ . '/inc/header.php';
             </div>
         </div>
         
+        <!-- Security Tab -->
+        <div class="tab-pane fade" id="security" role="tabpanel">
+            <div class="alert alert-info">
+                <i class="bi bi-shield-lock"></i> Configura le impostazioni di sicurezza avanzate per proteggere l'accesso al sistema
+            </div>
+            
+            <!-- Google reCAPTCHA v2 -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-robot"></i> Google reCAPTCHA v2</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="recaptcha_enabled" id="recaptcha_enabled" value="1"
+                                   <?php echo (getSetting('recaptcha_enabled') == '1') ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="recaptcha_enabled">
+                                <strong>Abilita reCAPTCHA per il login</strong>
+                            </label>
+                        </div>
+                        <div class="form-text">Protegge il form di login da bot e accessi automatizzati</div>
+                    </div>
+                    
+                    <div id="recaptcha_fields">
+                        <div class="mb-3">
+                            <label class="form-label">Site Key (Chiave Sito)</label>
+                            <input type="text" class="form-control" name="recaptcha_site_key" 
+                                   value="<?php echo h(getSetting('recaptcha_site_key')); ?>"
+                                   placeholder="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI">
+                            <div class="form-text">Chiave pubblica per il client-side</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Secret Key (Chiave Segreta)</label>
+                            <input type="password" class="form-control" name="recaptcha_secret_key" 
+                                   value="<?php echo h(getSetting('recaptcha_secret_key')); ?>"
+                                   placeholder="6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe">
+                            <div class="form-text">Chiave privata per la verifica server-side</div>
+                        </div>
+                        
+                        <div class="alert alert-secondary">
+                            <strong><i class="bi bi-link-45deg"></i> Ottieni le chiavi:</strong><br>
+                            <a href="https://www.google.com/recaptcha/admin" target="_blank" class="btn btn-sm btn-outline-primary mt-2">
+                                <i class="bi bi-box-arrow-up-right"></i> Google reCAPTCHA Admin Console
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 2FA Google Authenticator -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-phone"></i> Autenticazione a Due Fattori (2FA)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" name="2fa_enabled" id="2fa_enabled" value="1"
+                                   <?php echo (getSetting('2fa_enabled') == '1') ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="2fa_enabled">
+                                <strong>Abilita 2FA con Google Authenticator</strong>
+                            </label>
+                        </div>
+                        <div class="form-text">Richiede un secondo fattore di autenticazione tramite app TOTP</div>
+                    </div>
+                    
+                    <div id="2fa_fields">
+                        <div class="mb-3">
+                            <label class="form-label">2FA Obbligatorio Per</label>
+                            <select class="form-select" name="2fa_required_for">
+                                <option value="none" <?php echo (getSetting('2fa_required_for') == 'none') ? 'selected' : ''; ?>>
+                                    Nessuno (opzionale per tutti)
+                                </option>
+                                <option value="admin" <?php echo (getSetting('2fa_required_for') == 'admin') ? 'selected' : ''; ?>>
+                                    Solo Amministratori
+                                </option>
+                                <option value="staff" <?php echo (getSetting('2fa_required_for') == 'staff') ? 'selected' : ''; ?>>
+                                    Admin e Staff (operatori)
+                                </option>
+                                <option value="all" <?php echo (getSetting('2fa_required_for') == 'all') ? 'selected' : ''; ?>>
+                                    Tutti gli utenti
+                                </option>
+                            </select>
+                            <div class="form-text">Definisci per chi la 2FA è obbligatoria</div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <strong><i class="bi bi-info-circle"></i> Come funziona:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Gli utenti configurano Google Authenticator dal loro profilo</li>
+                                <li>Al login viene richiesto il codice OTP a 6 cifre</li>
+                                <li>Compatibile con Google Authenticator, Authy, Microsoft Authenticator</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Password Expiry -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-key"></i> Scadenza Password</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-secondary">
+                        <i class="bi bi-info-circle"></i> Imposta dopo quanti giorni le password devono essere cambiate. Usa 0 per disabilitare.
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Scadenza per Utenti (Admin/Operatori)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" name="password_expiry_users" min="0" 
+                                           value="<?php echo h(getSetting('password_expiry_users') ?: '0'); ?>"
+                                           placeholder="0">
+                                    <span class="input-group-text">giorni</span>
+                                </div>
+                                <div class="form-text">0 = disabilitato (consigliato: 90-180 giorni)</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Scadenza per Soci (Portale)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" name="password_expiry_members" min="0" 
+                                           value="<?php echo h(getSetting('password_expiry_members') ?: '0'); ?>"
+                                           placeholder="0">
+                                    <span class="input-group-text">giorni</span>
+                                </div>
+                                <div class="form-text">0 = disabilitato (consigliato: 180-365 giorni)</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <strong><i class="bi bi-exclamation-triangle"></i> Nota:</strong>
+                        Gli utenti riceveranno una notifica quando la password sta per scadere e saranno obbligati a cambiarla alla scadenza.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
     </div>
     
     <!-- Save Button -->
@@ -825,6 +1018,26 @@ document.addEventListener('DOMContentLoaded', function() {
     if (smtpEnabled && smtpEnabled.value === '1') {
         document.getElementById('smtp_fields').style.display = 'block';
         document.getElementById('smtp_presets').style.display = 'block';
+    }
+    
+    // Initialize reCAPTCHA fields visibility
+    const recaptchaCheckbox = document.getElementById('recaptcha_enabled');
+    const recaptchaFields = document.getElementById('recaptcha_fields');
+    if (recaptchaCheckbox) {
+        recaptchaFields.style.display = recaptchaCheckbox.checked ? 'block' : 'none';
+        recaptchaCheckbox.addEventListener('change', function() {
+            recaptchaFields.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+    
+    // Initialize 2FA fields visibility
+    const twoFaCheckbox = document.getElementById('2fa_enabled');
+    const twoFaFields = document.getElementById('2fa_fields');
+    if (twoFaCheckbox) {
+        twoFaFields.style.display = twoFaCheckbox.checked ? 'block' : 'none';
+        twoFaCheckbox.addEventListener('change', function() {
+            twoFaFields.style.display = this.checked ? 'block' : 'none';
+        });
     }
 });
 

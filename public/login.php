@@ -44,7 +44,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SESSION['login_lockout_until'] <=
     $password = $_POST['password'] ?? '';
     
     if (verifyCsrfToken($token)) {
-        if (loginUser($username, $password)) {
+        // Check reCAPTCHA if enabled
+        $recaptchaValid = true;
+        if (getSetting('recaptcha_enabled') == '1') {
+            require_once __DIR__ . '/../src/functions.php';
+            
+            $recaptchaResponse = $_POST['g-recaptcha-response'] ?? '';
+            $secretKey = getSetting('recaptcha_secret_key');
+            
+            if (empty($recaptchaResponse)) {
+                $recaptchaValid = false;
+                $error = 'Per favore completa il reCAPTCHA';
+            } else {
+                // Verify reCAPTCHA
+                $verifyUrl = 'https://www.google.com/recaptcha/api/siteverify';
+                $data = [
+                    'secret' => $secretKey,
+                    'response' => $recaptchaResponse,
+                    'remoteip' => $_SERVER['REMOTE_ADDR']
+                ];
+                
+                $options = [
+                    'http' => [
+                        'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+                        'method' => 'POST',
+                        'content' => http_build_query($data)
+                    ]
+                ];
+                
+                $context = stream_context_create($options);
+                $result = file_get_contents($verifyUrl, false, $context);
+                $responseData = json_decode($result);
+                
+                if (!$responseData->success) {
+                    $recaptchaValid = false;
+                    $error = 'Verifica reCAPTCHA fallita. Riprova.';
+                }
+            }
+        }
+        
+        if ($recaptchaValid && loginUser($username, $password)) {
             // Reset rate limiting on successful login
             $_SESSION['login_attempts'] = 0;
             $_SESSION['login_lockout_until'] = 0;
@@ -56,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SESSION['login_lockout_until'] <=
             $basePath = $config['app']['base_path'] ?? '/';
             header('Location: ' . $basePath . 'index.php');
             exit;
-        } else {
+        } elseif ($recaptchaValid) {
             // Increment failed attempts
             $_SESSION['login_attempts']++;
             
@@ -74,6 +113,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_SESSION['login_lockout_until'] <=
 }
 
 $csrfToken = generateCsrfToken();
+
+// Load reCAPTCHA settings
+require_once __DIR__ . '/../src/functions.php';
+$recaptchaEnabled = getSetting('recaptcha_enabled') == '1';
+$recaptchaSiteKey = getSetting('recaptcha_site_key');
 ?>
 <!DOCTYPE html>
 <html lang="it">
@@ -83,6 +127,9 @@ $csrfToken = generateCsrfToken();
     <title>Login - <?php echo htmlspecialchars($siteName); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <?php if ($recaptchaEnabled): ?>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <?php endif; ?>
     <style>
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -169,6 +216,12 @@ $csrfToken = generateCsrfToken();
                         <small><i class="bi bi-question-circle"></i> Password dimenticata?</small>
                     </a>
                 </div>
+
+                <?php if ($recaptchaEnabled && !empty($recaptchaSiteKey)): ?>
+                <div class="mb-3 d-flex justify-content-center">
+                    <div class="g-recaptcha" data-sitekey="<?php echo h($recaptchaSiteKey); ?>"></div>
+                </div>
+                <?php endif; ?>
 
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
