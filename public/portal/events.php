@@ -239,14 +239,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             `;
                         }
                     }
+                    
+                    // Reload page after brief delay to show updated registration status
+                    // This ensures member sees current approval status from admin
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 500);
                 } else {
                     messageDiv.innerHTML = '<small class="text-danger"><i class="bi bi-x-circle"></i> ' + data.message + '</small>';
                 }
-                
-                // Clear message after 3 seconds
-                setTimeout(() => {
-                    messageDiv.innerHTML = '';
-                }, 3000);
             })
             .catch(error => {
                 messageDiv.innerHTML = '<small class="text-danger"><i class="bi bi-x-circle"></i> Errore di comunicazione</small>';
