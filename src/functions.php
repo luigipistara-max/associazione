@@ -3606,6 +3606,7 @@ function sendNewsNotification($newsId) {
  */
 function sendEventNotification($eventId) {
     global $pdo;
+    require_once __DIR__ . '/email.php';
     
     // Get event details
     $stmt = $pdo->prepare("SELECT * FROM " . table('events') . " WHERE id = ?");
