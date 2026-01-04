@@ -68,7 +68,7 @@ if ($action === 'mark_paid' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') 
         // Update fee status and payment method
         $stmt = $pdo->prepare("
             UPDATE " . table('member_fees') . " 
-            SET status = 'paid', paid_date = CURDATE(), payment_method = ?
+            SET status = 'paid', paid_date = CURDATE(), payment_method = ?, payment_pending = 0
             WHERE id = ?
         ");
         $stmt->execute([$paymentMethod, $feeId]);
@@ -135,7 +135,7 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
             UPDATE " . table('member_fees') . " 
             SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
                 due_date = ?, paid_date = ?, payment_method = ?, receipt_number = ?, 
-                status = ?, notes = ?
+                status = ?, notes = ?" . ($status === 'paid' ? ', payment_pending = 0' : '') . "
             WHERE id = ?
         ");
         $stmt->execute([
