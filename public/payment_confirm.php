@@ -60,12 +60,7 @@ try {
         ORDER BY f.updated_at DESC
     ");
     
-    if ($stmt !== false) {
-        $results = $stmt->fetchAll();
-        if ($results !== false) {
-            $pendingPayments = $results;
-        }
-    }
+    $pendingPayments = $stmt->fetchAll();
 } catch (PDOException $e) {
     // Log error but continue with empty array
     error_log("Error fetching pending payments: " . $e->getMessage());
