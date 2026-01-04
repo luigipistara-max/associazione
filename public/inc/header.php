@@ -174,6 +174,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link <?php echo in_array($currentPage, ['news.php', 'news_edit.php']) ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>news.php">
+                                <i class="bi bi-newspaper"></i> Notizie
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link <?php echo $currentPage === 'settings.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>settings.php">
                                 <i class="bi bi-gear"></i> Impostazioni
                             </a>

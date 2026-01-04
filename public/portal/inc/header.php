@@ -106,6 +106,12 @@ $siteName = $assocInfo['name'] ?? 'Associazione';
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link <?php echo in_array(basename($_SERVER['PHP_SELF']), ['news.php', 'news_view.php']) ? 'active' : ''; ?>" 
+                           href="<?php echo h($basePath); ?>portal/news.php">
+                            <i class="bi bi-newspaper"></i> Notizie
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'groups.php' ? 'active' : ''; ?>" 
                            href="<?php echo h($basePath); ?>portal/groups.php">
                             <i class="bi bi-people"></i> Gruppi
