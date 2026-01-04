@@ -54,7 +54,15 @@ $stmt = $pdo->query("
     WHERE f.payment_pending = 1
     ORDER BY f.updated_at DESC
 ");
-$pendingPayments = $stmt->fetchAll();
+
+// Ensure we always have an array for the foreach loop
+$pendingPayments = [];
+if ($stmt) {
+    $results = $stmt->fetchAll();
+    if (is_array($results)) {
+        $pendingPayments = $results;
+    }
+}
 
 require_once __DIR__ . '/inc/header.php';
 ?>
