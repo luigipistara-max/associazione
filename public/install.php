@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step == 1) {
             }
             
             // Verify tables were created
-            $requiredTables = ['users', 'password_resets', 'members', 'social_years', 'income_categories', 'expense_categories', 'income', 'expenses', 'member_fees', 'email_templates', 'email_queue', 'email_log', 'audit_log'];
+            $requiredTables = ['users', 'password_resets', 'members', 'social_years', 'income_categories', 'expense_categories', 'income', 'expenses', 'member_fees', 'email_templates', 'email_queue', 'email_log', 'audit_log', 'settings', 'member_groups', 'member_group_members', 'member_group_requests', 'events', 'event_registrations', 'mass_email_batches', 'event_target_groups', 'event_responses', 'news', 'news_groups'];
             $missingTables = [];
             
             foreach ($requiredTables as $table) {

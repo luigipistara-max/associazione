@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL,
+    two_factor_secret VARCHAR(32) NULL,
+    password_changed_at DATETIME NULL,
     role ENUM('admin', 'operatore') DEFAULT 'operatore',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -48,6 +50,7 @@ CREATE TABLE IF NOT EXISTS members (
     portal_password VARCHAR(255) NULL,
     portal_token VARCHAR(64) NULL,
     portal_token_expires DATETIME NULL,
+    password_changed_at DATETIME NULL,
     photo_url VARCHAR(500) NULL,
     last_portal_login DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -441,6 +444,10 @@ CREATE TABLE IF NOT EXISTS event_responses (
     event_id INT NOT NULL,
     member_id INT NOT NULL,
     response ENUM('yes', 'no', 'maybe') NOT NULL,
+    registration_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    approved_by INT NULL,
+    approved_at DATETIME NULL,
+    rejection_reason VARCHAR(255) NULL,
     notes TEXT,
     responded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -448,7 +455,41 @@ CREATE TABLE IF NOT EXISTS event_responses (
     INDEX idx_event (event_id),
     INDEX idx_member (member_id),
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
-    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+    FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- News/Blog posts table
+CREATE TABLE IF NOT EXISTS news (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(255) NOT NULL,
+    slug VARCHAR(255) NOT NULL UNIQUE,
+    content LONGTEXT NOT NULL,
+    excerpt TEXT,
+    cover_image VARCHAR(500),
+    author_id INT NOT NULL,
+    target_type ENUM('all', 'groups') DEFAULT 'all',
+    status ENUM('draft', 'published', 'archived') DEFAULT 'draft',
+    published_at DATETIME NULL,
+    views_count INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_slug (slug),
+    INDEX idx_status (status),
+    INDEX idx_published_at (published_at),
+    INDEX idx_author (author_id),
+    FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- News groups junction table (for targeting specific groups)
+CREATE TABLE IF NOT EXISTS news_groups (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    news_id INT NOT NULL,
+    group_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_news_group (news_id, group_id),
+    FOREIGN KEY (news_id) REFERENCES news(id) ON DELETE CASCADE,
+    FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Settings table (key-value storage for association configuration)
@@ -461,6 +502,31 @@ CREATE TABLE IF NOT EXISTS settings (
     INDEX idx_key (setting_key),
     INDEX idx_group (setting_group)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- DEFAULT SETTINGS
+-- ============================================================================
+
+-- Security settings
+INSERT INTO settings (setting_key, setting_value, setting_group) VALUES
+('recaptcha_enabled', '0', 'security'),
+('recaptcha_site_key', '', 'security'),
+('recaptcha_secret_key', '', 'security'),
+('2fa_enabled', '0', 'security'),
+('2fa_required_for', 'none', 'security'),
+('password_expiry_users', '0', 'security'),
+('password_expiry_members', '0', 'security');
+
+-- SMTP settings
+INSERT INTO settings (setting_key, setting_value, setting_group) VALUES
+('smtp_enabled', '0', 'email'),
+('smtp_host', '', 'email'),
+('smtp_port', '587', 'email'),
+('smtp_security', 'tls', 'email'),
+('smtp_username', '', 'email'),
+('smtp_password', '', 'email'),
+('smtp_from_email', '', 'email'),
+('smtp_from_name', '', 'email');
 
 -- ============================================================================
 -- MIGRATION: Add fee_amount column to social_years (for existing installations)

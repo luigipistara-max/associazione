@@ -349,3 +349,113 @@ Poi ripristina il backup:
 ```bash
 mysql -u [utente] -p [database] < backup_pre_upgrade_v2.sql
 ```
+
+---
+
+## Upgrade Complete Schema (v2.1.0) - Migration 009
+
+### Prerequisiti
+- Backup del database prima di procedere
+- Accesso al database MySQL/MariaDB
+
+### Cosa Aggiunge Questa Migrazione
+Questa migrazione combina tutte le funzionalità aggiunte nelle PR recenti per garantire che le installazioni esistenti abbiano tutte le tabelle e colonne più recenti:
+
+1. **Tabelle News** (news, news_groups)
+2. **Colonne 2FA** nella tabella users (two_factor_secret, password_changed_at)
+3. **Colonna password_changed_at** nella tabella members
+4. **Colonne Approvazione Eventi** nella tabella event_responses (registration_status, approved_by, approved_at, rejection_reason)
+5. **Impostazioni Sicurezza** (reCAPTCHA, 2FA, scadenza password)
+6. **Impostazioni SMTP** (configurazione email server esterno)
+
+### Chi Deve Eseguire Questa Migrazione
+- Installazioni esistenti che non hanno ancora tutte queste tabelle/colonne
+- Nuove installazioni usano automaticamente lo schema completo in `schema.sql`
+- Se hai già eseguito le migrazioni 006, 007, 008 separatamente, questa migrazione rileverà le tabelle/colonne esistenti e le salterà
+
+### Procedura
+
+#### 1. Backup Database
+```bash
+mysqldump -u [utente] -p [database] > backup_pre_migration_009.sql
+```
+
+#### 2. Eseguire Migrazione Database
+
+**Opzione A: Da phpMyAdmin**
+1. Accedi a phpMyAdmin
+2. Seleziona il database dell'associazione
+3. Vai su "SQL"
+4. Copia e incolla il contenuto di `migrations/009_complete_schema.sql`
+5. Clicca "Esegui"
+
+**Opzione B: Da linea di comando**
+```bash
+mysql -u [utente] -p [database] < migrations/009_complete_schema.sql
+```
+
+**Opzione C: Su AlterVista**
+1. Accedi al pannello AlterVista
+2. Vai su "Gestione Database" > "phpMyAdmin"
+3. Seleziona il tuo database
+4. Clicca su "SQL"
+5. Copia e incolla tutto il contenuto di `migrations/009_complete_schema.sql`
+6. Clicca "Esegui"
+
+#### 3. Carica i File Aggiornati
+Carica tutti i file PHP aggiornati sul server via FTP.
+
+#### 4. Verifica
+
+**Tabelle News:**
+1. Accedi come admin
+2. Verifica che il menu "Notizie" sia visibile
+3. Crea una notizia di test
+4. Accedi al portale soci e verifica che la notizia sia visibile
+
+**Impostazioni Sicurezza:**
+1. Vai su Impostazioni
+2. Verifica che il tab "Sicurezza" sia presente
+3. Controlla le opzioni per reCAPTCHA, 2FA e scadenza password
+
+**Impostazioni SMTP:**
+1. Vai su Impostazioni
+2. Verifica che il tab "Email/SMTP" sia presente
+3. Controlla le opzioni di configurazione SMTP
+
+**Approvazione Eventi:**
+1. Vai su un evento con risposte
+2. Verifica che compaia la sezione per approvare/rifiutare le iscrizioni
+
+### Note Importanti
+
+- **Idempotente**: La migrazione può essere eseguita più volte senza problemi. Rileva automaticamente se tabelle/colonne esistono già.
+- **Compatibile con Prefissi**: Funziona con database che usano prefissi tabelle.
+- **Non Distruttiva**: Non elimina né modifica dati esistenti.
+
+### Rollback (in caso di problemi)
+
+Se incontri problemi, puoi ripristinare il backup:
+
+```bash
+mysql -u [utente] -p [database] < backup_pre_migration_009.sql
+```
+
+### Troubleshooting
+
+**Errore "Table already exists":**
+- Normale se alcune tabelle erano già state create
+- La migrazione salterà automaticamente le tabelle esistenti
+
+**Errore "Duplicate column name":**
+- Normale se alcune colonne erano già state aggiunte
+- La migrazione usa controlli IF NOT EXISTS per evitare errori
+
+**Problemi con Foreign Keys:**
+- Assicurati che le tabelle referenziate (users, member_groups) esistano
+- Se usi un prefisso tabelle, assicurati che sia consistente
+
+**Timeout durante l'esecuzione:**
+- Esegui la migrazione in sezioni più piccole
+- Aumenta il timeout di esecuzione in phpMyAdmin
+
