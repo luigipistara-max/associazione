@@ -96,7 +96,7 @@ include __DIR__ . '/inc/header.php';
     </div>
 </div>
 
-<form method="POST">
+<form method="POST" id="news-form">
     <div class="row">
         <div class="col-md-8">
             <!-- Title -->
@@ -274,7 +274,7 @@ tinymce.init({
 });
 
 // Force TinyMCE to save content before form submit
-document.querySelector('form').addEventListener('submit', function(e) {
+document.getElementById('news-form').addEventListener('submit', function(e) {
     // Forza TinyMCE a salvare il contenuto nel textarea
     if (typeof tinymce !== 'undefined') {
         tinymce.triggerSave();
