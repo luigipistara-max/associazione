@@ -255,13 +255,13 @@ INSERT INTO email_templates (code, name, subject, body_html, body_text, variable
 '["nome", "cognome", "numero_tessera", "app_name"]'),
 
 ('fee_reminder', 'Sollecito Quota in Scadenza', 'Sollecito Quota Associativa - {app_name}', 
-'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ti ricordiamo che la tua quota associativa per l\'anno <strong>{anno}</strong> è in scadenza.</p><ul><li><strong>Importo:</strong> {importo}</li><li><strong>Scadenza:</strong> {scadenza}</li></ul><p>Ti invitiamo a provvedere al pagamento quanto prima.</p><p>Cordiali saluti,<br>{app_name}</p>', 
-'Gentile {nome} {cognome},\n\nTi ricordiamo che la tua quota associativa per l\'anno {anno} è in scadenza.\n\nImporto: {importo}\nScadenza: {scadenza}\n\nTi invitiamo a provvedere al pagamento quanto prima.\n\nCordiali saluti,\n{app_name}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ti ricordiamo che la tua quota associativa per l\\'anno <strong>{anno}</strong> è in scadenza.</p><ul><li><strong>Importo:</strong> {importo}</li><li><strong>Scadenza:</strong> {scadenza}</li></ul><p>Ti invitiamo a provvedere al pagamento quanto prima.</p><p>Cordiali saluti,<br>{app_name}</p>', 
+'Gentile {nome} {cognome},\n\nTi ricordiamo che la tua quota associativa per l\\'anno {anno} è in scadenza.\n\nImporto: {importo}\nScadenza: {scadenza}\n\nTi invitiamo a provvedere al pagamento quanto prima.\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "anno", "importo", "scadenza", "app_name"]'),
 
 ('fee_overdue', 'Quota Scaduta', 'Quota Associativa Scaduta - {app_name}', 
-'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>La tua quota associativa per l\'anno <strong>{anno}</strong> è <span style="color: red;">scaduta</span>.</p><ul><li><strong>Importo:</strong> {importo}</li><li><strong>Scadenza:</strong> {scadenza}</li></ul><p>Ti invitiamo a regolarizzare la tua posizione al più presto.</p><p>Cordiali saluti,<br>{app_name}</p>', 
-'Gentile {nome} {cognome},\n\nLa tua quota associativa per l\'anno {anno} è scaduta.\n\nImporto: {importo}\nScadenza: {scadenza}\n\nTi invitiamo a regolarizzare la tua posizione al più presto.\n\nCordiali saluti,\n{app_name}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>La tua quota associativa per l\\'anno <strong>{anno}</strong> è <span style="color: red;">scaduta</span>.</p><ul><li><strong>Importo:</strong> {importo}</li><li><strong>Scadenza:</strong> {scadenza}</li></ul><p>Ti invitiamo a regolarizzare la tua posizione al più presto.</p><p>Cordiali saluti,<br>{app_name}</p>', 
+'Gentile {nome} {cognome},\n\nLa tua quota associativa per l\\'anno {anno} è scaduta.\n\nImporto: {importo}\nScadenza: {scadenza}\n\nTi invitiamo a regolarizzare la tua posizione al più presto.\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "anno", "importo", "scadenza", "app_name"]'),
 
 ('fee_receipt', 'Conferma Pagamento Quota', 'Conferma Pagamento - {app_name}', 
@@ -270,8 +270,8 @@ INSERT INTO email_templates (code, name, subject, body_html, body_text, variable
 '["nome", "cognome", "importo", "data_pagamento", "metodo_pagamento", "app_name"]'),
 
 ('new_fee_notification', 'Nuova Quota Associativa', 'Nuova Quota Associativa {anno}', 
-'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>È stata generata la quota associativa per l\'anno <strong>{anno}</strong>.</p><ul><li><strong>Importo:</strong> {importo}</li><li><strong>Scadenza:</strong> {scadenza}</li></ul><p>Ti invitiamo a provvedere al pagamento entro la scadenza indicata.</p><p>Cordiali saluti,<br>{app_name}</p>', 
-'Gentile {nome} {cognome},\n\nÈ stata generata la quota associativa per l\'anno {anno}.\n\nImporto: {importo}\nScadenza: {scadenza}\n\nTi invitiamo a provvedere al pagamento entro la scadenza indicata.\n\nCordiali saluti,\n{app_name}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>È stata generata la quota associativa per l\\'anno <strong>{anno}</strong>.</p><ul><li><strong>Importo:</strong> {importo}</li><li><strong>Scadenza:</strong> {scadenza}</li></ul><p>Ti invitiamo a provvedere al pagamento entro la scadenza indicata.</p><p>Cordiali saluti,<br>{app_name}</p>', 
+'Gentile {nome} {cognome},\n\nÈ stata generata la quota associativa per l\\'anno {anno}.\n\nImporto: {importo}\nScadenza: {scadenza}\n\nTi invitiamo a provvedere al pagamento entro la scadenza indicata.\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "anno", "importo", "scadenza", "app_name"]'),
 
 ('generic_notification', 'Notifica Generica', '{subject}', 
@@ -280,23 +280,23 @@ INSERT INTO email_templates (code, name, subject, body_html, body_text, variable
 '["nome", "cognome", "subject", "message", "app_name"]'),
 
 ('event_registration', 'Conferma Iscrizione Evento', 'Conferma Iscrizione: {titolo}',
-'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>La tua iscrizione all\'evento <strong>{titolo}</strong> è confermata!</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}</p>{dettagli_modalita}<p>Ci vediamo all\'evento!</p><p>Cordiali saluti,<br>{app_name}</p>',
-'Gentile {nome} {cognome},\n\nLa tua iscrizione all\'evento {titolo} è confermata!\n\nData: {data}\nOra: {ora}\n{dettagli_modalita}\n\nCi vediamo all\'evento!\n\nCordiali saluti,\n{app_name}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>La tua iscrizione all\\'evento <strong>{titolo}</strong> è confermata!</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}</p>{dettagli_modalita}<p>Ci vediamo all\\'evento!</p><p>Cordiali saluti,<br>{app_name}</p>',
+'Gentile {nome} {cognome},\n\nLa tua iscrizione all\\'evento {titolo} è confermata!\n\nData: {data}\nOra: {ora}\n{dettagli_modalita}\n\nCi vediamo all\\'evento!\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "titolo", "data", "ora", "dettagli_modalita", "app_name"]'),
 
 ('event_reminder', 'Promemoria Evento', 'Promemoria: {titolo}',
-'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ti ricordiamo che l\'evento <strong>{titolo}</strong> si terrà:</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}</p>{dettagli_modalita}<p>Ti aspettiamo!</p><p>Cordiali saluti,<br>{app_name}</p>',
-'Gentile {nome} {cognome},\n\nTi ricordiamo che l\'evento {titolo} si terrà:\n\nData: {data}\nOra: {ora}\n{dettagli_modalita}\n\nTi aspettiamo!\n\nCordiali saluti,\n{app_name}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ti ricordiamo che l\\'evento <strong>{titolo}</strong> si terrà:</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}</p>{dettagli_modalita}<p>Ti aspettiamo!</p><p>Cordiali saluti,<br>{app_name}</p>',
+'Gentile {nome} {cognome},\n\nTi ricordiamo che l\\'evento {titolo} si terrà:\n\nData: {data}\nOra: {ora}\n{dettagli_modalita}\n\nTi aspettiamo!\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "titolo", "data", "ora", "dettagli_modalita", "app_name"]'),
 
 ('event_online_link', 'Link Evento Online', 'Link per partecipare: {titolo}',
-'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ecco le informazioni per partecipare all\'evento online <strong>{titolo}</strong>:</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}<br><strong>Piattaforma:</strong> {piattaforma}</p><p><strong>Link di accesso:</strong><br><a href="{link}">{link}</a></p>{password_info}{istruzioni}<p>Ti aspettiamo online!</p><p>Cordiali saluti,<br>{app_name}</p>',
-'Gentile {nome} {cognome},\n\nEcco le informazioni per partecipare all\'evento online {titolo}:\n\nData: {data}\nOra: {ora}\nPiattaforma: {piattaforma}\n\nLink di accesso:\n{link}\n{password_info}{istruzioni}\n\nTi aspettiamo online!\n\nCordiali saluti,\n{app_name}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ecco le informazioni per partecipare all\\'evento online <strong>{titolo}</strong>:</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}<br><strong>Piattaforma:</strong> {piattaforma}</p><p><strong>Link di accesso:</strong><br><a href="{link}">{link}</a></p>{password_info}{istruzioni}<p>Ti aspettiamo online!</p><p>Cordiali saluti,<br>{app_name}</p>',
+'Gentile {nome} {cognome},\n\nEcco le informazioni per partecipare all\\'evento online {titolo}:\n\nData: {data}\nOra: {ora}\nPiattaforma: {piattaforma}\n\nLink di accesso:\n{link}\n{password_info}{istruzioni}\n\nTi aspettiamo online!\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "titolo", "data", "ora", "piattaforma", "link", "password_info", "istruzioni", "app_name"]'),
 
 ('event_cancelled', 'Evento Annullato', 'Annullamento Evento: {titolo}',
-'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Siamo spiacenti di informarti che l\'evento <strong>{titolo}</strong> previsto per il <strong>{data}</strong> è stato annullato.</p><p>{motivo}</p><p>Ci scusiamo per l\'inconveniente.</p><p>Cordiali saluti,<br>{app_name}</p>',
-'Gentile {nome} {cognome},\n\nSiamo spiacenti di informarti che l\'evento {titolo} previsto per il {data} è stato annullato.\n\n{motivo}\n\nCi scusiamo per l\'inconveniente.\n\nCordiali saluti,\n{app_name}',
+'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Siamo spiacenti di informarti che l\\'evento <strong>{titolo}</strong> previsto per il <strong>{data}</strong> è stato annullato.</p><p>{motivo}</p><p>Ci scusiamo per l\\'inconveniente.</p><p>Cordiali saluti,<br>{app_name}</p>',
+'Gentile {nome} {cognome},\n\nSiamo spiacenti di informarti che l\\'evento {titolo} previsto per il {data} è stato annullato.\n\n{motivo}\n\nCi scusiamo per l\\'inconveniente.\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "titolo", "data", "motivo", "app_name"]');
 
 -- Events table
@@ -463,7 +463,7 @@ CREATE TABLE IF NOT EXISTS event_responses (
 CREATE TABLE IF NOT EXISTS news (
     id INT PRIMARY KEY AUTO_INCREMENT,
     title VARCHAR(255) NOT NULL,
-    slug VARCHAR(255) NOT NULL UNIQUE,
+    slug VARCHAR(191) NOT NULL UNIQUE,
     content LONGTEXT NOT NULL,
     excerpt TEXT,
     cover_image VARCHAR(500),
@@ -559,23 +559,23 @@ INSERT INTO settings (setting_key, setting_value, setting_group) VALUES
 -- ALTER TABLE member_fees ADD COLUMN payment_confirmed_at DATETIME NULL AFTER payment_confirmed_by;
 
 -- Create member_group_requests table (only if it doesn't exist)
-/*
-CREATE TABLE IF NOT EXISTS member_group_requests (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    member_id INT NOT NULL,
-    group_id INT NOT NULL,
-    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-    message TEXT,
-    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    processed_at TIMESTAMP NULL,
-    processed_by INT NULL,
-    admin_notes TEXT,
-    UNIQUE KEY unique_pending_request (member_id, group_id, status),
-    INDEX idx_member (member_id),
-    INDEX idx_group (group_id),
-    INDEX idx_status (status),
-    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
-    FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE,
-    FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-*/
+-- Note: This table is already created above in the main schema
+-- The following is kept as a comment for reference only
+-- CREATE TABLE IF NOT EXISTS member_group_requests (
+--     id INT PRIMARY KEY AUTO_INCREMENT,
+--     member_id INT NOT NULL,
+--     group_id INT NOT NULL,
+--     status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+--     message TEXT,
+--     requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     processed_at TIMESTAMP NULL,
+--     processed_by INT NULL,
+--     admin_notes TEXT,
+--     UNIQUE KEY unique_pending_request (member_id, group_id, status),
+--     INDEX idx_member (member_id),
+--     INDEX idx_group (group_id),
+--     INDEX idx_status (status),
+--     FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+--     FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE,
+--     FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
