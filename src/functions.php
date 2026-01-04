@@ -1264,9 +1264,10 @@ function getMemberRegistrations($memberId) {
 function isRegisteredForEvent($eventId, $memberId) {
     global $pdo;
     
+    // Check if member has an approved registration (said 'yes' and was approved)
     $stmt = $pdo->prepare("
-        SELECT COUNT(*) as count FROM " . table('event_registrations') . " 
-        WHERE event_id = ? AND member_id = ?
+        SELECT COUNT(*) as count FROM " . table('event_responses') . " 
+        WHERE event_id = ? AND member_id = ? AND registration_status = 'approved'
     ");
     $stmt->execute([$eventId, $memberId]);
     $result = $stmt->fetch();
@@ -1284,9 +1285,10 @@ function getAvailableSpots($eventId) {
         return null; // Unlimited
     }
     
+    // Count approved registrations (members who said 'yes' and were approved)
     $stmt = $pdo->prepare("
-        SELECT COUNT(*) as count FROM " . table('event_registrations') . " 
-        WHERE event_id = ? AND attendance_status != 'waitlist'
+        SELECT COUNT(*) as count FROM " . table('event_responses') . " 
+        WHERE event_id = ? AND registration_status = 'approved'
     ");
     $stmt->execute([$eventId]);
     $result = $stmt->fetch();
@@ -1367,7 +1369,8 @@ function sendEventReminder($eventId) {
         return 0;
     }
     
-    $registrations = getEventRegistrations($eventId);
+    // Get approved registrations from event_responses
+    $registrations = getApprovedEventRegistrations($eventId);
     $sent = 0;
     
     foreach ($registrations as $reg) {
@@ -1412,7 +1415,8 @@ function sendOnlineLinkToRegistrants($eventId) {
         return 0;
     }
     
-    $registrations = getEventRegistrations($eventId);
+    // Get approved registrations from event_responses
+    $registrations = getApprovedEventRegistrations($eventId);
     $sent = 0;
     
     foreach ($registrations as $reg) {

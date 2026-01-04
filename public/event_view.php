@@ -98,8 +98,16 @@ if ($memberRecord) {
     $currentMemberId = $memberRecord['id'];
 }
 
-// Get registrations
-$registrations = getEventRegistrations($eventId);
+// Get registrations from event_responses (not event_registrations)
+// This is needed for available spots calculation and member registration check
+$approvedCount = 0;
+if (isAdmin()) {
+    // For admin, we'll get the full lists later
+    $approvedCount = count(getApprovedEventRegistrations($eventId));
+} else {
+    // For non-admin, just get the count
+    $approvedCount = count(getApprovedEventRegistrations($eventId));
+}
 $isRegistered = $currentMemberId ? isRegisteredForEvent($eventId, $currentMemberId) : false;
 $availableSpots = getAvailableSpots($eventId);
 
@@ -248,7 +256,7 @@ include __DIR__ . '/inc/header.php';
                     <div class="col-md-6">
                         <h6><i class="bi bi-people"></i> Partecipazione</h6>
                         <p class="mb-1">
-                            <strong>Iscritti:</strong> <?php echo count($registrations); ?>
+                            <strong>Iscritti:</strong> <?php echo $approvedCount; ?>
                             <?php if ($event['max_participants'] > 0): ?>
                                 / <?php echo $event['max_participants']; ?>
                             <?php endif; ?>
@@ -560,11 +568,12 @@ include __DIR__ . '/inc/header.php';
                 <h5 class="mb-0"><i class="bi bi-gear"></i> Azioni Admin</h5>
             </div>
             <div class="card-body">
-                <a href="<?php echo h($basePath); ?>event_registrations.php?id=<?php echo $event['id']; ?>" class="btn btn-info w-100 mb-2">
-                    <i class="bi bi-list-check"></i> Gestisci Iscrizioni (<?php echo count($registrations); ?>)
+                <!-- Note: Registration management is shown above with pending/approved/rejected sections -->
+                <a href="#" onclick="window.scrollTo({top: 0, behavior: 'smooth'}); return false;" class="btn btn-info w-100 mb-2">
+                    <i class="bi bi-arrow-up-circle"></i> Vai alle Iscrizioni (<?php echo count($approvedRegistrations); ?> approvati)
                 </a>
                 
-                <?php if (in_array($event['event_mode'], ['online', 'hybrid']) && count($registrations) > 0): ?>
+                <?php if (in_array($event['event_mode'], ['online', 'hybrid']) && count($approvedRegistrations) > 0): ?>
                 <a href="<?php echo h($basePath); ?>event_registrations.php?id=<?php echo $event['id']; ?>&action=send_links" 
                    class="btn btn-primary w-100 mb-2"
                    onclick="return confirm('Inviare il link online a tutti gli iscritti?')">

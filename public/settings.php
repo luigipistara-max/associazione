@@ -318,14 +318,72 @@ include __DIR__ . '/inc/header.php';
     color: #0d6efd;
 }
 
-.nav-tabs .nav-link.active {
-    background-color: #0d6efd;
-    color: #fff;
-    border-color: #0d6efd;
+.nav-tabs {
+    flex-wrap: wrap;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.nav-tabs .nav-item {
+    margin-bottom: -2px;
 }
 
 .nav-tabs .nav-link {
     color: #0d6efd;
+    border: 1px solid transparent;
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+    padding: 0.75rem 1rem;
+    margin-right: 0.25rem;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+    background-color: #f8f9fa;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: #0d6efd;
+    color: #fff;
+    border-color: #0d6efd #0d6efd transparent;
+    font-weight: 500;
+}
+
+.nav-tabs .nav-link i {
+    margin-right: 0.5rem;
+}
+
+/* Responsive tabs for mobile */
+@media (max-width: 768px) {
+    .nav-tabs .nav-link {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .nav-tabs .nav-link i {
+        margin-right: 0.25rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .nav-tabs {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .nav-tabs .nav-item {
+        width: 100%;
+        margin-bottom: 0.25rem;
+    }
+    
+    .nav-tabs .nav-link {
+        border-radius: 0.375rem;
+        margin-right: 0;
+    }
+    
+    .nav-tabs .nav-link.active {
+        border-color: #0d6efd;
+    }
 }
 </style>
 

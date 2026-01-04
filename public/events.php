@@ -33,12 +33,13 @@ $events = getEvents($filters, 100, 0);
 // Get registration counts for each event
 $eventRegistrations = [];
 foreach ($events as $event) {
-    $registrations = getEventRegistrations($event['id']);
+    // Count approved registrations (members who said "yes" and were approved)
+    $approvedRegistrations = getApprovedEventRegistrations($event['id']);
+    $pendingRegistrations = getPendingEventRegistrations($event['id']);
+    
     $eventRegistrations[$event['id']] = [
-        'total' => count($registrations),
-        'confirmed' => count(array_filter($registrations, function($r) { 
-            return $r['attendance_status'] == 'registered' || $r['attendance_status'] == 'confirmed'; 
-        }))
+        'total' => count($approvedRegistrations) + count($pendingRegistrations),
+        'confirmed' => count($approvedRegistrations)
     ];
 }
 
@@ -210,12 +211,9 @@ include __DIR__ . '/inc/header.php';
                 
                 <div class="btn-group btn-group-sm mt-2" role="group">
                     <a href="<?php echo h($basePath); ?>event_view.php?id=<?php echo $event['id']; ?>" class="btn btn-outline-primary">
-                        <i class="bi bi-eye"></i> Dettagli
+                        <i class="bi bi-eye"></i> Dettagli & Iscrizioni
                     </a>
                     <?php if (isAdmin()): ?>
-                    <a href="<?php echo h($basePath); ?>event_registrations.php?id=<?php echo $event['id']; ?>" class="btn btn-outline-info">
-                        <i class="bi bi-list-check"></i> Iscrizioni
-                    </a>
                     <a href="<?php echo h($basePath); ?>event_edit.php?id=<?php echo $event['id']; ?>" class="btn btn-outline-secondary">
                         <i class="bi bi-pencil"></i> Modifica
                     </a>
