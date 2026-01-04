@@ -3597,3 +3597,116 @@ function sendNewsNotification($newsId) {
     
     return $sent;
 }
+
+/**
+ * Send email notification for new event
+ * 
+ * @param int $eventId Event ID
+ * @return int Number of emails sent
+ */
+function sendEventNotification($eventId) {
+    global $pdo;
+    require_once __DIR__ . '/email.php';
+    
+    // Get event details
+    $stmt = $pdo->prepare("SELECT * FROM " . table('events') . " WHERE id = ?");
+    $stmt->execute([$eventId]);
+    $event = $stmt->fetch();
+    
+    if (!$event) {
+        return 0;
+    }
+    
+    // Get recipients based on target groups
+    $recipients = [];
+    
+    // Check if event has target groups
+    $stmt = $pdo->prepare("SELECT group_id FROM " . table('event_target_groups') . " WHERE event_id = ?");
+    $stmt->execute([$eventId]);
+    $eventGroups = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    if (empty($eventGroups)) {
+        // No specific groups = all active members
+        $stmt = $pdo->query("
+            SELECT id, email, first_name, last_name 
+            FROM " . table('members') . " 
+            WHERE email IS NOT NULL AND email != '' AND status = 'attivo'
+        ");
+        $recipients = $stmt->fetchAll();
+    } else {
+        // Only members in target groups
+        $placeholders = implode(',', array_fill(0, count($eventGroups), '?'));
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT m.id, m.email, m.first_name, m.last_name
+            FROM " . table('members') . " m
+            JOIN " . table('member_group_members') . " mgm ON m.id = mgm.member_id
+            WHERE mgm.group_id IN ($placeholders)
+            AND m.email IS NOT NULL AND m.email != '' AND m.status = 'attivo'
+        ");
+        $stmt->execute($eventGroups);
+        $recipients = $stmt->fetchAll();
+    }
+    
+    if (empty($recipients)) {
+        return 0;
+    }
+    
+    // Build email
+    $assocInfo = getAssociationInfo();
+    $assocName = h($assocInfo['name'] ?? 'Associazione');
+    $baseUrl = getBaseUrl();
+    $eventUrl = $baseUrl . 'portal/events.php';
+    
+    // Sanitize subject line (remove newlines to prevent header injection)
+    $subjectTitle = str_replace(["\r", "\n"], ' ', $event['title']);
+    $subject = "[{$assocName}] Nuovo evento: {$subjectTitle}";
+    
+    // Format date
+    $eventDate = date('d/m/Y', strtotime($event['event_date']));
+    $eventTime = $event['event_time'] ? date('H:i', strtotime($event['event_time'])) : '';
+    
+    $bodyHtml = "
+        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center;'>
+                <h2 style='margin: 0;'>{$assocName}</h2>
+            </div>
+            
+            <div style='padding: 30px; background: #f8f9fa;'>
+                <h1 style='color: #333; margin-top: 0;'>📅 Nuovo Evento</h1>
+                
+                <div style='background: white; padding: 20px; border-radius: 8px; margin: 20px 0;'>
+                    <h2 style='color: #667eea; margin-top: 0;'>" . h($event['title']) . "</h2>
+                    
+                    <p style='color: #333;'>
+                        <strong>📆 Data:</strong> {$eventDate}" . ($eventTime ? " alle {$eventTime}" : "") . "
+                    </p>
+                    
+                    " . (!empty($event['location']) ? "<p style='color: #333;'><strong>📍 Luogo:</strong> " . h($event['location']) . "</p>" : "") . "
+                    
+                    " . (!empty($event['description']) ? "<p style='color: #666; line-height: 1.6;'>" . nl2br(h(substr($event['description'], 0, 300))) . (strlen($event['description']) > 300 ? '...' : '') . "</p>" : "") . "
+                </div>
+                
+                <div style='text-align: center; margin-top: 30px;'>
+                    <a href='{$eventUrl}' style='background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;'>
+                        Visualizza Evento e Conferma Partecipazione
+                    </a>
+                </div>
+            </div>
+            
+            <div style='padding: 20px; text-align: center; color: #999; font-size: 12px;'>
+                <p>Ricevi questa email perché sei iscritto a {$assocName}</p>
+                <p><a href='{$baseUrl}portal/' style='color: #667eea;'>Accedi al Portale Soci</a></p>
+            </div>
+        </div>
+    ";
+    
+    // Queue emails for each recipient
+    $sentCount = 0;
+    foreach ($recipients as $member) {
+        if (queueEmail($member['email'], $subject, $bodyHtml)) {
+            $sentCount++;
+        }
+    }
+    
+    return $sentCount;
+}
