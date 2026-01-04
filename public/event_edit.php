@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sentCount = sendEventNotification($newEventId);
                         
                         if ($sentCount > 0) {
-                            setFlashMessage("Evento creato con successo! Email inviata a " . intval($sentCount) . " soci.", 'success');
+                            setFlashMessage("Evento creato con successo! Email inviata a {$sentCount} soci.", 'success');
                         } else {
                             setFlashMessage('Evento creato con successo!', 'success');
                         }
