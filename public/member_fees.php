@@ -131,20 +131,25 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
         $stmt->execute([$feeId]);
         $oldFee = $stmt->fetch();
         
-        // Build UPDATE query - reset payment_pending if marking as paid
-        $updateSql = "
-            UPDATE " . table('member_fees') . " 
-            SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
-                due_date = ?, paid_date = ?, payment_method = ?, receipt_number = ?, 
-                status = ?, notes = ?";
-        
+        // Update fee - reset payment_pending if marking as paid
         if ($status === 'paid') {
-            $updateSql .= ", payment_pending = 0";
+            $stmt = $pdo->prepare("
+                UPDATE " . table('member_fees') . " 
+                SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
+                    due_date = ?, paid_date = ?, payment_method = ?, receipt_number = ?, 
+                    status = ?, notes = ?, payment_pending = 0
+                WHERE id = ?
+            ");
+        } else {
+            $stmt = $pdo->prepare("
+                UPDATE " . table('member_fees') . " 
+                SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
+                    due_date = ?, paid_date = ?, payment_method = ?, receipt_number = ?, 
+                    status = ?, notes = ?
+                WHERE id = ?
+            ");
         }
         
-        $updateSql .= " WHERE id = ?";
-        
-        $stmt = $pdo->prepare($updateSql);
         $stmt->execute([
             $memberId, $socialYearId, $feeType, $amount, 
             $dueDate, $paidDate ?: null, $paymentMethod ?: null, $receiptNumber ?: null, 
