@@ -57,9 +57,9 @@ $stmt = $pdo->query("
 
 // Ensure we always have an array for the foreach loop
 $pendingPayments = [];
-if ($stmt) {
+if ($stmt !== false) {
     $results = $stmt->fetchAll();
-    if (is_array($results)) {
+    if ($results !== false) {
         $pendingPayments = $results;
     }
 }
