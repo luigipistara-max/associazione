@@ -746,9 +746,9 @@ include __DIR__ . '/inc/header.php';
             </form>
         </div>
         
-    <form method="POST" enctype="multipart/form-data">
-        <!-- Email Customization Tab -->
-        <div class="tab-pane fade" id="email" role="tabpanel">
+    <!-- Email Customization Tab -->
+    <div class="tab-pane fade" id="email" role="tabpanel">
+        <form method="POST" enctype="multipart/form-data">
             <div class="mb-3">
                 <label for="email_signature" class="form-label">Firma Email</label>
                 <textarea class="form-control" id="email_signature" name="email_signature" rows="3"><?php echo h($currentSettings['email_signature'] ?? ''); ?></textarea>
@@ -932,10 +932,19 @@ include __DIR__ . '/inc/header.php';
                     
                 </div>
             </div>
-        </div>
+            
+            <!-- Save Button for Email Settings -->
+            <div class="mt-4 pt-3 border-top">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save"></i> Salva Impostazioni Email
+                </button>
+            </div>
+        </form>
+    </div>
         
-        <!-- Security Tab -->
-        <div class="tab-pane fade" id="security" role="tabpanel">
+    <!-- Security Tab -->
+    <div class="tab-pane fade" id="security" role="tabpanel">
+        <form method="POST" enctype="multipart/form-data">
             <div class="alert alert-info">
                 <i class="bi bi-shield-lock"></i> Configura le impostazioni di sicurezza avanzate per proteggere l'accesso al sistema
             </div>
@@ -1079,13 +1088,14 @@ include __DIR__ . '/inc/header.php';
             </div>
         </div>
         
-        <!-- Save Button for Email and Security Settings -->
-        <div class="mt-4 pt-3 border-top" id="email-security-save-button">
+        <!-- Save Button for Security Settings -->
+        <div class="mt-4 pt-3 border-top">
             <button type="submit" class="btn btn-primary btn-lg">
-                <i class="bi bi-save"></i> Salva Impostazioni
+                <i class="bi bi-save"></i> Salva Impostazioni Sicurezza
             </button>
         </div>
-    </form>
+        </form>
+    </div>
     
 </div><!-- End of tab-content -->
 
@@ -1180,39 +1190,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Handle tab switching to show correct save button
-    const saveButtonGeneral = document.getElementById('general-save-button');
-    const saveButtonEmailSecurity = document.getElementById('email-security-save-button');
-    
-    // Function to update save button visibility
-    function updateSaveButtonVisibility() {
-        const activeTab = document.querySelector('.tab-pane.active');
-        if (!activeTab) return;
-        
-        const tabId = activeTab.getAttribute('id');
-        if (!tabId) return;
-        
-        // Hide all save buttons initially
-        if (saveButtonGeneral) saveButtonGeneral.style.display = 'none';
-        if (saveButtonEmailSecurity) saveButtonEmailSecurity.style.display = 'none';
-        
-        // Show appropriate save button based on active tab
-        if (tabId === 'email' || tabId === 'security') {
-            if (saveButtonEmailSecurity) saveButtonEmailSecurity.style.display = 'block';
-        } else if (tabId !== 'api') {
-            // All tabs except API and Email/Security use the general save button
-            if (saveButtonGeneral) saveButtonGeneral.style.display = 'block';
-        }
-        // API tab has its own save button within the form, so we don't need to show any external button
-    }
-    
-    // Initialize on page load
-    updateSaveButtonVisibility();
-    
-    // Update on tab change
-    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(button => {
-        button.addEventListener('shown.bs.tab', updateSaveButtonVisibility);
-    });
+    // Note: Save buttons are now within each tab's form, no need for visibility management
     
     // Handle URL hash to show the correct tab on page load
     const urlParams = new URLSearchParams(window.location.search);
