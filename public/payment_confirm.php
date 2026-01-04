@@ -44,17 +44,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['fee
 
 // Get pending payments
 global $pdo;
-$stmt = $pdo->query("
-    SELECT f.*, 
-           m.first_name, m.last_name, m.email, m.membership_number,
-           sy.name as year_name
-    FROM " . table('member_fees') . " f
-    JOIN " . table('members') . " m ON f.member_id = m.id
-    LEFT JOIN " . table('social_years') . " sy ON f.social_year_id = sy.id
-    WHERE f.payment_pending = 1
-    ORDER BY f.updated_at DESC
-");
-$pendingPayments = $stmt->fetchAll();
+
+// Ensure we always have an array for the foreach loop
+$pendingPayments = [];
+
+try {
+    $stmt = $pdo->query("
+        SELECT f.*, 
+               m.first_name, m.last_name, m.email, m.membership_number,
+               sy.name as year_name
+        FROM " . table('member_fees') . " f
+        JOIN " . table('members') . " m ON f.member_id = m.id
+        LEFT JOIN " . table('social_years') . " sy ON f.social_year_id = sy.id
+        WHERE f.payment_pending = 1
+        ORDER BY f.updated_at DESC
+    ");
+    
+    $pendingPayments = $stmt->fetchAll();
+} catch (PDOException $e) {
+    // Log error but continue with empty array
+    error_log("Error fetching pending payments: " . $e->getMessage());
+    // $pendingPayments remains as empty array
+}
 
 require_once __DIR__ . '/inc/header.php';
 ?>
