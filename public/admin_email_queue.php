@@ -5,7 +5,8 @@ require_once __DIR__ . '/../src/email.php';
 
 requireAdmin();
 
-$basePath = getBasePath();
+$config = require __DIR__ . '/../src/config.php';
+$basePath = $config['app']['base_path'];
 $pageTitle = 'Coda Email';
 
 // Azioni
@@ -124,7 +125,7 @@ include __DIR__ . '/inc/header.php';
     </div>
     <div class="card-body">
         <form method="POST" class="d-inline">
-            <?php echo getCsrfInput(); ?>
+            <?php echo csrfField(); ?>
             <input type="hidden" name="action" value="process_now">
             <input type="number" name="limit" value="20" min="1" max="100" class="form-control d-inline" style="width: 80px;">
             <button type="submit" class="btn btn-primary">
@@ -134,14 +135,14 @@ include __DIR__ . '/inc/header.php';
         
         <?php if ($stats['failed'] > 0): ?>
         <form method="POST" class="d-inline ms-2">
-            <?php echo getCsrfInput(); ?>
+            <?php echo csrfField(); ?>
             <input type="hidden" name="action" value="retry_failed">
             <button type="submit" class="btn btn-warning">
                 <i class="bi bi-arrow-repeat"></i> Riprova Fallite
             </button>
         </form>
         <form method="POST" class="d-inline ms-2">
-            <?php echo getCsrfInput(); ?>
+            <?php echo csrfField(); ?>
             <input type="hidden" name="action" value="delete_failed">
             <button type="submit" class="btn btn-danger" onclick="return confirm('Eliminare tutte le email fallite?')">
                 <i class="bi bi-trash"></i> Elimina Fallite

@@ -889,10 +889,10 @@ include __DIR__ . '/inc/header.php';
                             <label class="form-label">Modalità invio email</label>
                             <select name="email_send_mode" class="form-select">
                                 <option value="direct" <?php echo getSetting('email_send_mode', 'direct') === 'direct' ? 'selected' : ''; ?>>
-                                    ⚡ Invio Diretto - Email inviate subito (consigliato per pochi soci)
+                                    Invio Diretto - Email inviate subito (consigliato per pochi soci)
                                 </option>
                                 <option value="queue" <?php echo getSetting('email_send_mode', 'direct') === 'queue' ? 'selected' : ''; ?>>
-                                    🕐 Coda + Cron - Email accodate, serve cron esterno (per tanti soci)
+                                    Coda + Cron - Email accodate, serve cron esterno (per tanti soci)
                                 </option>
                             </select>
                             <div class="form-text">

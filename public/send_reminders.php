@@ -83,8 +83,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_emails'])) {
     
     logExport('fee_reminder', 'Invio solleciti quote (' . $stats['sent'] . ' inviate)');
     
-    logExport('fee_reminder', 'Invio solleciti quote (' . $stats['sent'] . ' inviate)');
-    
     setFlash('Solleciti inviati: ' . $stats['sent'] . ' inviate, ' . $stats['failed'] . ' fallite', 
              $stats['failed'] > 0 ? 'warning' : 'success');
     
