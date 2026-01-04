@@ -66,9 +66,9 @@ $stmt->execute([$member['id']]);
 $allFees = $stmt->fetchAll();
 
 // Separate fees by status
-$pendingFees = array_filter($allFees, fn($f) => in_array($f['status'], ['pending', 'overdue']) && !$f['payment_pending']);
-$waitingFees = array_filter($allFees, fn($f) => $f['payment_pending']);
-$paidFees = array_filter($allFees, fn($f) => $f['status'] === 'paid');
+$pendingFees = array_filter($allFees, function($f) { return in_array($f['status'], ['pending', 'overdue']) && !$f['payment_pending']; });
+$waitingFees = array_filter($allFees, function($f) { return $f['payment_pending']; });
+$paidFees = array_filter($allFees, function($f) { return $f['status'] === 'paid'; });
 
 // Get payment settings
 $bankName = getSetting('bank_name', '');
