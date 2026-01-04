@@ -2946,9 +2946,14 @@ function confirmOfflinePayment($feeId, $adminId) {
             return false;
         }
         
-        // Generate receipt if not already generated
-        if (empty($fee['receipt_number'])) {
-            generateReceipt($feeId);
+        // Generate receipt if not already generated (using new receipts table)
+        // Check if receipt already exists in new receipts table
+        $stmt = $pdo->prepare("SELECT id FROM " . table('receipts') . " WHERE member_fee_id = ?");
+        $stmt->execute([$feeId]);
+        if (!$stmt->fetch()) {
+            // Generate receipt with bank_transfer as payment method (offline payment)
+            $paymentMethod = $fee['payment_method'] ?? 'bank_transfer';
+            generateReceipt($feeId, $paymentMethod, null, $adminId);
         }
         
         // Create financial movement (income)
