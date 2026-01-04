@@ -17,6 +17,7 @@ Thumbs.db
 *.bak
 *.swp
 *~
+*.old
 
 # Logs
 *.log
