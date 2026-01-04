@@ -43,6 +43,17 @@ if ($currentYear) {
 // Get association info
 $assocInfo = getAssociationInfo();
 
+// Fix logo URL
+$logoUrl = '';
+if (!empty($assocInfo['logo'])) {
+    if (preg_match('/^https?:\/\//', $assocInfo['logo'])) {
+        $logoUrl = $assocInfo['logo'];
+    } else {
+        $logoPath = ltrim($assocInfo['logo'], '/');
+        $logoUrl = $basePath . $logoPath;
+    }
+}
+
 include __DIR__ . '/inc/header.php';
 ?>
 
@@ -65,8 +76,11 @@ include __DIR__ . '/inc/header.php';
         border-bottom: 1px solid rgba(255,255,255,0.3);
     }
     .card-header-section img {
+        max-width: 80%;
         max-height: 50px;
-        filter: brightness(0) invert(1);
+        width: auto;
+        height: auto;
+        object-fit: contain;
     }
     .card-body-section {
         display: flex;
@@ -110,6 +124,14 @@ include __DIR__ . '/inc/header.php';
     .status-active {
         background: #28a745;
     }
+    .member-card-back {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        margin-top: 20px;
+    }
+    .card-back-content {
+        font-size: 0.9rem;
+        line-height: 1.6;
+    }
     @media print {
         body {
             background: white;
@@ -145,8 +167,8 @@ include __DIR__ . '/inc/header.php';
         <div class="text-center mb-4">
             <div class="member-card">
                 <div class="card-header-section">
-                    <?php if (!empty($assocInfo['logo'])): ?>
-                        <img src="<?php echo h($basePath . $assocInfo['logo']); ?>" alt="Logo">
+                    <?php if ($logoUrl): ?>
+                        <img src="<?php echo h($logoUrl); ?>" alt="Logo">
                     <?php endif; ?>
                     <h6 class="mt-2 mb-0"><?php echo h($assocInfo['name'] ?? 'Associazione'); ?></h6>
                     <small style="opacity: 0.8;">Tessera Socio <?php echo h($yearDisplay); ?></small>
@@ -188,6 +210,27 @@ include __DIR__ . '/inc/header.php';
                         </div>
                     </div>
                 <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- RETRO TESSERA -->
+        <div class="text-center mb-4">
+            <div class="member-card member-card-back">
+                <div class="card-back-content">
+                    <div class="text-center mb-3">
+                        <strong><?php echo h($assocInfo['name'] ?? 'Associazione'); ?></strong>
+                    </div>
+                    
+                    <p>La presente tessera è personale e non cedibile.</p>
+                    
+                    <p>In caso di smarrimento comunicare tempestivamente alla segreteria.</p>
+                    
+                    <p>Per verificare la validità della tessera, scansionare il QR code sul fronte.</p>
+                    
+                    <div class="text-center mt-3" style="font-size: 0.8rem; opacity: 0.7;">
+                        Powered by AssoLife
+                    </div>
+                </div>
             </div>
         </div>
         
