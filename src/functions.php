@@ -118,16 +118,6 @@ function getSocialYearFeeAmount($yearId) {
 }
 
 /**
- * Get current social year with fee amount
- */
-function getCurrentSocialYearWithFee() {
-    global $pdo;
-    
-    $stmt = $pdo->query("SELECT * FROM " . table('social_years') . " WHERE is_current = 1 LIMIT 1");
-    return $stmt->fetch();
-}
-
-/**
  * Get income categories
  */
 function getIncomeCategories($activeOnly = true) {

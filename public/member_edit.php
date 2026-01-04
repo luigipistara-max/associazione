@@ -185,12 +185,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $targetMemberId = $memberId ?? $newMemberId;
                     $selectedGroups = $_POST['groups'] ?? [];
                     
-                    // Remove from all groups first
-                    $stmt = $pdo->prepare("DELETE FROM " . table('member_group_members') . " WHERE member_id = ?");
-                    $stmt->execute([$targetMemberId]);
+                    // Validate that selected groups exist and are active
+                    $validGroupIds = array_column($allGroups, 'id');
+                    $selectedGroups = array_filter($selectedGroups, function($groupId) use ($validGroupIds) {
+                        return in_array((int)$groupId, $validGroupIds);
+                    });
                     
-                    // Add to selected groups
-                    foreach ($selectedGroups as $groupId) {
+                    // Get current groups for this member
+                    $currentGroupIds = $memberGroupIds; // Already loaded at top of file
+                    
+                    // Calculate groups to add and remove
+                    $groupsToAdd = array_diff($selectedGroups, $currentGroupIds);
+                    $groupsToRemove = array_diff($currentGroupIds, $selectedGroups);
+                    
+                    // Remove member from groups they're no longer in
+                    foreach ($groupsToRemove as $groupId) {
+                        removeMemberFromGroup($groupId, $targetMemberId);
+                    }
+                    
+                    // Add member to new groups
+                    foreach ($groupsToAdd as $groupId) {
                         addMemberToGroup($groupId, $targetMemberId);
                     }
                 }
