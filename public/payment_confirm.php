@@ -60,7 +60,10 @@ try {
         ORDER BY f.updated_at DESC
     ");
     
-    $pendingPayments = $stmt->fetchAll();
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (is_array($results)) {
+        $pendingPayments = $results;
+    }
 } catch (PDOException $e) {
     // Log error but continue with empty array
     error_log("Error fetching pending payments: " . $e->getMessage());
@@ -119,7 +122,8 @@ require_once __DIR__ . '/inc/header.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($pendingPayments as $payment): ?>
+                            <?php if (is_array($pendingPayments)): ?>
+                                <?php foreach ($pendingPayments as $payment): ?>
                                 <tr>
                                     <td>
                                         <strong><?php echo h($payment['first_name'] . ' ' . $payment['last_name']); ?></strong>
@@ -246,7 +250,8 @@ require_once __DIR__ . '/inc/header.php';
                                         </div>
                                     </div>
                                 </div>
-                            <?php endforeach; ?>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
