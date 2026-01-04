@@ -610,7 +610,7 @@ include __DIR__ . '/inc/header.php';
     
         <!-- API / Integrations Tab -->
         <div class="tab-pane fade" id="api" role="tabpanel">
-            <form method="POST" action="">
+            <form method="POST" action="settings.php">
                 <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
                 <input type="hidden" name="action" value="save_api_settings">
                 
@@ -1174,7 +1174,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const allowedTabs = ['association', 'legal', 'address', 'fiscal', 'banking', 'paypal', 'api', 'email', 'security'];
     if (tab && allowedTabs.includes(tab)) {
         const tabButton = document.getElementById(tab + '-tab');
-        if (tabButton) {
+        if (tabButton && typeof bootstrap !== 'undefined') {
             const bsTab = new bootstrap.Tab(tabButton);
             bsTab.show();
         }
