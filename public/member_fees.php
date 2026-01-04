@@ -68,7 +68,7 @@ if ($action === 'mark_paid' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') 
         // Update fee status and payment method
         $stmt = $pdo->prepare("
             UPDATE " . table('member_fees') . " 
-            SET status = 'paid', paid_date = CURDATE(), payment_method = ?
+            SET status = 'paid', paid_date = CURDATE(), payment_method = ?, payment_pending = 0
             WHERE id = ?
         ");
         $stmt->execute([$paymentMethod, $feeId]);
@@ -131,13 +131,25 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
         $stmt->execute([$feeId]);
         $oldFee = $stmt->fetch();
         
-        $stmt = $pdo->prepare("
-            UPDATE " . table('member_fees') . " 
-            SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
-                due_date = ?, paid_date = ?, payment_method = ?, receipt_number = ?, 
-                status = ?, notes = ?
-            WHERE id = ?
-        ");
+        // Update fee - reset payment_pending if marking as paid
+        if ($status === 'paid') {
+            $stmt = $pdo->prepare("
+                UPDATE " . table('member_fees') . " 
+                SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
+                    due_date = ?, paid_date = ?, payment_method = ?, receipt_number = ?, 
+                    status = ?, notes = ?, payment_pending = 0
+                WHERE id = ?
+            ");
+        } else {
+            $stmt = $pdo->prepare("
+                UPDATE " . table('member_fees') . " 
+                SET member_id = ?, social_year_id = ?, fee_type = ?, amount = ?, 
+                    due_date = ?, paid_date = ?, payment_method = ?, receipt_number = ?, 
+                    status = ?, notes = ?
+                WHERE id = ?
+            ");
+        }
+        
         $stmt->execute([
             $memberId, $socialYearId, $feeType, $amount, 
             $dueDate, $paidDate ?: null, $paymentMethod ?: null, $receiptNumber ?: null, 
