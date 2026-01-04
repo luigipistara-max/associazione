@@ -435,6 +435,22 @@ CREATE TABLE IF NOT EXISTS event_target_groups (
     FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Event responses table (member availability for events)
+CREATE TABLE IF NOT EXISTS event_responses (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    event_id INT NOT NULL,
+    member_id INT NOT NULL,
+    response ENUM('yes', 'no', 'maybe') NOT NULL,
+    notes TEXT,
+    responded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_response (event_id, member_id),
+    INDEX idx_event (event_id),
+    INDEX idx_member (member_id),
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Settings table (key-value storage for association configuration)
 CREATE TABLE IF NOT EXISTS settings (
     id INT PRIMARY KEY AUTO_INCREMENT,

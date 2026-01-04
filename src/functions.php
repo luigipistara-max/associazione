@@ -2327,3 +2327,446 @@ function sendPortalPasswordResetEmail($memberId) {
     return sendEmail($member['email'], $subject, $body);
 }
 
+
+/**
+ * =============================================================================
+ * EVENT RESPONSES FUNCTIONS (Portal Soci - Part 2)
+ * =============================================================================
+ */
+
+/**
+ * Get events visible to a member (all + their groups)
+ * 
+ * @param int $memberId Member ID
+ * @param bool $upcomingOnly Only show upcoming events (default: true)
+ * @return array List of visible events
+ */
+function getMemberVisibleEvents($memberId, $upcomingOnly = true) {
+    global $pdo;
+    
+    // Get member's groups
+    $memberGroups = getMemberGroups($memberId);
+    $groupIds = array_column($memberGroups, 'id');
+    
+    // Build query to get events for "all" OR events for member's groups
+    $sql = "SELECT DISTINCT e.* FROM " . table('events') . " e
+            WHERE e.status = 'published'";
+    
+    if ($upcomingOnly) {
+        $sql .= " AND e.event_date >= CURDATE()";
+    }
+    
+    $sql .= " AND (e.target_type = 'all'";
+    
+    // If member has groups, include events targeted to those groups
+    if (!empty($groupIds)) {
+        $placeholders = implode(',', array_fill(0, count($groupIds), '?'));
+        $sql .= " OR (e.target_type = 'groups' AND e.id IN (
+                    SELECT event_id FROM " . table('event_target_groups') . " 
+                    WHERE group_id IN ($placeholders)
+                  ))";
+    }
+    
+    $sql .= ") ORDER BY e.event_date ASC, e.event_time ASC";
+    
+    $stmt = $pdo->prepare($sql);
+    if (!empty($groupIds)) {
+        $stmt->execute($groupIds);
+    } else {
+        $stmt->execute();
+    }
+    
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get member's response to an event
+ * 
+ * @param int $eventId Event ID
+ * @param int $memberId Member ID
+ * @return array|false Event response or false if not found
+ */
+function getMemberEventResponse($eventId, $memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT * FROM " . table('event_responses') . "
+        WHERE event_id = ? AND member_id = ?
+    ");
+    $stmt->execute([$eventId, $memberId]);
+    return $stmt->fetch();
+}
+
+/**
+ * Set member's response to an event
+ * 
+ * @param int $eventId Event ID
+ * @param int $memberId Member ID
+ * @param string $response Response type: 'yes', 'no', or 'maybe'
+ * @param string|null $notes Optional notes
+ * @return bool Success
+ */
+function setMemberEventResponse($eventId, $memberId, $response, $notes = null) {
+    global $pdo;
+    
+    // Validate response
+    if (!in_array($response, ['yes', 'no', 'maybe'])) {
+        return false;
+    }
+    
+    // Check if response already exists
+    $existing = getMemberEventResponse($eventId, $memberId);
+    
+    if ($existing) {
+        // Update existing response
+        $stmt = $pdo->prepare("
+            UPDATE " . table('event_responses') . "
+            SET response = ?, notes = ?, updated_at = NOW()
+            WHERE event_id = ? AND member_id = ?
+        ");
+        return $stmt->execute([$response, $notes, $eventId, $memberId]);
+    } else {
+        // Insert new response
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('event_responses') . "
+            (event_id, member_id, response, notes)
+            VALUES (?, ?, ?, ?)
+        ");
+        return $stmt->execute([$eventId, $memberId, $response, $notes]);
+    }
+}
+
+/**
+ * Get all responses for an event (admin view)
+ * 
+ * @param int $eventId Event ID
+ * @return array List of responses with member info
+ */
+function getEventResponses($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT er.*, m.first_name, m.last_name, m.email
+        FROM " . table('event_responses') . " er
+        JOIN " . table('members') . " m ON er.member_id = m.id
+        WHERE er.event_id = ?
+        ORDER BY er.responded_at DESC
+    ");
+    $stmt->execute([$eventId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Count responses by type for an event
+ * 
+ * @param int $eventId Event ID
+ * @return array Counts by response type
+ */
+function countEventResponses($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT response, COUNT(*) as count
+        FROM " . table('event_responses') . "
+        WHERE event_id = ?
+        GROUP BY response
+    ");
+    $stmt->execute([$eventId]);
+    
+    $counts = ['yes' => 0, 'no' => 0, 'maybe' => 0];
+    while ($row = $stmt->fetch()) {
+        $counts[$row['response']] = (int)$row['count'];
+    }
+    
+    return $counts;
+}
+
+/**
+ * =============================================================================
+ * GROUP REQUEST FUNCTIONS (Portal Soci - Part 2)
+ * =============================================================================
+ */
+
+/**
+ * Get public groups (not hidden, not restricted)
+ * 
+ * @return array List of public groups
+ */
+function getPublicGroups() {
+    global $pdo;
+    
+    $stmt = $pdo->query("
+        SELECT * FROM " . table('member_groups') . " 
+        WHERE is_active = 1 AND is_hidden = 0 AND is_restricted = 0
+        ORDER BY name
+    ");
+    return $stmt->fetchAll();
+}
+
+/**
+ * Create a group join request
+ * 
+ * @param int $memberId Member ID
+ * @param int $groupId Group ID
+ * @param string|null $message Optional message from member
+ * @return bool Success
+ */
+function createGroupRequest($memberId, $groupId, $message = null) {
+    global $pdo;
+    
+    // Check if member is already in the group
+    if (isMemberInGroup($groupId, $memberId)) {
+        return false;
+    }
+    
+    // Check if there's already a pending request
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count FROM " . table('member_group_requests') . "
+        WHERE member_id = ? AND group_id = ? AND status = 'pending'
+    ");
+    $stmt->execute([$memberId, $groupId]);
+    $result = $stmt->fetch();
+    
+    if ($result['count'] > 0) {
+        return false; // Already has pending request
+    }
+    
+    // Create the request
+    $stmt = $pdo->prepare("
+        INSERT INTO " . table('member_group_requests') . "
+        (member_id, group_id, message)
+        VALUES (?, ?, ?)
+    ");
+    return $stmt->execute([$memberId, $groupId, $message]);
+}
+
+/**
+ * Get pending requests for a member
+ * 
+ * @param int $memberId Member ID
+ * @return array List of pending requests with group info
+ */
+function getMemberGroupRequests($memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT gr.*, g.name as group_name, g.description as group_description
+        FROM " . table('member_group_requests') . " gr
+        JOIN " . table('member_groups') . " g ON gr.group_id = g.id
+        WHERE gr.member_id = ?
+        ORDER BY gr.requested_at DESC
+    ");
+    $stmt->execute([$memberId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get pending group requests (admin view)
+ * 
+ * @return array List of pending requests with member and group info
+ */
+function getPendingGroupRequests() {
+    global $pdo;
+    
+    $stmt = $pdo->query("
+        SELECT gr.*, 
+               m.first_name, m.last_name, m.email, m.membership_number,
+               g.name as group_name
+        FROM " . table('member_group_requests') . " gr
+        JOIN " . table('members') . " m ON gr.member_id = m.id
+        JOIN " . table('member_groups') . " g ON gr.group_id = g.id
+        WHERE gr.status = 'pending'
+        ORDER BY gr.requested_at ASC
+    ");
+    return $stmt->fetchAll();
+}
+
+/**
+ * Count pending group requests
+ * 
+ * @return int Number of pending requests
+ */
+function countPendingGroupRequests() {
+    global $pdo;
+    
+    $stmt = $pdo->query("
+        SELECT COUNT(*) as count FROM " . table('member_group_requests') . "
+        WHERE status = 'pending'
+    ");
+    $result = $stmt->fetch();
+    return (int)$result['count'];
+}
+
+/**
+ * Approve group request
+ * 
+ * @param int $requestId Request ID
+ * @param int $adminId Admin user ID
+ * @param string|null $notes Optional admin notes
+ * @return bool Success
+ */
+function approveGroupRequest($requestId, $adminId, $notes = null) {
+    global $pdo;
+    
+    // Get request details
+    $stmt = $pdo->prepare("
+        SELECT * FROM " . table('member_group_requests') . "
+        WHERE id = ? AND status = 'pending'
+    ");
+    $stmt->execute([$requestId]);
+    $request = $stmt->fetch();
+    
+    if (!$request) {
+        return false;
+    }
+    
+    // Start transaction
+    $pdo->beginTransaction();
+    
+    try {
+        // Add member to group
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('member_group_members') . "
+            (group_id, member_id)
+            VALUES (?, ?)
+        ");
+        $stmt->execute([$request['group_id'], $request['member_id']]);
+        
+        // Update request status
+        $stmt = $pdo->prepare("
+            UPDATE " . table('member_group_requests') . "
+            SET status = 'approved', 
+                processed_at = NOW(), 
+                processed_by = ?,
+                admin_notes = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([$adminId, $notes, $requestId]);
+        
+        $pdo->commit();
+        return true;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        return false;
+    }
+}
+
+/**
+ * Reject group request
+ * 
+ * @param int $requestId Request ID
+ * @param int $adminId Admin user ID
+ * @param string|null $notes Optional admin notes
+ * @return bool Success
+ */
+function rejectGroupRequest($requestId, $adminId, $notes = null) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('member_group_requests') . "
+        SET status = 'rejected', 
+            processed_at = NOW(), 
+            processed_by = ?,
+            admin_notes = ?
+        WHERE id = ? AND status = 'pending'
+    ");
+    return $stmt->execute([$adminId, $notes, $requestId]);
+}
+
+/**
+ * =============================================================================
+ * PAYMENT FUNCTIONS (Portal Soci - Part 2)
+ * =============================================================================
+ */
+
+/**
+ * Confirm offline payment
+ * 
+ * @param int $feeId Fee ID
+ * @param int $adminId Admin user ID
+ * @return bool Success
+ */
+function confirmOfflinePayment($feeId, $adminId) {
+    global $pdo;
+    require_once __DIR__ . '/pdf.php';
+    
+    // Start transaction
+    $pdo->beginTransaction();
+    
+    try {
+        // Update fee status
+        $stmt = $pdo->prepare("
+            UPDATE " . table('member_fees') . " 
+            SET status = 'paid',
+                paid_date = NOW(),
+                payment_pending = 0,
+                payment_confirmed_by = ?,
+                payment_confirmed_at = NOW()
+            WHERE id = ?
+        ");
+        $stmt->execute([$adminId, $feeId]);
+        
+        // Get fee details
+        $stmt = $pdo->prepare("
+            SELECT f.*, m.first_name, m.last_name, sy.name as year_name
+            FROM " . table('member_fees') . " f
+            JOIN " . table('members') . " m ON f.member_id = m.id
+            LEFT JOIN " . table('social_years') . " sy ON f.social_year_id = sy.id
+            WHERE f.id = ?
+        ");
+        $stmt->execute([$feeId]);
+        $fee = $stmt->fetch();
+        
+        if (!$fee) {
+            $pdo->rollBack();
+            return false;
+        }
+        
+        // Generate receipt if not already generated
+        if (empty($fee['receipt_number'])) {
+            generateReceipt($feeId);
+        }
+        
+        // Create financial movement (income)
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('income') . "
+            (social_year_id, category_id, member_id, amount, payment_method, 
+             receipt_number, transaction_date, notes)
+            SELECT f.social_year_id, 
+                   (SELECT id FROM " . table('income_categories') . " WHERE name = 'Quote associative' LIMIT 1),
+                   f.member_id,
+                   f.amount,
+                   COALESCE(f.payment_method, 'Bonifico'),
+                   f.receipt_number,
+                   f.paid_date,
+                   CONCAT('Quota associativa - ', sy.name)
+            FROM " . table('member_fees') . " f
+            LEFT JOIN " . table('social_years') . " sy ON f.social_year_id = sy.id
+            WHERE f.id = ?
+        ");
+        $stmt->execute([$feeId]);
+        
+        $pdo->commit();
+        return true;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Error confirming payment: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Count pending payments
+ * 
+ * @return int Number of pending payments
+ */
+function countPendingPayments() {
+    global $pdo;
+    
+    $stmt = $pdo->query("
+        SELECT COUNT(*) as count FROM " . table('member_fees') . "
+        WHERE payment_pending = 1
+    ");
+    $result = $stmt->fetch();
+    return (int)$result['count'];
+}
