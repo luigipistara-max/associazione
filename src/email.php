@@ -267,7 +267,6 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     logEmailSuccess($to, $subject);
     return true;
 }
-}
 
 /**
  * Invia email usando la funzione mail() di PHP
