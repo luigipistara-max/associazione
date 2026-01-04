@@ -12,6 +12,22 @@ $memberId = $_GET['id'] ?? null;
 $member = null;
 $errors = [];
 
+// Handle send portal activation
+if (isset($_GET['send_activation']) && $memberId) {
+    $token = $_POST['csrf_token'] ?? '';
+    
+    if (!verifyCsrfToken($token)) {
+        setFlashMessage('Token di sicurezza non valido', 'danger');
+    } else {
+        if (sendPortalActivationEmail($memberId)) {
+            setFlashMessage('Email di attivazione inviata con successo', 'success');
+        } else {
+            setFlashMessage('Errore durante l\'invio dell\'email', 'danger');
+        }
+    }
+    redirect($basePath . 'member_edit.php?id=' . $memberId);
+}
+
 // Load existing member
 if ($memberId) {
     $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
@@ -241,6 +257,53 @@ include __DIR__ . '/inc/header.php';
                 <li><?php echo e($error); ?></li>
             <?php endforeach; ?>
         </ul>
+    </div>
+<?php endif; ?>
+
+<?php if ($memberId): ?>
+    <div class="card mb-3 border-info">
+        <div class="card-header bg-info text-white">
+            <h6 class="mb-0"><i class="bi bi-door-open"></i> Accesso Portale Soci</h6>
+        </div>
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <?php if (!empty($member['portal_password'])): ?>
+                        <p class="mb-2">
+                            <i class="bi bi-check-circle text-success"></i> 
+                            <strong>Account attivato</strong>
+                        </p>
+                        <?php if ($member['last_portal_login']): ?>
+                            <p class="text-muted small mb-0">
+                                Ultimo accesso: <?php echo formatDate($member['last_portal_login']); ?>
+                            </p>
+                        <?php else: ?>
+                            <p class="text-muted small mb-0">
+                                Account attivato ma mai utilizzato
+                            </p>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <p class="mb-2">
+                            <i class="bi bi-exclamation-circle text-warning"></i> 
+                            <strong>Account non ancora attivato</strong>
+                        </p>
+                        <p class="text-muted small mb-0">
+                            Il socio deve ancora impostare la password per accedere al portale
+                        </p>
+                    <?php endif; ?>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <form method="POST" action="?send_activation=1&id=<?php echo $memberId; ?>" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                        <button type="submit" class="btn btn-info btn-sm" 
+                                onclick="return confirm('Inviare email di <?php echo !empty($member['portal_password']) ? 'reset password' : 'attivazione'; ?> a <?php echo h($member['email']); ?>?')">
+                            <i class="bi bi-envelope"></i> 
+                            <?php echo !empty($member['portal_password']) ? 'Invia Reset Password' : 'Invia Attivazione'; ?>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 <?php endif; ?>
 

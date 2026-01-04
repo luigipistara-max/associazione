@@ -68,6 +68,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $settings[] = ['paypal_me_link', $_POST['paypal_me_link'] ?? '', 'paypal'];
     }
     
+    // API / Integrations
+    if (isset($_POST['imgbb_api_key'])) {
+        $settings[] = ['imgbb_api_key', $_POST['imgbb_api_key'] ?? '', 'api'];
+    }
+    if (isset($_POST['paypal_mode'])) {
+        $settings[] = ['paypal_mode', $_POST['paypal_mode'] ?? 'sandbox', 'api'];
+        $settings[] = ['paypal_client_id', $_POST['paypal_client_id'] ?? '', 'api'];
+        $settings[] = ['paypal_client_secret', $_POST['paypal_client_secret'] ?? '', 'api'];
+        $settings[] = ['paypal_webhook_id', $_POST['paypal_webhook_id'] ?? '', 'api'];
+    }
+    
     // Email customization
     if (isset($_POST['email_signature'])) {
         $settings[] = ['email_signature', $_POST['email_signature'] ?? '', 'email'];
@@ -159,6 +170,11 @@ include __DIR__ . '/inc/header.php';
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="paypal-tab" data-bs-toggle="tab" data-bs-target="#paypal" type="button" role="tab">
                 <i class="bi bi-paypal"></i> PayPal
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="api-tab" data-bs-toggle="tab" data-bs-target="#api" type="button" role="tab">
+                <i class="bi bi-plug"></i> API
             </button>
         </li>
         <li class="nav-item" role="presentation">
@@ -397,6 +413,58 @@ include __DIR__ . '/inc/header.php';
                 <input type="url" class="form-control" id="paypal_me_link" name="paypal_me_link" 
                        value="<?php echo h($currentSettings['paypal_me_link'] ?? ''); ?>" 
                        placeholder="https://paypal.me/nomeassociazione">
+            </div>
+        </div>
+        
+        <!-- API / Integrations Tab -->
+        <div class="tab-pane fade" id="api" role="tabpanel">
+            <h5>ImgBB (Upload Immagini)</h5>
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Necessario per permettere ai soci di caricare le fototessere dal portale
+            </div>
+            <div class="mb-3">
+                <label class="form-label">API Key ImgBB</label>
+                <input type="text" class="form-control" name="imgbb_api_key" 
+                       value="<?php echo h($currentSettings['imgbb_api_key'] ?? ''); ?>"
+                       placeholder="Ottieni la chiave da api.imgbb.com">
+                <div class="form-text">Necessaria per l'upload delle fototessere dei soci nel portale</div>
+            </div>
+            
+            <hr class="my-4">
+            <h5>PayPal (Pagamenti Online)</h5>
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Configurazione avanzata per integrare pagamenti PayPal nel portale soci
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Modalità</label>
+                <select class="form-select" name="paypal_mode">
+                    <option value="sandbox" <?php echo ($currentSettings['paypal_mode'] ?? '') === 'sandbox' ? 'selected' : ''; ?>>Sandbox (Test)</option>
+                    <option value="live" <?php echo ($currentSettings['paypal_mode'] ?? '') === 'live' ? 'selected' : ''; ?>>Live (Produzione)</option>
+                </select>
+                <div class="form-text">Usa Sandbox per test, Live per pagamenti reali</div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Client ID</label>
+                <input type="text" class="form-control" name="paypal_client_id" 
+                       value="<?php echo h($currentSettings['paypal_client_id'] ?? ''); ?>"
+                       placeholder="Client ID da PayPal Developer">
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Client Secret</label>
+                <input type="password" class="form-control" name="paypal_client_secret" 
+                       value="<?php echo h($currentSettings['paypal_client_secret'] ?? ''); ?>"
+                       placeholder="Client Secret da PayPal Developer">
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Webhook ID</label>
+                <input type="text" class="form-control" name="paypal_webhook_id" 
+                       value="<?php echo h($currentSettings['paypal_webhook_id'] ?? ''); ?>"
+                       placeholder="ID del webhook configurato su PayPal">
+                <div class="form-text">ID del webhook configurato su PayPal Developer per ricevere notifiche di pagamento</div>
             </div>
         </div>
         
