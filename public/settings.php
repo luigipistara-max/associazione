@@ -13,6 +13,72 @@ requireAdmin(); // Only admin can access settings
 
 $pageTitle = 'Impostazioni Associazione';
 
+// Handle SMTP test
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'test_smtp') {
+    header('Content-Type: application/json');
+    
+    // Validate and sanitize SMTP settings before saving
+    $smtpSettings = [];
+    
+    // Validate enabled flag
+    $smtpSettings['smtp_enabled'] = isset($_POST['smtp_enabled']) && $_POST['smtp_enabled'] === '1' ? '1' : '0';
+    
+    // Validate and sanitize host (alphanumeric, dots, hyphens only)
+    $smtpSettings['smtp_host'] = preg_replace('/[^a-zA-Z0-9.-]/', '', $_POST['smtp_host'] ?? '');
+    
+    // Validate port (must be 1-65535)
+    $port = (int) ($_POST['smtp_port'] ?? 587);
+    $smtpSettings['smtp_port'] = ($port > 0 && $port <= 65535) ? (string) $port : '587';
+    
+    // Validate security (must be one of allowed values)
+    $security = $_POST['smtp_security'] ?? 'tls';
+    $smtpSettings['smtp_security'] = in_array($security, ['none', 'ssl', 'tls']) ? $security : 'tls';
+    
+    // Validate emails
+    $username = trim($_POST['smtp_username'] ?? '');
+    $fromEmail = trim($_POST['smtp_from_email'] ?? '');
+    
+    if (!empty($username) && !filter_var($username, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode(['success' => false, 'message' => 'Username SMTP non è un indirizzo email valido']);
+        exit;
+    }
+    
+    if (!empty($fromEmail) && !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode(['success' => false, 'message' => 'Email mittente non è valida']);
+        exit;
+    }
+    
+    $smtpSettings['smtp_username'] = $username;
+    // Password is stored as-is (not sanitized) to preserve exact value for SMTP authentication
+    // Note: Consider implementing encryption for password storage in a future update
+    $smtpSettings['smtp_password'] = $_POST['smtp_password'] ?? '';
+    $smtpSettings['smtp_from_email'] = $fromEmail;
+    $smtpSettings['smtp_from_name'] = htmlspecialchars(trim($_POST['smtp_from_name'] ?? ''), ENT_QUOTES, 'UTF-8');
+    
+    // Save settings
+    foreach ($smtpSettings as $key => $value) {
+        setSetting($key, $value);
+    }
+    
+    // Invia email di test - usa smtp_from_email se disponibile, altrimenti smtp_username
+    $testEmail = $fromEmail ?: $username;
+    
+    // Valida che sia un'email valida
+    if (empty($testEmail) || !filter_var($testEmail, FILTER_VALIDATE_EMAIL)) {
+        echo json_encode(['success' => false, 'message' => 'Configura un indirizzo email valido nelle impostazioni SMTP']);
+        exit;
+    }
+    
+    require_once __DIR__ . '/../src/email.php';
+    $result = testSmtpConnection($testEmail);
+    
+    echo json_encode([
+        'success' => $result,
+        'message' => $result ? 'Email inviata!' : 'Errore invio email. Controlla le credenziali.'
+    ]);
+    exit;
+}
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // TODO: Add CSRF protection in production
@@ -83,6 +149,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['email_signature'])) {
         $settings[] = ['email_signature', $_POST['email_signature'] ?? '', 'email'];
         $settings[] = ['email_footer', $_POST['email_footer'] ?? '', 'email'];
+    }
+    
+    // SMTP settings with validation
+    if (isset($_POST['smtp_enabled'])) {
+        // Validate enabled flag
+        $smtpEnabled = isset($_POST['smtp_enabled']) && $_POST['smtp_enabled'] === '1' ? '1' : '0';
+        $settings[] = ['smtp_enabled', $smtpEnabled, 'email'];
+        
+        // Validate and sanitize host
+        $smtpHost = preg_replace('/[^a-zA-Z0-9.-]/', '', $_POST['smtp_host'] ?? '');
+        $settings[] = ['smtp_host', $smtpHost, 'email'];
+        
+        // Validate port
+        $port = (int) ($_POST['smtp_port'] ?? 587);
+        $smtpPort = ($port > 0 && $port <= 65535) ? (string) $port : '587';
+        $settings[] = ['smtp_port', $smtpPort, 'email'];
+        
+        // Validate security
+        $security = $_POST['smtp_security'] ?? 'tls';
+        $smtpSecurity = in_array($security, ['none', 'ssl', 'tls']) ? $security : 'tls';
+        $settings[] = ['smtp_security', $smtpSecurity, 'email'];
+        
+        // Validate emails
+        $username = trim($_POST['smtp_username'] ?? '');
+        if (!empty($username) && !filter_var($username, FILTER_VALIDATE_EMAIL)) {
+            setFlash('Username SMTP non è un indirizzo email valido', 'danger');
+            redirect('settings.php');
+        }
+        $settings[] = ['smtp_username', $username, 'email'];
+        
+        // Password is stored as-is to preserve exact value for SMTP authentication
+        $settings[] = ['smtp_password', $_POST['smtp_password'] ?? '', 'email'];
+        
+        $fromEmail = trim($_POST['smtp_from_email'] ?? '');
+        if (!empty($fromEmail) && !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+            setFlash('Email mittente non è valida', 'danger');
+            redirect('settings.php');
+        }
+        $settings[] = ['smtp_from_email', $fromEmail, 'email'];
+        
+        $fromName = htmlspecialchars(trim($_POST['smtp_from_name'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $settings[] = ['smtp_from_name', $fromName, 'email'];
     }
     
     // Handle logo upload
@@ -488,6 +596,154 @@ include __DIR__ . '/inc/header.php';
                     <?php echo getEmailFooter(); ?>
                 </div>
             </div>
+            
+            <hr class="my-4">
+            
+            <!-- Sezione SMTP -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-envelope-at"></i> Configurazione Email / SMTP</h5>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Toggle SMTP -->
+                    <div class="mb-3">
+                        <label class="form-label">Metodo di invio email</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="smtp_enabled" id="smtp_disabled" value="0" 
+                                   <?php echo getSetting('smtp_enabled') != '1' ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="smtp_disabled">
+                                <strong>PHP mail() nativo</strong> - Usa il server mail di sistema (default)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="smtp_enabled" id="smtp_enabled_yes" value="1"
+                                   <?php echo getSetting('smtp_enabled') == '1' ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="smtp_enabled_yes">
+                                <strong>SMTP esterno</strong> - Usa un server SMTP esterno (Gmail, Libero, ecc.)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Preset rapidi -->
+                    <div class="mb-3" id="smtp_presets" style="display: none;">
+                        <label class="form-label">Configurazione Rapida</label>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-danger" onclick="setSmtpPreset('gmail')">
+                                <i class="bi bi-google"></i> Gmail
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" onclick="setSmtpPreset('libero')">
+                                📧 Libero
+                            </button>
+                            <button type="button" class="btn btn-outline-info" onclick="setSmtpPreset('virgilio')">
+                                📧 Virgilio
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="setSmtpPreset('mailcom')">
+                                📧 Mail.com
+                            </button>
+                            <button type="button" class="btn btn-outline-dark" onclick="setSmtpPreset('custom')">
+                                ⚙️ Altro
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Campi SMTP -->
+                    <div id="smtp_fields" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label class="form-label">Server SMTP</label>
+                                    <input type="text" class="form-control" name="smtp_host" id="smtp_host"
+                                           value="<?php echo h(getSetting('smtp_host')); ?>" placeholder="smtp.gmail.com">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Porta</label>
+                                    <input type="number" class="form-control" name="smtp_port" id="smtp_port"
+                                           value="<?php echo h(getSetting('smtp_port') ?: '587'); ?>" placeholder="587">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Sicurezza</label>
+                            <select class="form-select" name="smtp_security" id="smtp_security">
+                                <option value="none" <?php echo getSetting('smtp_security') == 'none' ? 'selected' : ''; ?>>Nessuna</option>
+                                <option value="ssl" <?php echo getSetting('smtp_security') == 'ssl' ? 'selected' : ''; ?>>SSL</option>
+                                <option value="tls" <?php echo getSetting('smtp_security') == 'tls' || !getSetting('smtp_security') ? 'selected' : ''; ?>>TLS (consigliato)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Username (email)</label>
+                            <input type="email" class="form-control" name="smtp_username" id="smtp_username"
+                                   value="<?php echo h(getSetting('smtp_username')); ?>" placeholder="tuaemail@gmail.com">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Password</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" name="smtp_password" id="smtp_password"
+                                       value="<?php echo h(getSetting('smtp_password')); ?>" placeholder="••••••••">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('smtp_password')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text" id="smtp_password_help"></div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Email Mittente</label>
+                                    <input type="email" class="form-control" name="smtp_from_email"
+                                           value="<?php echo h(getSetting('smtp_from_email')); ?>" placeholder="noreply@tuaassociazione.it">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Nome Mittente</label>
+                                    <input type="text" class="form-control" name="smtp_from_name"
+                                           value="<?php echo h(getSetting('smtp_from_name')); ?>" placeholder="Associazione XYZ">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Alert informativi per provider -->
+                        <div class="alert alert-info" id="smtp_help_gmail" style="display: none;">
+                            <h6><i class="bi bi-info-circle"></i> Configurazione Gmail</h6>
+                            <p class="mb-1">Per Gmail devi usare una <strong>"Password per le app"</strong>, non la password normale.</p>
+                            <ol class="mb-0">
+                                <li>Attiva la <a href="https://myaccount.google.com/security" target="_blank">Verifica in 2 passaggi</a></li>
+                                <li>Vai su <a href="https://myaccount.google.com/apppasswords" target="_blank">Password per le app</a></li>
+                                <li>Crea una nuova password per "Posta"</li>
+                                <li>Usa quella password qui</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="alert alert-info" id="smtp_help_libero" style="display: none;">
+                            <h6><i class="bi bi-info-circle"></i> Configurazione Libero/Virgilio</h6>
+                            <p class="mb-0">Usa le stesse credenziali che usi per accedere alla webmail. Assicurati che l'accesso SMTP sia abilitato nelle impostazioni del tuo account.</p>
+                        </div>
+                        
+                        <div class="alert alert-warning" id="smtp_help_custom" style="display: none;">
+                            <h6><i class="bi bi-exclamation-triangle"></i> Configurazione Personalizzata</h6>
+                            <p class="mb-0">Inserisci i dati SMTP forniti dal tuo provider email. Controlla la documentazione del provider per i valori corretti.</p>
+                        </div>
+                        
+                        <!-- Pulsante Test -->
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-primary" onclick="testSmtpConnection()">
+                                <i class="bi bi-envelope-check"></i> Invia Email di Test
+                            </button>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
         </div>
         
     </div>
@@ -499,5 +755,106 @@ include __DIR__ . '/inc/header.php';
         </button>
     </div>
 </form>
+
+<script>
+// Preset SMTP per provider comuni
+const smtpPresets = {
+    gmail: {
+        host: 'smtp.gmail.com',
+        port: 587,
+        security: 'tls',
+        help: 'gmail'
+    },
+    libero: {
+        host: 'smtp.libero.it',
+        port: 465,
+        security: 'ssl',
+        help: 'libero'
+    },
+    virgilio: {
+        host: 'out.virgilio.it',
+        port: 465,
+        security: 'ssl',
+        help: 'libero'
+    },
+    mailcom: {
+        host: 'smtp.mail.com',
+        port: 587,
+        security: 'tls',
+        help: 'custom'
+    },
+    custom: {
+        host: '',
+        port: 587,
+        security: 'tls',
+        help: 'custom'
+    }
+};
+
+function setSmtpPreset(provider) {
+    const preset = smtpPresets[provider];
+    document.getElementById('smtp_host').value = preset.host;
+    document.getElementById('smtp_port').value = preset.port;
+    document.getElementById('smtp_security').value = preset.security;
+    
+    // Nascondi tutti gli help
+    document.querySelectorAll('[id^="smtp_help_"]').forEach(el => el.style.display = 'none');
+    // Mostra help corretto
+    document.getElementById('smtp_help_' + preset.help).style.display = 'block';
+    
+    // Help password per Gmail
+    if (provider === 'gmail') {
+        document.getElementById('smtp_password_help').innerHTML = 
+            '<a href="https://myaccount.google.com/apppasswords" target="_blank">Genera password per le app</a>';
+    } else {
+        document.getElementById('smtp_password_help').innerHTML = '';
+    }
+}
+
+// Mostra/nascondi campi SMTP in base al toggle
+document.querySelectorAll('input[name="smtp_enabled"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        document.getElementById('smtp_fields').style.display = this.value === '1' ? 'block' : 'none';
+        document.getElementById('smtp_presets').style.display = this.value === '1' ? 'block' : 'none';
+    });
+});
+
+// Inizializza visibilità
+document.addEventListener('DOMContentLoaded', function() {
+    const smtpEnabled = document.querySelector('input[name="smtp_enabled"]:checked');
+    if (smtpEnabled && smtpEnabled.value === '1') {
+        document.getElementById('smtp_fields').style.display = 'block';
+        document.getElementById('smtp_presets').style.display = 'block';
+    }
+});
+
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    field.type = field.type === 'password' ? 'text' : 'password';
+}
+
+function testSmtpConnection() {
+    // Salva prima le impostazioni, poi invia email di test
+    const form = document.querySelector('form');
+    const formData = new FormData(form);
+    formData.append('action', 'test_smtp');
+    
+    fetch('settings.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Email di test inviata con successo!\nControlla la tua casella di posta.');
+        } else {
+            alert('❌ Errore: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('❌ Errore di connessione: ' + error);
+    });
+}
+</script>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>
