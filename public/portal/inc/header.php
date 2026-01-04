@@ -13,8 +13,33 @@ $siteName = $assocInfo['name'] ?? 'Associazione';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($pageTitle) ? h($pageTitle) . ' - ' : ''; ?><?php echo h($siteName); ?></title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="<?php echo h($siteName); ?>">
+    <meta name="description" content="Portale Soci - <?php echo h($siteName); ?>">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="<?php echo h($basePath); ?>portal/manifest.json">
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="72x72" href="<?php echo h($basePath); ?>portal/pwa-icon.php?size=72">
+    <link rel="apple-touch-icon" sizes="96x96" href="<?php echo h($basePath); ?>portal/pwa-icon.php?size=96">
+    <link rel="apple-touch-icon" sizes="128x128" href="<?php echo h($basePath); ?>portal/pwa-icon.php?size=128">
+    <link rel="apple-touch-icon" sizes="144x144" href="<?php echo h($basePath); ?>portal/pwa-icon.php?size=144">
+    <link rel="apple-touch-icon" sizes="152x152" href="<?php echo h($basePath); ?>portal/pwa-icon.php?size=152">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?php echo h($basePath); ?>portal/pwa-icon.php?size=192">
+    <link rel="apple-touch-icon" sizes="192x192" href="<?php echo h($basePath); ?>portal/pwa-icon.php?size=192">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo h($basePath); ?>portal/pwa-icon.php?size=96">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="<?php echo h($basePath); ?>portal/assets/css/mobile.css" rel="stylesheet">
     <style>
         :root {
             --portal-primary: #667eea;
@@ -64,6 +89,21 @@ $siteName = $assocInfo['name'] ?? 'Associazione';
             flex-direction: column;
         }
     </style>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('<?php echo h($basePath); ?>portal/sw.js', {
+                    scope: '<?php echo h($basePath); ?>portal/'
+                }).then(registration => {
+                    console.log('Service Worker registered:', registration);
+                }).catch(error => {
+                    console.log('Service Worker registration failed:', error);
+                });
+            });
+        }
+    </script>
 </head>
 <body>
     <nav class="navbar navbar-portal navbar-expand-lg navbar-dark fixed-top">

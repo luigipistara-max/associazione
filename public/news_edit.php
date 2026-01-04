@@ -60,7 +60,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         $savedNewsId = saveNews($data, $newsId);
-        setFlash($newsId ? 'Notizia aggiornata con successo' : 'Notizia creata con successo', 'success');
+        
+        // Send email notification if news was just published
+        if ($data['status'] === 'published' && (!$news || $news['status'] !== 'published')) {
+            $emailsSent = sendNewsNotification($savedNewsId);
+            if ($emailsSent > 0) {
+                setFlash(($newsId ? 'Notizia aggiornata' : 'Notizia creata') . " con successo e notificata a $emailsSent destinatari", 'success');
+            } else {
+                setFlash($newsId ? 'Notizia aggiornata con successo' : 'Notizia creata con successo', 'success');
+            }
+        } else {
+            setFlash($newsId ? 'Notizia aggiornata con successo' : 'Notizia creata con successo', 'success');
+        }
+        
         redirect('news_edit.php?id=' . $savedNewsId);
     } catch (Exception $e) {
         setFlash('Errore nel salvataggio: ' . $e->getMessage(), 'danger');

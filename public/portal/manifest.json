@@ -1,0 +1,89 @@
+{
+  "name": "Portale Soci",
+  "short_name": "Portale",
+  "description": "Portale Soci - Associazione",
+  "start_url": "/portal/index.php",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#667eea",
+  "orientation": "portrait-primary",
+  "scope": "/portal/",
+  "icons": [
+    {
+      "src": "pwa-icon.php?size=72",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon.php?size=96",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon.php?size=128",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon.php?size=144",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon.php?size=152",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon.php?size=192",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon.php?size=384",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon.php?size=512",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["social", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Tesserino",
+      "short_name": "Tesserino",
+      "description": "Visualizza il tuo tesserino digitale",
+      "url": "/portal/card.php",
+      "icons": [
+        {
+          "src": "pwa-icon.php?size=96",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Eventi",
+      "short_name": "Eventi",
+      "description": "Visualizza gli eventi",
+      "url": "/portal/events.php",
+      "icons": [
+        {
+          "src": "pwa-icon.php?size=96",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}

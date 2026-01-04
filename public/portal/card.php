@@ -132,6 +132,39 @@ include __DIR__ . '/inc/header.php';
     .card-status-badge {
         font-size: 9px;
     }
+    
+    /* Card flip animation */
+    .card-flip-container {
+        perspective: 1000px;
+        cursor: pointer;
+    }
+    
+    .card-flip-inner {
+        position: relative;
+        width: 100%;
+        transition: transform 0.6s;
+        transform-style: preserve-3d;
+    }
+    
+    .card-flip-container.flipped .card-flip-inner {
+        transform: rotateY(180deg);
+    }
+    
+    .member-card-front,
+    .member-card-back {
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+    }
+    
+    .member-card-back {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        transform: rotateY(180deg);
+        margin-top: 0;
+    }
+    
     @media print {
         body {
             background: white;
@@ -143,6 +176,15 @@ include __DIR__ . '/inc/header.php';
             box-shadow: none;
             border: 2px solid #000;
         }
+        .card-flip-container.flipped .card-flip-inner {
+            transform: none;
+        }
+        .member-card-back {
+            position: static;
+            transform: none;
+            page-break-before: always;
+            margin-top: 20px;
+        }
     }
 </style>
 
@@ -150,13 +192,19 @@ include __DIR__ . '/inc/header.php';
     <div class="col-lg-10">
         <div class="card mb-4 no-print">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div>
                         <h5 class="mb-1"><i class="bi bi-card-heading"></i> Il tuo Tesserino Digitale</h5>
                         <p class="text-muted mb-0">Mostra questo tesserino per identificarti come socio</p>
                     </div>
-                    <div>
-                        <button onclick="window.print()" class="btn btn-primary">
+                    <div class="d-flex gap-2">
+                        <button id="flipCardBtn" class="btn btn-secondary">
+                            <i class="bi bi-arrow-repeat"></i> Gira
+                        </button>
+                        <button id="fullscreenBtn" class="btn btn-primary">
+                            <i class="bi bi-arrows-fullscreen"></i> Schermo Intero
+                        </button>
+                        <button onclick="window.print()" class="btn btn-outline-primary">
                             <i class="bi bi-printer"></i> Stampa
                         </button>
                     </div>
@@ -165,7 +213,10 @@ include __DIR__ . '/inc/header.php';
         </div>
         
         <div class="text-center mb-4">
-            <div class="member-card">
+            <div class="card-flip-container" id="cardFlipContainer">
+                <div class="card-flip-inner">
+                    <!-- FRONTE TESSERA -->
+                    <div class="member-card member-card-front">
                 <div class="card-header-section">
                     <?php if ($logoUrl): ?>
                         <img src="<?php echo h($logoUrl); ?>" alt="Logo">
@@ -210,25 +261,25 @@ include __DIR__ . '/inc/header.php';
                         </div>
                     </div>
                 <?php endif; ?>
-            </div>
-        </div>
-        
-        <!-- RETRO TESSERA -->
-        <div class="text-center mb-4">
-            <div class="member-card member-card-back">
-                <div class="card-back-content">
-                    <div class="text-center mb-3">
-                        <strong><?php echo h($assocInfo['name'] ?? 'Associazione'); ?></strong>
                     </div>
                     
-                    <p>La presente tessera è personale e non cedibile.</p>
-                    
-                    <p>In caso di smarrimento comunicare tempestivamente alla segreteria.</p>
-                    
-                    <p>Per verificare la validità della tessera, scansionare il QR code sul fronte.</p>
-                    
-                    <div class="text-center mt-3" style="font-size: 0.8rem; opacity: 0.7;">
-                        Powered by AssoLife
+                    <!-- RETRO TESSERA -->
+                    <div class="member-card member-card-back">
+                        <div class="card-back-content">
+                            <div class="text-center mb-3">
+                                <strong><?php echo h($assocInfo['name'] ?? 'Associazione'); ?></strong>
+                            </div>
+                            
+                            <p>La presente tessera è personale e non cedibile.</p>
+                            
+                            <p>In caso di smarrimento comunicare tempestivamente alla segreteria.</p>
+                            
+                            <p>Per verificare la validità della tessera, scansionare il QR code sul fronte.</p>
+                            
+                            <div class="text-center mt-3" style="font-size: 0.8rem; opacity: 0.7;">
+                                Powered by AssoLife
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -256,5 +307,174 @@ include __DIR__ . '/inc/header.php';
         </div>
     </div>
 </div>
+
+<script>
+// Card flip and fullscreen functionality
+(function() {
+    const flipContainer = document.getElementById('cardFlipContainer');
+    const flipBtn = document.getElementById('flipCardBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    let isFlipped = false;
+    let lastTap = 0;
+    
+    // Flip card function
+    function flipCard() {
+        isFlipped = !isFlipped;
+        flipContainer.classList.toggle('flipped');
+    }
+    
+    // Button click to flip
+    if (flipBtn) {
+        flipBtn.addEventListener('click', flipCard);
+    }
+    
+    // Touch to flip (tap on card)
+    if (flipContainer) {
+        flipContainer.addEventListener('click', function(e) {
+            // Don't flip if clicking on buttons
+            if (e.target.closest('.btn')) return;
+            flipCard();
+        });
+        
+        // Double tap for fullscreen on mobile
+        flipContainer.addEventListener('touchend', function(e) {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            
+            if (tapLength < 300 && tapLength > 0) {
+                // Double tap detected
+                e.preventDefault();
+                toggleFullscreen();
+            }
+            lastTap = currentTime;
+        });
+    }
+    
+    // Fullscreen functionality
+    function toggleFullscreen() {
+        if (!document.fullscreenElement && 
+            !document.webkitFullscreenElement && 
+            !document.mozFullScreenElement &&
+            !document.msFullscreenElement) {
+            enterFullscreen();
+        } else {
+            exitFullscreen();
+        }
+    }
+    
+    function enterFullscreen() {
+        const elem = flipContainer;
+        
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen();
+        } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+        } else if (elem.mozRequestFullScreen) {
+            elem.mozRequestFullScreen();
+        } else if (elem.msRequestFullscreen) {
+            elem.msRequestFullscreen();
+        } else {
+            // Fallback: manual fullscreen simulation
+            enterFallbackFullscreen();
+        }
+    }
+    
+    function exitFullscreen() {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+            document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        } else {
+            // Fallback: exit manual fullscreen
+            exitFallbackFullscreen();
+        }
+    }
+    
+    // Fallback fullscreen for browsers/devices that don't support Fullscreen API
+    function enterFallbackFullscreen() {
+        const cardClone = flipContainer.cloneNode(true);
+        cardClone.id = 'fullscreenCardClone';
+        
+        const fullscreenDiv = document.createElement('div');
+        fullscreenDiv.id = 'fallbackFullscreen';
+        fullscreenDiv.className = 'fullscreen-container';
+        
+        const exitBtn = document.createElement('button');
+        exitBtn.className = 'fullscreen-exit-btn';
+        exitBtn.innerHTML = '×';
+        exitBtn.onclick = exitFallbackFullscreen;
+        
+        fullscreenDiv.appendChild(exitBtn);
+        fullscreenDiv.appendChild(cardClone);
+        document.body.appendChild(fullscreenDiv);
+        
+        // Make clone flippable
+        const cloneFlipContainer = cardClone;
+        cloneFlipContainer.addEventListener('click', function(e) {
+            if (e.target.closest('.fullscreen-exit-btn')) return;
+            cloneFlipContainer.classList.toggle('flipped');
+        });
+        
+        // Prevent body scroll
+        document.body.style.overflow = 'hidden';
+    }
+    
+    function exitFallbackFullscreen() {
+        const fullscreenDiv = document.getElementById('fallbackFullscreen');
+        if (fullscreenDiv) {
+            fullscreenDiv.remove();
+            document.body.style.overflow = '';
+        }
+    }
+    
+    // Fullscreen button click
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+    }
+    
+    // Handle fullscreen change events
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    
+    function handleFullscreenChange() {
+        if (!document.fullscreenElement && 
+            !document.webkitFullscreenElement &&
+            !document.mozFullScreenElement &&
+            !document.msFullscreenElement) {
+            // Exited fullscreen
+            if (fullscreenBtn) {
+                fullscreenBtn.innerHTML = '<i class="bi bi-arrows-fullscreen"></i> Schermo Intero';
+            }
+        } else {
+            // Entered fullscreen
+            if (fullscreenBtn) {
+                fullscreenBtn.innerHTML = '<i class="bi bi-fullscreen-exit"></i> Esci';
+            }
+        }
+    }
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // F key to flip
+        if (e.key === 'f' || e.key === 'F') {
+            if (!e.target.matches('input, textarea')) {
+                e.preventDefault();
+                flipCard();
+            }
+        }
+        
+        // ESC to exit fullscreen (handled by browser, but also cleanup fallback)
+        if (e.key === 'Escape') {
+            exitFallbackFullscreen();
+        }
+    });
+})();
+</script>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>

@@ -3503,3 +3503,97 @@ function canMemberViewNews($newsId, $memberId) {
     
     return $result['count'] > 0;
 }
+
+/**
+ * Send email notification for a news publication
+ * 
+ * @param int $newsId News ID
+ * @return int Number of emails sent
+ */
+function sendNewsNotification($newsId) {
+    global $pdo;
+    require_once __DIR__ . '/email.php';
+    
+    $news = getNewsById($newsId);
+    if (!$news || $news['status'] !== 'published') {
+        return 0;
+    }
+    
+    // Get recipients based on target type
+    $recipients = [];
+    
+    if ($news['target_type'] === 'all') {
+        // All active members with email
+        $stmt = $pdo->query("
+            SELECT id, first_name, last_name, email
+            FROM " . table('members') . "
+            WHERE status = 'attivo' AND email IS NOT NULL AND email != ''
+            ORDER BY last_name, first_name
+        ");
+        $recipients = $stmt->fetchAll();
+    } elseif ($news['target_type'] === 'groups') {
+        // Members in target groups
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT m.id, m.first_name, m.last_name, m.email
+            FROM " . table('members') . " m
+            INNER JOIN " . table('member_group_members') . " mgm ON m.id = mgm.member_id
+            INNER JOIN " . table('news_groups') . " ng ON mgm.group_id = ng.group_id
+            WHERE ng.news_id = ? 
+              AND m.status = 'attivo' 
+              AND m.email IS NOT NULL 
+              AND m.email != ''
+            ORDER BY m.last_name, m.first_name
+        ");
+        $stmt->execute([$newsId]);
+        $recipients = $stmt->fetchAll();
+    }
+    
+    if (empty($recipients)) {
+        return 0;
+    }
+    
+    // Prepare email content
+    $assocInfo = getAssociationInfo();
+    $baseUrl = getBaseUrl();
+    $newsUrl = $baseUrl . 'portal/news_view.php?id=' . $newsId;
+    
+    // Create excerpt if not set
+    $excerpt = $news['excerpt'];
+    if (empty($excerpt)) {
+        $excerpt = strip_tags($news['content']);
+        $excerpt = mb_substr($excerpt, 0, 200) . '...';
+    }
+    
+    $subject = 'Nuova Notizia: ' . $news['title'];
+    
+    $sent = 0;
+    foreach ($recipients as $recipient) {
+        if (empty($recipient['email'])) continue;
+        
+        $bodyHtml = '<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">';
+        $bodyHtml .= '<h2 style="color: #667eea;">Nuova Notizia</h2>';
+        $bodyHtml .= '<h3>' . h($news['title']) . '</h3>';
+        
+        if (!empty($news['cover_image'])) {
+            $bodyHtml .= '<img src="' . h($news['cover_image']) . '" alt="Copertina" style="max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0;">';
+        }
+        
+        $bodyHtml .= '<p>' . h($excerpt) . '</p>';
+        $bodyHtml .= '<p><a href="' . h($newsUrl) . '" style="display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0;">Leggi l\'articolo completo</a></p>';
+        $bodyHtml .= '<hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">';
+        $bodyHtml .= '<p style="font-size: 12px; color: #666;">Pubblicato il ' . date('d/m/Y H:i', strtotime($news['published_at'])) . '</p>';
+        $bodyHtml .= getEmailFooter();
+        $bodyHtml .= '</div>';
+        
+        $bodyText = "Nuova Notizia: {$news['title']}\n\n";
+        $bodyText .= "{$excerpt}\n\n";
+        $bodyText .= "Leggi l'articolo completo: {$newsUrl}\n\n";
+        $bodyText .= "Pubblicato il " . date('d/m/Y H:i', strtotime($news['published_at']));
+        
+        if (sendEmail($recipient['email'], $subject, $bodyHtml, $bodyText)) {
+            $sent++;
+        }
+    }
+    
+    return $sent;
+}
