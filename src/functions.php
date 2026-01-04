@@ -3099,3 +3099,407 @@ function maskFiscalCode($fiscalCode) {
     // For shorter codes, fully mask for safety
     return str_repeat('*', $fcLen);
 }
+
+// ============================================================================
+// NEWS/BLOG FUNCTIONS
+// ============================================================================
+
+/**
+ * Generate a URL-friendly slug from text
+ * 
+ * @param string $text Text to convert to slug
+ * @param int|null $newsId News ID to exclude when checking uniqueness
+ * @return string Unique slug
+ */
+function generateSlug($text, $newsId = null) {
+    global $pdo;
+    
+    // Convert to lowercase
+    $slug = strtolower($text);
+    
+    // Replace spaces and special characters with hyphens
+    $slug = preg_replace('/[^\p{L}\p{N}]+/u', '-', $slug);
+    
+    // Remove leading/trailing hyphens
+    $slug = trim($slug, '-');
+    
+    // Check if slug exists and make it unique if needed
+    $originalSlug = $slug;
+    $counter = 1;
+    
+    while (true) {
+        $sql = "SELECT COUNT(*) as count FROM " . table('news') . " WHERE slug = ?";
+        $params = [$slug];
+        
+        if ($newsId) {
+            $sql .= " AND id != ?";
+            $params[] = $newsId;
+        }
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+        
+        if ($result['count'] == 0) {
+            break;
+        }
+        
+        $slug = $originalSlug . '-' . $counter;
+        $counter++;
+    }
+    
+    return $slug;
+}
+
+/**
+ * Save news (create or update)
+ * 
+ * @param array $data News data
+ * @param int|null $newsId News ID for update, null for create
+ * @return int News ID
+ */
+function saveNews($data, $newsId = null) {
+    global $pdo;
+    
+    // Generate slug if not provided
+    if (empty($data['slug'])) {
+        $data['slug'] = generateSlug($data['title'], $newsId);
+    }
+    
+    // Set published_at if status is published and not already set
+    if ($data['status'] === 'published' && empty($data['published_at'])) {
+        $data['published_at'] = date('Y-m-d H:i:s');
+    }
+    
+    if ($newsId) {
+        // Update existing news
+        $stmt = $pdo->prepare("
+            UPDATE " . table('news') . " 
+            SET title = ?, slug = ?, content = ?, excerpt = ?, cover_image = ?,
+                author_id = ?, target_type = ?, status = ?, published_at = ?
+            WHERE id = ?
+        ");
+        $stmt->execute([
+            $data['title'],
+            $data['slug'],
+            $data['content'],
+            $data['excerpt'] ?? null,
+            $data['cover_image'] ?? null,
+            $data['author_id'],
+            $data['target_type'] ?? 'all',
+            $data['status'] ?? 'draft',
+            $data['published_at'] ?? null,
+            $newsId
+        ]);
+    } else {
+        // Create new news
+        $stmt = $pdo->prepare("
+            INSERT INTO " . table('news') . " 
+            (title, slug, content, excerpt, cover_image, author_id, target_type, status, published_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+            $data['title'],
+            $data['slug'],
+            $data['content'],
+            $data['excerpt'] ?? null,
+            $data['cover_image'] ?? null,
+            $data['author_id'],
+            $data['target_type'] ?? 'all',
+            $data['status'] ?? 'draft',
+            $data['published_at'] ?? null
+        ]);
+        $newsId = $pdo->lastInsertId();
+    }
+    
+    // Handle target groups
+    if ($data['target_type'] === 'groups' && isset($data['group_ids'])) {
+        // Delete existing groups
+        $stmt = $pdo->prepare("DELETE FROM " . table('news_groups') . " WHERE news_id = ?");
+        $stmt->execute([$newsId]);
+        
+        // Insert new groups
+        if (!empty($data['group_ids'])) {
+            $stmt = $pdo->prepare("
+                INSERT INTO " . table('news_groups') . " (news_id, group_id) VALUES (?, ?)
+            ");
+            foreach ($data['group_ids'] as $groupId) {
+                $stmt->execute([$newsId, $groupId]);
+            }
+        }
+    }
+    
+    return $newsId;
+}
+
+/**
+ * Get news with filters and pagination
+ * 
+ * @param array $filters Filter options
+ * @param int $page Page number (1-indexed)
+ * @param int $perPage Items per page
+ * @return array News list
+ */
+function getNews($filters = [], $page = 1, $perPage = 10) {
+    global $pdo;
+    
+    $sql = "SELECT n.*, u.full_name as author_name
+            FROM " . table('news') . " n
+            LEFT JOIN " . table('users') . " u ON n.author_id = u.id
+            WHERE 1=1";
+    $params = [];
+    
+    // Filter by status
+    if (!empty($filters['status'])) {
+        $sql .= " AND n.status = ?";
+        $params[] = $filters['status'];
+    }
+    
+    // Filter by author
+    if (!empty($filters['author_id'])) {
+        $sql .= " AND n.author_id = ?";
+        $params[] = $filters['author_id'];
+    }
+    
+    // Filter by target type
+    if (!empty($filters['target_type'])) {
+        $sql .= " AND n.target_type = ?";
+        $params[] = $filters['target_type'];
+    }
+    
+    // Search by title or content
+    if (!empty($filters['search'])) {
+        $sql .= " AND (n.title LIKE ? OR n.content LIKE ?)";
+        $searchTerm = '%' . $filters['search'] . '%';
+        $params[] = $searchTerm;
+        $params[] = $searchTerm;
+    }
+    
+    $sql .= " ORDER BY n.created_at DESC";
+    
+    // Add pagination
+    $offset = ($page - 1) * $perPage;
+    $sql .= " LIMIT ? OFFSET ?";
+    $params[] = $perPage;
+    $params[] = $offset;
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get a single news by ID
+ * 
+ * @param int $newsId News ID
+ * @return array|false News data or false if not found
+ */
+function getNewsById($newsId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT n.*, u.full_name as author_name
+        FROM " . table('news') . " n
+        LEFT JOIN " . table('users') . " u ON n.author_id = u.id
+        WHERE n.id = ?
+    ");
+    $stmt->execute([$newsId]);
+    return $stmt->fetch();
+}
+
+/**
+ * Get news by slug
+ * 
+ * @param string $slug News slug
+ * @return array|false News data or false if not found
+ */
+function getNewsBySlug($slug) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT n.*, u.full_name as author_name
+        FROM " . table('news') . " n
+        LEFT JOIN " . table('users') . " u ON n.author_id = u.id
+        WHERE n.slug = ?
+    ");
+    $stmt->execute([$slug]);
+    return $stmt->fetch();
+}
+
+/**
+ * Get news visible to a member (respects group targeting)
+ * 
+ * @param int $memberId Member ID
+ * @param int $page Page number (1-indexed)
+ * @param int $perPage Items per page
+ * @return array News list
+ */
+function getNewsForMember($memberId, $page = 1, $perPage = 5) {
+    global $pdo;
+    
+    // Get member's groups
+    $memberGroups = getMemberGroups($memberId);
+    $groupIds = array_column($memberGroups, 'id');
+    
+    $sql = "SELECT DISTINCT n.*, u.full_name as author_name
+            FROM " . table('news') . " n
+            LEFT JOIN " . table('users') . " u ON n.author_id = u.id
+            WHERE n.status = 'published' AND n.published_at <= NOW()
+            AND (n.target_type = 'all'";
+    
+    $params = [];
+    
+    // If member has groups, include news targeted to those groups
+    if (!empty($groupIds)) {
+        $placeholders = implode(',', array_fill(0, count($groupIds), '?'));
+        $sql .= " OR (n.target_type = 'groups' AND n.id IN (
+                    SELECT news_id FROM " . table('news_groups') . " 
+                    WHERE group_id IN ($placeholders)
+                  ))";
+        $params = array_merge($params, $groupIds);
+    }
+    
+    $sql .= ") ORDER BY n.published_at DESC, n.created_at DESC";
+    
+    // Add pagination
+    $offset = ($page - 1) * $perPage;
+    $sql .= " LIMIT ? OFFSET ?";
+    $params[] = $perPage;
+    $params[] = $offset;
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Count news for a member
+ * 
+ * @param int $memberId Member ID
+ * @return int Total count
+ */
+function countNewsForMember($memberId) {
+    global $pdo;
+    
+    // Get member's groups
+    $memberGroups = getMemberGroups($memberId);
+    $groupIds = array_column($memberGroups, 'id');
+    
+    $sql = "SELECT COUNT(DISTINCT n.id) as count
+            FROM " . table('news') . " n
+            WHERE n.status = 'published' AND n.published_at <= NOW()
+            AND (n.target_type = 'all'";
+    
+    $params = [];
+    
+    if (!empty($groupIds)) {
+        $placeholders = implode(',', array_fill(0, count($groupIds), '?'));
+        $sql .= " OR (n.target_type = 'groups' AND n.id IN (
+                    SELECT news_id FROM " . table('news_groups') . " 
+                    WHERE group_id IN ($placeholders)
+                  ))";
+        $params = array_merge($params, $groupIds);
+    }
+    
+    $sql .= ")";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $result = $stmt->fetch();
+    return (int)$result['count'];
+}
+
+/**
+ * Delete news
+ * 
+ * @param int $newsId News ID
+ * @return bool Success
+ */
+function deleteNews($newsId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("DELETE FROM " . table('news') . " WHERE id = ?");
+    return $stmt->execute([$newsId]);
+}
+
+/**
+ * Increment news views counter
+ * 
+ * @param int $newsId News ID
+ * @return bool Success
+ */
+function incrementNewsViews($newsId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('news') . " 
+        SET views_count = views_count + 1 
+        WHERE id = ?
+    ");
+    return $stmt->execute([$newsId]);
+}
+
+/**
+ * Get target groups for a news
+ * 
+ * @param int $newsId News ID
+ * @return array List of groups
+ */
+function getNewsTargetGroups($newsId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT g.*
+        FROM " . table('member_groups') . " g
+        INNER JOIN " . table('news_groups') . " ng ON g.id = ng.group_id
+        WHERE ng.news_id = ?
+        ORDER BY g.name
+    ");
+    $stmt->execute([$newsId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Check if a member can view a specific news
+ * 
+ * @param int $newsId News ID
+ * @param int $memberId Member ID
+ * @return bool Can view
+ */
+function canMemberViewNews($newsId, $memberId) {
+    global $pdo;
+    
+    $news = getNewsById($newsId);
+    if (!$news || $news['status'] !== 'published') {
+        return false;
+    }
+    
+    // If published_at is in the future, deny access
+    if ($news['published_at'] && strtotime($news['published_at']) > time()) {
+        return false;
+    }
+    
+    // If target is 'all', allow
+    if ($news['target_type'] === 'all') {
+        return true;
+    }
+    
+    // Check if member is in any of the target groups
+    $memberGroups = getMemberGroups($memberId);
+    $memberGroupIds = array_column($memberGroups, 'id');
+    
+    if (empty($memberGroupIds)) {
+        return false;
+    }
+    
+    $placeholders = implode(',', array_fill(0, count($memberGroupIds), '?'));
+    $sql = "SELECT COUNT(*) as count FROM " . table('news_groups') . " 
+            WHERE news_id = ? AND group_id IN ($placeholders)";
+    
+    $params = array_merge([$newsId], $memberGroupIds);
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $result = $stmt->fetch();
+    
+    return $result['count'] > 0;
+}
