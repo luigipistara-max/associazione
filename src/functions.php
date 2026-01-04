@@ -483,7 +483,7 @@ function getFeesExpiringSoon($days = 30) {
     global $pdo;
     
     $stmt = $pdo->prepare("
-        SELECT mf.*, m.first_name, m.last_name, m.membership_number, sy.name as year_name
+        SELECT mf.*, m.first_name, m.last_name, m.email, m.membership_number, sy.name as year_name
         FROM " . table('member_fees') . " mf
         JOIN " . table('members') . " m ON mf.member_id = m.id
         LEFT JOIN " . table('social_years') . " sy ON mf.social_year_id = sy.id
