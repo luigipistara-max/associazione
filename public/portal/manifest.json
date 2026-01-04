@@ -2,12 +2,12 @@
   "name": "Portale Soci",
   "short_name": "Portale",
   "description": "Portale Soci - Associazione",
-  "start_url": "/portal/index.php",
+  "start_url": "/public/portal/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#667eea",
   "orientation": "portrait-primary",
-  "scope": "/portal/",
+  "scope": "/public/portal/",
   "icons": [
     {
       "src": "pwa-icon.php?size=72",
@@ -65,7 +65,7 @@
       "name": "Tesserino",
       "short_name": "Tesserino",
       "description": "Visualizza il tuo tesserino digitale",
-      "url": "/portal/card.php",
+      "url": "/public/portal/card.php",
       "icons": [
         {
           "src": "pwa-icon.php?size=96",
@@ -77,7 +77,7 @@
       "name": "Eventi",
       "short_name": "Eventi",
       "description": "Visualizza gli eventi",
-      "url": "/portal/events.php",
+      "url": "/public/portal/events.php",
       "icons": [
         {
           "src": "pwa-icon.php?size=96",

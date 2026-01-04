@@ -11,6 +11,13 @@ Options -Indexes
     # RewriteCond %{HTTPS} off
     # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
     
+    # Redirect portal to public/portal
+    # Redirect requests for /portal/* to /public/portal/*
+    RewriteRule ^portal/(.*)$ /public/portal/$1 [L,R=301]
+    
+    # Redirect requests for /portal (without trailing slash) to /public/portal/
+    RewriteRule ^portal$ /public/portal/ [L,R=301]
+    
     # Prevent access to sensitive files
     RewriteRule ^src/config\.php$ - [F,L]
     RewriteRule ^src/config\.generated\.php$ - [F,L]
