@@ -533,7 +533,8 @@ INSERT INTO settings (setting_key, setting_value, setting_group) VALUES
 ('2fa_enabled', '0', 'security'),
 ('2fa_required_for', 'none', 'security'),
 ('password_expiry_users', '0', 'security'),
-('password_expiry_members', '0', 'security');
+('password_expiry_members', '0', 'security'),
+('cron_token', '', 'security');
 
 -- SMTP settings
 INSERT INTO settings (setting_key, setting_value, setting_group) VALUES
@@ -544,7 +545,8 @@ INSERT INTO settings (setting_key, setting_value, setting_group) VALUES
 ('smtp_username', '', 'email'),
 ('smtp_password', '', 'email'),
 ('smtp_from_email', '', 'email'),
-('smtp_from_name', '', 'email');
+('smtp_from_name', '', 'email'),
+('email_send_mode', 'direct', 'email');
 
 -- API/Integration settings
 INSERT INTO settings (setting_key, setting_value, setting_group) VALUES

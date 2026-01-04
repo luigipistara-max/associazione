@@ -169,6 +169,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link <?php echo $currentPage === 'admin_email_queue.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>admin_email_queue.php">
+                                <i class="bi bi-envelope-check"></i> Coda Email
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link <?php echo $currentPage === 'audit_log.php' ? 'active' : ''; ?>" href="<?php echo h($config['app']['base_path']); ?>audit_log.php">
                                 <i class="bi bi-clock-history"></i> Audit Log
                             </a>

@@ -102,6 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     setSetting('paypal_client_secret', trim($_POST['paypal_client_secret'] ?? ''), 'api');
     setSetting('paypal_webhook_id', trim($_POST['paypal_webhook_id'] ?? ''), 'api');
     
+    // Save Cron Token
+    setSetting('cron_token', trim($_POST['cron_token'] ?? ''), 'security');
+    
     setFlash('Impostazioni API salvate con successo!', 'success');
     redirect('settings.php?tab=api');
 }
@@ -240,6 +243,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $fromName = htmlspecialchars(trim($_POST['smtp_from_name'] ?? ''), ENT_QUOTES, 'UTF-8');
         $settings[] = ['smtp_from_name', $fromName, 'email'];
+        
+        // Email send mode
+        $emailSendMode = $_POST['email_send_mode'] ?? 'direct';
+        $emailSendMode = in_array($emailSendMode, ['direct', 'queue']) ? $emailSendMode : 'direct';
+        $settings[] = ['email_send_mode', $emailSendMode, 'email'];
     }
     
     // Handle logo upload
@@ -710,6 +718,28 @@ include __DIR__ . '/inc/header.php';
                     <div class="form-text">ID del webhook configurato su PayPal Developer per ricevere notifiche di pagamento</div>
                 </div>
                 
+                <hr class="my-4">
+                
+                <h5 class="mt-4"><i class="bi bi-shield-lock"></i> Token Cron</h5>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Token di sicurezza per autenticare chiamate cron esterne (necessario solo se usi la modalità "Coda + Cron")
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Token sicurezza per cron esterno</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" name="cron_token" 
+                               value="<?php echo h(getSetting('cron_token', '')); ?>"
+                               placeholder="Token segreto per autenticare chiamate cron">
+                        <button type="button" class="btn btn-outline-secondary" onclick="generateToken()">
+                            <i class="bi bi-shuffle"></i> Genera
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        Necessario solo se usi la modalità "Coda + Cron" nelle impostazioni email. 
+                        <a href="admin_email_queue.php">Gestisci coda email</a>
+                    </div>
+                </div>
+                
                 <button type="submit" class="btn btn-primary btn-lg">
                     <i class="bi bi-save"></i> Salva Impostazioni API
                 </button>
@@ -850,6 +880,23 @@ include __DIR__ . '/inc/header.php';
                                     <input type="text" class="form-control" name="smtp_from_name"
                                            value="<?php echo h(getSetting('smtp_from_name')); ?>" placeholder="Associazione XYZ">
                                 </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Modalità Invio Email -->
+                        <h5 class="mt-4"><i class="bi bi-gear"></i> Modalità Invio</h5>
+                        <div class="mb-3">
+                            <label class="form-label">Modalità invio email</label>
+                            <select name="email_send_mode" class="form-select">
+                                <option value="direct" <?php echo getSetting('email_send_mode', 'direct') === 'direct' ? 'selected' : ''; ?>>
+                                    Invio Diretto - Email inviate subito (consigliato per pochi soci)
+                                </option>
+                                <option value="queue" <?php echo getSetting('email_send_mode', 'direct') === 'queue' ? 'selected' : ''; ?>>
+                                    Coda + Cron - Email accodate, serve cron esterno (per tanti soci)
+                                </option>
+                            </select>
+                            <div class="form-text">
+                                Con "Invio Diretto" le email partono subito. Con "Coda + Cron" vengono accodate e processate da un cron job esterno.
                             </div>
                         </div>
                         
@@ -1207,6 +1254,15 @@ function testSmtpConnection() {
     .catch(error => {
         alert('❌ Errore di connessione: ' + error);
     });
+}
+
+function generateToken() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let token = '';
+    for (let i = 0; i < 32; i++) {
+        token += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    document.querySelector('input[name="cron_token"]').value = token;
 }
 </script>
 

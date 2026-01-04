@@ -60,44 +60,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_emails'])) {
             'scadenza' => formatDate($fee['due_date'])
         ];
         
-        // Accoda email invece di invio diretto per prestazioni migliori
-        if (queueEmail($fee['email'], '', '', '', null)) {
-            // Usa template per preparare i contenuti
-            $stmt = $pdo->prepare("SELECT * FROM " . table('email_templates') . " WHERE code = ?");
-            $stmt->execute([$templateCode]);
-            $template = $stmt->fetch();
+        // Prepara contenuti PRIMA di accodare
+        $stmt = $pdo->prepare("SELECT * FROM " . table('email_templates') . " WHERE code = ?");
+        $stmt->execute([$templateCode]);
+        $template = $stmt->fetch();
+        
+        if ($template) {
+            $subject = replaceTemplateVariables($template['subject'], array_merge($variables, ['app_name' => $config['app']['name']]));
+            $bodyHtml = replaceTemplateVariables($template['body_html'], array_merge($variables, ['app_name' => $config['app']['name']]));
+            $bodyText = $template['body_text'] ? replaceTemplateVariables($template['body_text'], array_merge($variables, ['app_name' => $config['app']['name']])) : null;
             
-            if ($template) {
-                $subject = replaceTemplateVariables($template['subject'], array_merge($variables, ['app_name' => $config['app']['name']]));
-                $bodyHtml = replaceTemplateVariables($template['body_html'], array_merge($variables, ['app_name' => $config['app']['name']]));
-                $bodyText = $template['body_text'] ? replaceTemplateVariables($template['body_text'], array_merge($variables, ['app_name' => $config['app']['name']])) : null;
-                
-                // Aggiorna con i dati reali
-                $updateStmt = $pdo->prepare("
-                    UPDATE " . table('email_queue') . "
-                    SET subject = ?, body_html = ?, body_text = ?
-                    WHERE to_email = ? AND status = 'pending'
-                    ORDER BY id DESC LIMIT 1
-                ");
-                $updateStmt->execute([$subject, $bodyHtml, $bodyText, $fee['email']]);
-                
-                $stats['queued']++;
+            // Ora accoda/invia con contenuti completi
+            if (sendOrQueueEmail($fee['email'], $subject, $bodyHtml, $bodyText)) {
+                $stats['sent']++;
+            } else {
+                $stats['failed']++;
             }
         } else {
             $stats['failed']++;
         }
     }
     
-    // Processa subito la coda
-    require_once __DIR__ . '/../src/email.php';
-    $processStats = processEmailQueue(count($selectedFees));
+    logExport('fee_reminder', 'Invio solleciti quote (' . $stats['sent'] . ' inviate)');
     
-    logExport('fee_reminder', 'Invio solleciti quote (' . $processStats['sent'] . ' inviate)');
+    setFlash('Solleciti inviati: ' . $stats['sent'] . ' inviate, ' . $stats['failed'] . ' fallite', 
+             $stats['failed'] > 0 ? 'warning' : 'success');
     
-    setFlash('Solleciti inviati: ' . $processStats['sent'] . ' inviate, ' . $processStats['failed'] . ' fallite', 
-             $processStats['failed'] > 0 ? 'warning' : 'success');
-    
-    header('Location: ' . $config['app']['base_path'] . 'send_reminders.php?step=3&sent=' . $processStats['sent'] . '&failed=' . $processStats['failed']);
+    header('Location: ' . $config['app']['base_path'] . 'send_reminders.php?step=3&sent=' . $stats['sent'] . '&failed=' . $stats['failed']);
     exit;
 }
 
