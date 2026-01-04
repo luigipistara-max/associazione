@@ -17,7 +17,7 @@ if (isset($_GET['delete']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $token = $_POST['csrf_token'] ?? '';
     
     if (verifyCsrfToken($token) && in_array($type, ['income', 'expense'])) {
-        $table = $type === 'income' ? 'income_categories' : 'expense_categories';
+        $table = $type === 'income' ? table('income_categories') : table('expense_categories');
         $stmt = $pdo->prepare("DELETE FROM $table WHERE id = ?");
         $stmt->execute([$id]);
         setFlashMessage('Categoria eliminata con successo');
@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $errors[] = 'Il nome è obbligatorio';
         } else {
             try {
-                $table = $type === 'income' ? 'income_categories' : 'expense_categories';
+                $table = $type === 'income' ? table('income_categories') : table('expense_categories');
                 
                 if ($categoryId) {
                     $stmt = $pdo->prepare("UPDATE $table SET name = ?, sort_order = ?, is_active = ? WHERE id = ?");
