@@ -2511,6 +2511,179 @@ function deleteEventResponse($responseId) {
 }
 
 /**
+ * Approve a single event registration
+ */
+function approveEventRegistration($responseId, $userId = null) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('event_responses') . "
+        SET registration_status = 'approved', 
+            approved_by = ?,
+            approved_at = NOW()
+        WHERE id = ?
+    ");
+    return $stmt->execute([$userId, $responseId]);
+}
+
+/**
+ * Reject a single event registration
+ */
+function rejectEventRegistration($responseId, $userId = null, $reason = null) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('event_responses') . "
+        SET registration_status = 'rejected', 
+            approved_by = ?,
+            approved_at = NOW(),
+            rejection_reason = ?
+        WHERE id = ?
+    ");
+    return $stmt->execute([$userId, $reason, $responseId]);
+}
+
+/**
+ * Approve all pending registrations for an event (only 'yes' responses)
+ */
+function approveAllEventRegistrations($eventId, $userId = null) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('event_responses') . "
+        SET registration_status = 'approved', 
+            approved_by = ?,
+            approved_at = NOW()
+        WHERE event_id = ? 
+        AND response = 'yes' 
+        AND registration_status = 'pending'
+    ");
+    $stmt->execute([$userId, $eventId]);
+    return $stmt->rowCount();
+}
+
+/**
+ * Reject all pending registrations for an event
+ */
+function rejectAllEventRegistrations($eventId, $userId = null, $reason = null) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('event_responses') . "
+        SET registration_status = 'rejected', 
+            approved_by = ?,
+            approved_at = NOW(),
+            rejection_reason = ?
+        WHERE event_id = ? 
+        AND registration_status = 'pending'
+    ");
+    $stmt->execute([$userId, $reason, $eventId]);
+    return $stmt->rowCount();
+}
+
+/**
+ * Get approved registrations for an event
+ */
+function getApprovedEventRegistrations($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT er.*, m.first_name, m.last_name, m.email, m.membership_number,
+               u.full_name as approved_by_name
+        FROM " . table('event_responses') . " er
+        JOIN " . table('members') . " m ON er.member_id = m.id
+        LEFT JOIN " . table('users') . " u ON er.approved_by = u.id
+        WHERE er.event_id = ? AND er.registration_status = 'approved'
+        ORDER BY er.approved_at DESC
+    ");
+    $stmt->execute([$eventId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get pending registrations for an event
+ */
+function getPendingEventRegistrations($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT er.*, m.first_name, m.last_name, m.email, m.membership_number
+        FROM " . table('event_responses') . " er
+        JOIN " . table('members') . " m ON er.member_id = m.id
+        WHERE er.event_id = ? AND er.registration_status = 'pending'
+        ORDER BY er.responded_at ASC
+    ");
+    $stmt->execute([$eventId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get rejected registrations for an event
+ */
+function getRejectedEventRegistrations($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT er.*, m.first_name, m.last_name, m.email, m.membership_number,
+               u.full_name as approved_by_name
+        FROM " . table('event_responses') . " er
+        JOIN " . table('members') . " m ON er.member_id = m.id
+        LEFT JOIN " . table('users') . " u ON er.approved_by = u.id
+        WHERE er.event_id = ? AND er.registration_status = 'rejected'
+        ORDER BY er.approved_at DESC
+    ");
+    $stmt->execute([$eventId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Revoke an approved registration (back to pending)
+ */
+function revokeEventRegistration($responseId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        UPDATE " . table('event_responses') . "
+        SET registration_status = 'pending', 
+            approved_by = NULL,
+            approved_at = NULL,
+            rejection_reason = NULL
+        WHERE id = ?
+    ");
+    return $stmt->execute([$responseId]);
+}
+
+/**
+ * Count pending registrations for an event
+ */
+function countPendingEventRegistrations($eventId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count
+        FROM " . table('event_responses') . "
+        WHERE event_id = ? AND registration_status = 'pending'
+    ");
+    $stmt->execute([$eventId]);
+    return $stmt->fetch()['count'];
+}
+
+/**
+ * Get member's registration status for an event
+ */
+function getMemberEventRegistrationStatus($eventId, $memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT registration_status, response, rejection_reason
+        FROM " . table('event_responses') . "
+        WHERE event_id = ? AND member_id = ?
+    ");
+    $stmt->execute([$eventId, $memberId]);
+    return $stmt->fetch();
+}
+
+/**
  * Get members NOT in a specific group (for add dropdown)
  * 
  * @param int $groupId Group ID

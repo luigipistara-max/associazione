@@ -37,6 +37,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && isAdmin(
     }
 }
 
+// Handle registration approval/rejection
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registration_action']) && isAdmin()) {
+    $token = $_POST['csrf_token'] ?? '';
+    
+    if (verifyCsrfToken($token)) {
+        $action = $_POST['registration_action'];
+        $currentUser = getCurrentUser();
+        $userId = $currentUser['id'];
+        
+        switch ($action) {
+            case 'approve':
+                $responseId = (int)$_POST['response_id'];
+                if (approveEventRegistration($responseId, $userId)) {
+                    setFlashMessage('Iscrizione approvata con successo');
+                }
+                break;
+                
+            case 'reject':
+                $responseId = (int)$_POST['response_id'];
+                $reason = trim($_POST['rejection_reason'] ?? '');
+                if (rejectEventRegistration($responseId, $userId, $reason)) {
+                    setFlashMessage('Iscrizione rifiutata');
+                }
+                break;
+                
+            case 'approve_all':
+                $count = approveAllEventRegistrations($eventId, $userId);
+                setFlashMessage("$count iscrizioni approvate");
+                break;
+                
+            case 'reject_all':
+                $reason = trim($_POST['rejection_reason'] ?? '');
+                $count = rejectAllEventRegistrations($eventId, $userId, $reason);
+                setFlashMessage("$count iscrizioni rifiutate");
+                break;
+                
+            case 'revoke':
+                $responseId = (int)$_POST['response_id'];
+                if (revokeEventRegistration($responseId)) {
+                    setFlashMessage('Iscrizione revocata');
+                }
+                break;
+        }
+        
+        redirect($basePath . 'event_view.php?id=' . $eventId);
+    }
+}
+
 $pageTitle = $event['title'];
 $currentUser = getCurrentUser();
 $currentMemberId = null;
@@ -307,35 +355,35 @@ include __DIR__ . '/inc/header.php';
         <!-- Event Responses (Admin View) -->
         <?php if (isAdmin()): ?>
         <?php 
-        $responses = getEventResponses($eventId);
+        $pendingRegistrations = getPendingEventRegistrations($eventId);
+        $approvedRegistrations = getApprovedEventRegistrations($eventId);
+        $rejectedRegistrations = getRejectedEventRegistrations($eventId);
         $responseCounts = countEventResponses($eventId);
         ?>
+        
+        <!-- Pending Registrations -->
+        <?php if (!empty($pendingRegistrations)): ?>
         <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-calendar-check"></i> Disponibilità Soci</h5>
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="bi bi-hourglass-split"></i> Disponibilità in Attesa 
+                    <span class="badge bg-dark"><?php echo count($pendingRegistrations); ?></span>
+                </h5>
             </div>
             <div class="card-body">
+                <!-- Bulk Actions -->
                 <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span><i class="bi bi-check-circle text-success"></i> Parteciperò</span>
-                        <span class="badge bg-success"><?php echo $responseCounts['yes']; ?></span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span><i class="bi bi-question-circle text-warning"></i> Forse</span>
-                        <span class="badge bg-warning"><?php echo $responseCounts['maybe']; ?></span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span><i class="bi bi-x-circle text-danger"></i> Non parteciperò</span>
-                        <span class="badge bg-danger"><?php echo $responseCounts['no']; ?></span>
-                    </div>
+                    <button class="btn btn-sm btn-success me-2" data-bs-toggle="modal" data-bs-target="#approveAllModal">
+                        <i class="bi bi-check-all"></i> Approva Tutti
+                    </button>
+                    <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectAllModal">
+                        <i class="bi bi-x-lg"></i> Rifiuta Tutti
+                    </button>
                 </div>
                 
-                <?php if (!empty($responses)): ?>
-                <hr>
-                <h6 class="mb-3">Risposte (<?php echo count($responses); ?>)</h6>
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <div class="table-responsive">
                     <table class="table table-sm table-hover">
-                        <thead class="sticky-top bg-white">
+                        <thead>
                             <tr>
                                 <th>Socio</th>
                                 <th>Risposta</th>
@@ -345,26 +393,34 @@ include __DIR__ . '/inc/header.php';
                             </tr>
                         </thead>
                         <tbody>
-                            <?php foreach ($responses as $response): ?>
+                            <?php foreach ($pendingRegistrations as $reg): ?>
                             <tr>
-                                <td><?php echo h($response['first_name'] . ' ' . $response['last_name']); ?></td>
+                                <td><?php echo h($reg['first_name'] . ' ' . $reg['last_name']); ?></td>
                                 <td>
-                                    <?php if ($response['response'] === 'yes'): ?>
+                                    <?php if ($reg['response'] === 'yes'): ?>
                                         <span class="badge bg-success">Sì</span>
-                                    <?php elseif ($response['response'] === 'maybe'): ?>
+                                    <?php elseif ($reg['response'] === 'maybe'): ?>
                                         <span class="badge bg-warning">Forse</span>
                                     <?php else: ?>
                                         <span class="badge bg-danger">No</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><?php echo formatDate($response['responded_at']); ?></td>
-                                <td><?php echo h($response['notes'] ?? '-'); ?></td>
+                                <td><?php echo formatDate($reg['responded_at']); ?></td>
+                                <td><?php echo h($reg['notes'] ?? '-'); ?></td>
                                 <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Approvare questa iscrizione?')">
+                                        <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                                        <input type="hidden" name="registration_action" value="approve">
+                                        <input type="hidden" name="response_id" value="<?php echo $reg['id']; ?>">
+                                        <button type="submit" class="btn btn-sm btn-success" title="Approva">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn btn-sm btn-danger" 
                                             data-bs-toggle="modal" 
-                                            data-bs-target="#removeResponseModal<?php echo $response['id']; ?>"
-                                            title="Rimuovi risposta">
-                                        <i class="bi bi-trash"></i>
+                                            data-bs-target="#rejectModal<?php echo $reg['id']; ?>"
+                                            title="Rifiuta">
+                                        <i class="bi bi-x-lg"></i>
                                     </button>
                                 </td>
                             </tr>
@@ -372,7 +428,126 @@ include __DIR__ . '/inc/header.php';
                         </tbody>
                     </table>
                 </div>
-                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <!-- Approved Registrations -->
+        <?php if (!empty($approvedRegistrations)): ?>
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-check-circle"></i> Iscritti Confermati 
+                    <span class="badge bg-light text-dark"><?php echo count($approvedRegistrations); ?></span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Socio</th>
+                                <th>Email</th>
+                                <th>Tessera</th>
+                                <th>Approvato da</th>
+                                <th>Data approvazione</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($approvedRegistrations as $reg): ?>
+                            <tr>
+                                <td><?php echo h($reg['first_name'] . ' ' . $reg['last_name']); ?></td>
+                                <td><?php echo h($reg['email']); ?></td>
+                                <td><?php echo h($reg['membership_number']); ?></td>
+                                <td><?php echo h($reg['approved_by_name'] ?? '-'); ?></td>
+                                <td><?php echo formatDate($reg['approved_at']); ?></td>
+                                <td class="text-end">
+                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Revocare questa approvazione?')">
+                                        <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                                        <input type="hidden" name="registration_action" value="revoke">
+                                        <input type="hidden" name="response_id" value="<?php echo $reg['id']; ?>">
+                                        <button type="submit" class="btn btn-sm btn-warning" title="Revoca">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <!-- Rejected Registrations -->
+        <?php if (!empty($rejectedRegistrations)): ?>
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-x-circle"></i> Rifiutati 
+                    <span class="badge bg-light text-dark"><?php echo count($rejectedRegistrations); ?></span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Socio</th>
+                                <th>Motivo</th>
+                                <th>Rifiutato da</th>
+                                <th>Data rifiuto</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($rejectedRegistrations as $reg): ?>
+                            <tr>
+                                <td><?php echo h($reg['first_name'] . ' ' . $reg['last_name']); ?></td>
+                                <td><?php echo h($reg['rejection_reason'] ?? '-'); ?></td>
+                                <td><?php echo h($reg['approved_by_name'] ?? '-'); ?></td>
+                                <td><?php echo formatDate($reg['approved_at']); ?></td>
+                                <td class="text-end">
+                                    <form method="POST" style="display: inline;" onsubmit="return confirm('Riportare in stato pending?')">
+                                        <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                                        <input type="hidden" name="registration_action" value="revoke">
+                                        <input type="hidden" name="response_id" value="<?php echo $reg['id']; ?>">
+                                        <button type="submit" class="btn btn-sm btn-warning" title="Revoca">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <!-- Response Summary Card -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-calendar-check"></i> Riepilogo Disponibilità</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span><i class="bi bi-check-circle text-success"></i> Parteciperò</span>
+                        <span class="badge bg-success"><?php echo $responseCounts['yes']; ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span><i class="bi bi-question-circle text-warning"></i> Forse</span>
+                        <span class="badge bg-warning"><?php echo $responseCounts['maybe']; ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-x-circle text-danger"></i> Non parteciperò</span>
+                        <span class="badge bg-danger"><?php echo $responseCounts['no']; ?></span>
+                    </div>
+                </div>
             </div>
         </div>
         <?php endif; ?>
@@ -404,6 +579,103 @@ include __DIR__ . '/inc/header.php';
         <?php endif; ?>
     </div>
 </div>
+
+<!-- Modals for approval workflow -->
+<?php if (isAdmin()): ?>
+    <!-- Approve All Modal -->
+    <div class="modal fade" id="approveAllModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                    <input type="hidden" name="registration_action" value="approve_all">
+                    
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title">Approva Tutti</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Sei sicuro di voler approvare tutte le disponibilità "Sì" in attesa?</p>
+                        <p class="mb-0"><strong>Nota:</strong> Saranno approvate solo le risposte "Sì".</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-all"></i> Approva Tutti
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Reject All Modal -->
+    <div class="modal fade" id="rejectAllModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                    <input type="hidden" name="registration_action" value="reject_all">
+                    
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">Rifiuta Tutti</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Sei sicuro di voler rifiutare tutte le disponibilità in attesa?</p>
+                        <div class="mb-3">
+                            <label for="rejectAllReason" class="form-label">Motivo (opzionale)</label>
+                            <input type="text" class="form-control" id="rejectAllReason" name="rejection_reason" 
+                                   placeholder="Es: Posti esauriti">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-x-lg"></i> Rifiuta Tutti
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Individual Reject Modals -->
+    <?php if (!empty($pendingRegistrations)): ?>
+        <?php foreach ($pendingRegistrations as $reg): ?>
+        <div class="modal fade" id="rejectModal<?php echo $reg['id']; ?>" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                        <input type="hidden" name="registration_action" value="reject">
+                        <input type="hidden" name="response_id" value="<?php echo $reg['id']; ?>">
+                        
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">Rifiuta Iscrizione</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Sei sicuro di voler rifiutare la disponibilità di <strong><?php echo h($reg['first_name'] . ' ' . $reg['last_name']); ?></strong>?</p>
+                            <div class="mb-3">
+                                <label for="rejectReason<?php echo $reg['id']; ?>" class="form-label">Motivo (opzionale)</label>
+                                <input type="text" class="form-control" id="rejectReason<?php echo $reg['id']; ?>" 
+                                       name="rejection_reason" placeholder="Es: Posti esauriti">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-x-lg"></i> Rifiuta
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
+<?php endif; ?>
 
 <!-- Modals for removing responses -->
 <?php if (isAdmin() && !empty($responses)): ?>

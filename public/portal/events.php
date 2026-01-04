@@ -163,6 +163,27 @@ require_once __DIR__ . '/inc/header.php';
                             <div id="response-message-<?php echo $event['id']; ?>" class="mt-2"></div>
                         </div>
                         
+                        <?php 
+                        $registrationStatus = getMemberEventRegistrationStatus($event['id'], $member['id']);
+                        if ($registrationStatus && $registrationStatus['response'] === 'yes'): 
+                        ?>
+                        <div class="mt-3">
+                            <strong>Stato iscrizione:</strong><br>
+                            <?php if ($registrationStatus['registration_status'] === 'pending'): ?>
+                                <span class="badge bg-warning">⏳ In attesa di approvazione</span>
+                                <small class="text-muted d-block mt-1">La tua disponibilità è stata registrata e sarà valutata dall'organizzatore.</small>
+                            <?php elseif ($registrationStatus['registration_status'] === 'approved'): ?>
+                                <span class="badge bg-success">✅ Iscrizione confermata</span>
+                                <small class="text-muted d-block mt-1">La tua partecipazione è stata approvata!</small>
+                            <?php elseif ($registrationStatus['registration_status'] === 'rejected'): ?>
+                                <span class="badge bg-danger">❌ Iscrizione rifiutata</span>
+                                <?php if ($registrationStatus['rejection_reason']): ?>
+                                    <small class="text-muted d-block mt-1">Motivo: <?php echo h($registrationStatus['rejection_reason']); ?></small>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+                        
                         <div class="mt-3">
                             <small class="text-muted">
                                 <i class="bi bi-people"></i> Risposte: 
