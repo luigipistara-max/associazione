@@ -3040,11 +3040,47 @@ function validateImageUrl($url) {
         return null;
     }
     
-    // Only allow http://, https://, or local paths (starting with /)
-    if (preg_match('/^(https?:\/\/|\/)/i', $url)) {
-        return $url;
+    // Check for valid HTTP/HTTPS URLs
+    if (preg_match('/^https?:\/\//i', $url)) {
+        // Additional validation: ensure it's a proper URL
+        if (filter_var($url, FILTER_VALIDATE_URL)) {
+            return $url;
+        }
+        return null;
     }
     
-    // Reject javascript:, data:, or other potentially malicious URLs
+    // Check for local paths (must start with / and not contain scheme-like patterns)
+    if (preg_match('/^\/[^:]*$/i', $url)) {
+        // Ensure no encoded slashes or suspicious patterns
+        if (strpos($url, '%2f') === false && strpos($url, '%2F') === false) {
+            return $url;
+        }
+    }
+    
+    // Reject everything else (javascript:, data:, etc.)
     return null;
+}
+
+/**
+ * Mask fiscal code for privacy
+ * Shows first 3 characters, asterisks, and last 2 characters
+ * Fully masks codes shorter than 5 characters
+ * 
+ * @param string|null $fiscalCode Fiscal code to mask
+ * @return string Masked fiscal code
+ */
+function maskFiscalCode($fiscalCode) {
+    if (empty($fiscalCode)) {
+        return '';
+    }
+    
+    $fcLen = strlen($fiscalCode);
+    
+    // For codes with 5 or more characters, show first 3 and last 2
+    if ($fcLen >= 5) {
+        return substr($fiscalCode, 0, 3) . str_repeat('*', $fcLen - 5) . substr($fiscalCode, -2);
+    }
+    
+    // For shorter codes, fully mask for safety
+    return str_repeat('*', $fcLen);
 }
