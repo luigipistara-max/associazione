@@ -1705,15 +1705,17 @@ function createGroup($data) {
     
     $stmt = $pdo->prepare("
         INSERT INTO " . table('member_groups') . " 
-        (name, description, color, is_active) 
-        VALUES (?, ?, ?, ?)
+        (name, description, color, is_active, is_hidden, is_restricted) 
+        VALUES (?, ?, ?, ?, ?, ?)
     ");
     
     $stmt->execute([
         $data['name'],
         $data['description'] ?? null,
         $data['color'] ?? '#6c757d',
-        $data['is_active'] ?? true
+        $data['is_active'] ?? true,
+        $data['is_hidden'] ?? false,
+        $data['is_restricted'] ?? false
     ]);
     
     $groupId = $pdo->lastInsertId();
@@ -1732,7 +1734,7 @@ function updateGroup($groupId, $data) {
     
     $stmt = $pdo->prepare("
         UPDATE " . table('member_groups') . " 
-        SET name = ?, description = ?, color = ?, is_active = ?
+        SET name = ?, description = ?, color = ?, is_active = ?, is_hidden = ?, is_restricted = ?
         WHERE id = ?
     ");
     
@@ -1741,6 +1743,8 @@ function updateGroup($groupId, $data) {
         $data['description'] ?? null,
         $data['color'] ?? '#6c757d',
         $data['is_active'] ?? true,
+        $data['is_hidden'] ?? false,
+        $data['is_restricted'] ?? false,
         $groupId
     ]);
     

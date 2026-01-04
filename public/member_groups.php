@@ -38,6 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $description = trim($_POST['description'] ?? '');
         $color = trim($_POST['color'] ?? '#6c757d');
         $isActive = isset($_POST['is_active']) ? 1 : 0;
+        $isHidden = isset($_POST['is_hidden']) ? 1 : 0;
+        $isRestricted = isset($_POST['is_restricted']) ? 1 : 0;
         $groupId = $_POST['group_id'] ?? null;
         
         if (empty($name)) {
@@ -48,7 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     'name' => $name,
                     'description' => $description,
                     'color' => $color,
-                    'is_active' => $isActive
+                    'is_active' => $isActive,
+                    'is_hidden' => $isHidden,
+                    'is_restricted' => $isRestricted
                 ];
                 
                 if ($groupId) {
@@ -192,6 +196,22 @@ include __DIR__ . '/inc/header.php';
                         <input type="checkbox" class="form-check-input" id="is_active" name="is_active" checked>
                         <label class="form-check-label" for="is_active">Attivo</label>
                     </div>
+                    
+                    <div class="mb-2 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_hidden" name="is_hidden">
+                        <label class="form-check-label" for="is_hidden">
+                            <i class="bi bi-eye-slash"></i> Nascosto ai soci
+                        </label>
+                        <div class="form-text">Il gruppo non sarà visibile nel portale soci</div>
+                    </div>
+                    
+                    <div class="mb-2 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_restricted" name="is_restricted">
+                        <label class="form-check-label" for="is_restricted">
+                            <i class="bi bi-lock"></i> Solo amministratori
+                        </label>
+                        <div class="form-text">I soci non possono richiedere di partecipare a questo gruppo</div>
+                    </div>
                 </div>
                 
                 <div class="modal-footer">
@@ -237,6 +257,8 @@ function resetGroupForm() {
     document.getElementById('description').value = '';
     document.getElementById('color').value = '#6c757d';
     document.getElementById('is_active').checked = true;
+    document.getElementById('is_hidden').checked = false;
+    document.getElementById('is_restricted').checked = false;
 }
 
 function editGroup(group) {
@@ -246,6 +268,8 @@ function editGroup(group) {
     document.getElementById('description').value = group.description || '';
     document.getElementById('color').value = group.color || '#6c757d';
     document.getElementById('is_active').checked = group.is_active == 1;
+    document.getElementById('is_hidden').checked = group.is_hidden == 1;
+    document.getElementById('is_restricted').checked = group.is_restricted == 1;
     
     var modal = new bootstrap.Modal(document.getElementById('groupModal'));
     modal.show();
