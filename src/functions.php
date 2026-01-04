@@ -3548,8 +3548,12 @@ function sendNewsNotification($newsId) {
     global $pdo;
     require_once __DIR__ . '/email.php';
     
+    // Debug log
+    error_log("sendNewsNotification called for news ID: $newsId");
+    
     $news = getNewsById($newsId);
     if (!$news || $news['status'] !== 'published') {
+        error_log("sendNewsNotification: News not found or not published (ID: $newsId)");
         return 0;
     }
     
@@ -3565,6 +3569,7 @@ function sendNewsNotification($newsId) {
             ORDER BY last_name, first_name
         ");
         $recipients = $stmt->fetchAll();
+        error_log("sendNewsNotification: Found " . count($recipients) . " recipients (target: all)");
     } elseif ($news['target_type'] === 'groups') {
         // Members in target groups
         $stmt = $pdo->prepare("
@@ -3580,9 +3585,11 @@ function sendNewsNotification($newsId) {
         ");
         $stmt->execute([$newsId]);
         $recipients = $stmt->fetchAll();
+        error_log("sendNewsNotification: Found " . count($recipients) . " recipients (target: groups)");
     }
     
     if (empty($recipients)) {
+        error_log("sendNewsNotification: No recipients found for news ID: $newsId");
         return 0;
     }
     
@@ -3626,9 +3633,12 @@ function sendNewsNotification($newsId) {
         
         if (sendOrQueueEmail($recipient['email'], $subject, $bodyHtml, $bodyText)) {
             $sent++;
+        } else {
+            error_log("sendNewsNotification: Failed to send/queue email to: " . $recipient['email']);
         }
     }
     
+    error_log("sendNewsNotification: Successfully sent/queued $sent emails out of " . count($recipients) . " recipients");
     return $sent;
 }
 
