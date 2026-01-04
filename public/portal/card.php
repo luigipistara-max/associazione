@@ -43,16 +43,8 @@ if ($currentYear) {
 // Get association info
 $assocInfo = getAssociationInfo();
 
-// Fix logo URL
-$logoUrl = '';
-if (!empty($assocInfo['logo'])) {
-    if (preg_match('/^https?:\/\//', $assocInfo['logo'])) {
-        $logoUrl = $assocInfo['logo'];
-    } else {
-        $logoPath = ltrim($assocInfo['logo'], '/');
-        $logoUrl = $basePath . $logoPath;
-    }
-}
+// Get logo URL
+$logoUrl = getLogoUrl($assocInfo['logo'] ?? null, $basePath);
 
 include __DIR__ . '/inc/header.php';
 ?>
@@ -181,8 +173,12 @@ include __DIR__ . '/inc/header.php';
                 
                 <div class="card-body-section">
                     <div class="card-photo">
-                        <?php if (!empty($member['photo_url'])): ?>
-                            <img src="<?php echo h($member['photo_url']); ?>" alt="Foto" class="member-photo">
+                        <?php 
+                        // Validate photo URL to prevent XSS
+                        $photoUrl = validateImageUrl($member['photo_url'] ?? null);
+                        if ($photoUrl): 
+                        ?>
+                            <img src="<?php echo h($photoUrl); ?>" alt="Foto" class="member-photo">
                         <?php else: ?>
                             <div class="member-photo-placeholder">
                                 <i class="bi bi-person-circle" style="font-size: 2rem;"></i>

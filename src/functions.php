@@ -3006,3 +3006,45 @@ function generateReceiptToken($receiptId, $memberId) {
     // Simple token generation - can be enhanced with more security
     return hash('sha256', $receiptId . '-' . $memberId . '-receipt-' . date('Y-m-d'));
 }
+
+/**
+ * Get logo URL handling both external and local paths
+ * 
+ * @param string|null $logoPath Logo path from settings
+ * @param string $basePath Base path for local files
+ * @return string Logo URL or empty string
+ */
+function getLogoUrl($logoPath, $basePath) {
+    if (empty($logoPath)) {
+        return '';
+    }
+    
+    // Check if it's an external URL (http:// or https://)
+    if (preg_match('/^https?:\/\//', $logoPath)) {
+        return $logoPath;
+    }
+    
+    // Local path - remove leading slashes and prepend basePath
+    $cleanPath = ltrim($logoPath, '/');
+    return $basePath . $cleanPath;
+}
+
+/**
+ * Validate and sanitize image URL to prevent XSS
+ * 
+ * @param string|null $url Image URL to validate
+ * @return string|null Validated URL or null if invalid
+ */
+function validateImageUrl($url) {
+    if (empty($url)) {
+        return null;
+    }
+    
+    // Only allow http://, https://, or local paths (starting with /)
+    if (preg_match('/^(https?:\/\/|\/)/i', $url)) {
+        return $url;
+    }
+    
+    // Reject javascript:, data:, or other potentially malicious URLs
+    return null;
+}

@@ -73,16 +73,8 @@ $yearDisplay = $currentYear ? $currentYear['name'] : date('Y');
 // Get association info
 $assocInfo = getAssociationInfo();
 
-// Fix logo URL
-$logoUrl = '';
-if (!empty($assocInfo['logo'])) {
-    if (preg_match('/^https?:\/\//', $assocInfo['logo'])) {
-        $logoUrl = $assocInfo['logo'];
-    } else {
-        $logoPath = ltrim($assocInfo['logo'], '/');
-        $logoUrl = $basePath . $logoPath;
-    }
-}
+// Get logo URL
+$logoUrl = getLogoUrl($assocInfo['logo'] ?? null, $basePath);
 
 // Build verification URL
 $verifyUrl = '';
@@ -319,8 +311,12 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
                 <div class="card-title">TESSERA SOCIO</div>
                 
                 <div class="card-photo">
-                    <?php if (!empty($member['photo_url'])): ?>
-                        <img src="<?php echo h($member['photo_url']); ?>" alt="Foto">
+                    <?php 
+                    // Validate photo URL to prevent XSS
+                    $photoUrl = validateImageUrl($member['photo_url'] ?? null);
+                    if ($photoUrl): 
+                    ?>
+                        <img src="<?php echo h($photoUrl); ?>" alt="Foto">
                     <?php else: ?>
                         <div class="card-photo-placeholder">
                             <i class="bi bi-person"></i>
