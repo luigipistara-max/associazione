@@ -412,6 +412,25 @@ function replaceTemplateVariables($text, $variables, $escapeHtml = true) {
 }
 
 /**
+ * Invia email direttamente o accoda in base alle impostazioni
+ * 
+ * @param string $to Destinatario
+ * @param string $subject Oggetto
+ * @param string $bodyHtml Corpo HTML
+ * @param string|null $bodyText Corpo testo
+ * @return bool|int True/ID se successo, false se fallito
+ */
+function sendOrQueueEmail($to, $subject, $bodyHtml, $bodyText = null) {
+    $mode = getSetting('email_send_mode', 'direct');
+    
+    if ($mode === 'queue') {
+        return queueEmail($to, $subject, $bodyHtml, $bodyText);
+    } else {
+        return sendEmail($to, $subject, $bodyHtml, $bodyText);
+    }
+}
+
+/**
  * Accoda email per invio differito o massivo
  * 
  * @param string $to Destinatario

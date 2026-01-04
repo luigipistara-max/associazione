@@ -3595,7 +3595,7 @@ function sendNewsNotification($newsId) {
         $bodyText .= "Leggi l'articolo completo: {$newsUrl}\n\n";
         $bodyText .= "Pubblicato il " . date('d/m/Y H:i', strtotime($news['published_at']));
         
-        if (sendEmail($recipient['email'], $subject, $bodyHtml, $bodyText)) {
+        if (sendOrQueueEmail($recipient['email'], $subject, $bodyHtml, $bodyText)) {
             $sent++;
         }
     }
@@ -3705,10 +3705,10 @@ function sendEventNotification($eventId) {
         </div>
     ";
     
-    // Queue emails for each recipient
+    // Send or queue emails for each recipient based on settings
     $sentCount = 0;
     foreach ($recipients as $member) {
-        if (queueEmail($member['email'], $subject, $bodyHtml)) {
+        if (sendOrQueueEmail($member['email'], $subject, $bodyHtml)) {
             $sentCount++;
         }
     }
