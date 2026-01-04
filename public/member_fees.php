@@ -173,6 +173,13 @@ if (in_array($action, ['add', 'edit']) && $_SERVER['REQUEST_METHOD'] === 'POST')
         
         setFlashMessage('Quota aggiornata con successo');
     } else {
+        // Check if fee already exists for this member and year
+        if (memberHasFeeForYear($memberId, $socialYearId)) {
+            setFlashMessage('Quota già esistente per questo socio e anno sociale', 'warning');
+            redirect($basePath . 'member_fees.php');
+            exit;
+        }
+        
         $stmt = $pdo->prepare("
             INSERT INTO " . table('member_fees') . " 
             (member_id, social_year_id, fee_type, amount, due_date, paid_date, payment_method, receipt_number, status, notes)
