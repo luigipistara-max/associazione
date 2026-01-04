@@ -2230,3 +2230,96 @@ function getEmailFooter() {
     
     return $footer;
 }
+
+/**
+ * Get base URL for the application
+ * 
+ * @return string Base URL with protocol and host
+ */
+function getBaseUrl() {
+    global $config;
+    
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
+                ($_SERVER['SERVER_PORT'] ?? 80) == 443 ? 'https://' : 'http://';
+    
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $basePath = $config['app']['base_path'] ?? '/';
+    
+    return $protocol . $host . $basePath;
+}
+
+/**
+ * Get member by ID
+ * 
+ * @param int $memberId Member ID
+ * @return array|false Member data or false if not found
+ */
+function getMember($memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT * FROM " . table('members') . " WHERE id = ?");
+    $stmt->execute([$memberId]);
+    return $stmt->fetch();
+}
+
+/**
+ * Send portal activation email
+ * 
+ * @param int $memberId Member ID
+ * @return bool Success
+ */
+function sendPortalActivationEmail($memberId) {
+    global $pdo;
+    
+    $member = getMember($memberId);
+    if (!$member || empty($member['email'])) {
+        return false;
+    }
+    
+    require_once __DIR__ . '/portal_auth.php';
+    $token = generatePortalToken($memberId);
+    $activationLink = getBaseUrl() . 'portal/register.php?token=' . $token;
+    
+    // Send email
+    $subject = 'Attiva il tuo account - ' . getSetting('association_name', 'Associazione');
+    $body = "Ciao {$member['first_name']},<br><br>";
+    $body .= "Clicca sul link seguente per attivare il tuo accesso all'area soci:<br><br>";
+    $body .= "<a href='{$activationLink}'>{$activationLink}</a><br><br>";
+    $body .= "Il link scade tra 24 ore.<br><br>";
+    $body .= "Se non hai richiesto questo link, ignora questa email.";
+    $body .= getEmailFooter();
+    
+    return sendEmail($member['email'], $subject, $body);
+}
+
+/**
+ * Send portal password reset email
+ * 
+ * @param int $memberId Member ID
+ * @return bool Success
+ */
+function sendPortalPasswordResetEmail($memberId) {
+    global $pdo;
+    
+    $member = getMember($memberId);
+    if (!$member || empty($member['email'])) {
+        return false;
+    }
+    
+    require_once __DIR__ . '/../public/portal/inc/auth.php';
+    $token = generatePortalToken($memberId);
+    $resetLink = getBaseUrl() . 'portal/reset_password.php?token=' . $token;
+    
+    // Send email
+    $subject = 'Recupero Password - ' . getSetting('association_name', 'Associazione');
+    $body = "Ciao {$member['first_name']},<br><br>";
+    $body .= "Hai richiesto il recupero della password per l'accesso al portale soci.<br><br>";
+    $body .= "Clicca sul link seguente per reimpostare la password:<br><br>";
+    $body .= "<a href='{$resetLink}'>{$resetLink}</a><br><br>";
+    $body .= "Il link scade tra 24 ore.<br><br>";
+    $body .= "Se non hai richiesto questo recupero, ignora questa email.";
+    $body .= getEmailFooter();
+    
+    return sendEmail($member['email'], $subject, $body);
+}
+

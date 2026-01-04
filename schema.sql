@@ -45,11 +45,17 @@ CREATE TABLE IF NOT EXISTS members (
     notes TEXT,
     card_token VARCHAR(64) NULL UNIQUE,
     card_generated_at DATETIME NULL,
+    portal_password VARCHAR(255) NULL,
+    portal_token VARCHAR(64) NULL,
+    portal_token_expires DATETIME NULL,
+    photo_url VARCHAR(500) NULL,
+    last_portal_login DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_status (status),
     INDEX idx_fiscal_code (fiscal_code),
-    INDEX idx_card_token (card_token)
+    INDEX idx_card_token (card_token),
+    INDEX idx_portal_token (portal_token)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Social years table
@@ -135,6 +141,11 @@ CREATE TABLE IF NOT EXISTS member_fees (
     receipt_number VARCHAR(50),
     receipt_generated_at DATETIME NULL,
     status ENUM('pending', 'paid', 'overdue') DEFAULT 'pending',
+    payment_pending BOOLEAN DEFAULT FALSE,
+    payment_reference VARCHAR(100) NULL,
+    paypal_transaction_id VARCHAR(100) NULL,
+    payment_confirmed_by INT NULL,
+    payment_confirmed_at DATETIME NULL,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -373,6 +384,8 @@ CREATE TABLE IF NOT EXISTS member_groups (
     description TEXT,
     color VARCHAR(7) DEFAULT '#6c757d',
     is_active BOOLEAN DEFAULT TRUE,
+    is_hidden BOOLEAN DEFAULT FALSE,
+    is_restricted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -388,6 +401,26 @@ CREATE TABLE IF NOT EXISTS member_group_members (
     INDEX idx_member (member_id),
     FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE,
     FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Member group requests table
+CREATE TABLE IF NOT EXISTS member_group_requests (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    member_id INT NOT NULL,
+    group_id INT NOT NULL,
+    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    message TEXT,
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP NULL,
+    processed_by INT NULL,
+    admin_notes TEXT,
+    UNIQUE KEY unique_pending_request (member_id, group_id, status),
+    INDEX idx_member (member_id),
+    INDEX idx_group (group_id),
+    INDEX idx_status (status),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+    FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Event target groups table (N:N relationship)
@@ -418,3 +451,49 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Run this if upgrading from a previous version
 -- ============================================================================
 -- ALTER TABLE social_years ADD COLUMN fee_amount DECIMAL(10,2) DEFAULT 0 AFTER end_date;
+
+-- ============================================================================
+-- MIGRATION: Portal Soci - Part 1 (Member Portal)
+-- Run this if upgrading from a previous version
+-- ============================================================================
+
+-- Add portal columns to members table
+-- ALTER TABLE members ADD COLUMN portal_password VARCHAR(255) NULL AFTER notes;
+-- ALTER TABLE members ADD COLUMN portal_token VARCHAR(64) NULL AFTER portal_password;
+-- ALTER TABLE members ADD COLUMN portal_token_expires DATETIME NULL AFTER portal_token;
+-- ALTER TABLE members ADD COLUMN photo_url VARCHAR(500) NULL AFTER portal_token_expires;
+-- ALTER TABLE members ADD COLUMN last_portal_login DATETIME NULL AFTER photo_url;
+-- ALTER TABLE members ADD INDEX idx_portal_token (portal_token);
+
+-- Add flags to member_groups table
+-- ALTER TABLE member_groups ADD COLUMN is_hidden BOOLEAN DEFAULT FALSE AFTER is_active;
+-- ALTER TABLE member_groups ADD COLUMN is_restricted BOOLEAN DEFAULT FALSE AFTER is_hidden;
+
+-- Add payment tracking columns to member_fees table
+-- ALTER TABLE member_fees ADD COLUMN payment_pending BOOLEAN DEFAULT FALSE AFTER status;
+-- ALTER TABLE member_fees ADD COLUMN payment_reference VARCHAR(100) NULL AFTER payment_pending;
+-- ALTER TABLE member_fees ADD COLUMN paypal_transaction_id VARCHAR(100) NULL AFTER payment_reference;
+-- ALTER TABLE member_fees ADD COLUMN payment_confirmed_by INT NULL AFTER paypal_transaction_id;
+-- ALTER TABLE member_fees ADD COLUMN payment_confirmed_at DATETIME NULL AFTER payment_confirmed_by;
+
+-- Create member_group_requests table (only if it doesn't exist)
+/*
+CREATE TABLE IF NOT EXISTS member_group_requests (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    member_id INT NOT NULL,
+    group_id INT NOT NULL,
+    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    message TEXT,
+    requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMP NULL,
+    processed_by INT NULL,
+    admin_notes TEXT,
+    UNIQUE KEY unique_pending_request (member_id, group_id, status),
+    INDEX idx_member (member_id),
+    INDEX idx_group (group_id),
+    INDEX idx_status (status),
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE,
+    FOREIGN KEY (group_id) REFERENCES member_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+*/
