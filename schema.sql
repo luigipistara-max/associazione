@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS social_years (
     name VARCHAR(100) NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
+    fee_amount DECIMAL(10,2) DEFAULT 0,
     is_current BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -411,3 +412,9 @@ CREATE TABLE IF NOT EXISTS settings (
     INDEX idx_key (setting_key),
     INDEX idx_group (setting_group)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================================
+-- MIGRATION: Add fee_amount column to social_years (for existing installations)
+-- Run this if upgrading from a previous version
+-- ============================================================================
+-- ALTER TABLE social_years ADD COLUMN fee_amount DECIMAL(10,2) DEFAULT 0 AFTER end_date;

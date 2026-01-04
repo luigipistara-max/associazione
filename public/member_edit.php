@@ -44,6 +44,16 @@ if ($memberId) {
     ];
 }
 
+// Get all active groups
+$allGroups = getGroups(true);
+
+// Get member's current groups (if editing)
+$memberGroupIds = [];
+if ($memberId) {
+    $memberGroups = getMemberGroups($memberId);
+    $memberGroupIds = array_column($memberGroups, 'id');
+}
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $token = $_POST['csrf_token'] ?? '';
@@ -169,6 +179,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     setFlashMessage('Socio aggiunto con successo');
                 }
+                
+                // After saving member data, handle groups
+                if ($memberId || $newMemberId) {
+                    $targetMemberId = $memberId ?? $newMemberId;
+                    $selectedGroups = $_POST['groups'] ?? [];
+                    
+                    // Validate that selected groups exist and are active
+                    $validGroupIds = array_column($allGroups, 'id');
+                    $selectedGroups = array_filter($selectedGroups, function($groupId) use ($validGroupIds) {
+                        return in_array((int)$groupId, $validGroupIds);
+                    });
+                    
+                    // Get current groups for this member
+                    $currentGroupIds = $memberGroupIds; // Already loaded at top of file
+                    
+                    // Calculate groups to add and remove
+                    $groupsToAdd = array_diff($selectedGroups, $currentGroupIds);
+                    $groupsToRemove = array_diff($currentGroupIds, $selectedGroups);
+                    
+                    // Remove member from groups they're no longer in
+                    foreach ($groupsToRemove as $groupId) {
+                        removeMemberFromGroup($groupId, $targetMemberId);
+                    }
+                    
+                    // Add member to new groups
+                    foreach ($groupsToAdd as $groupId) {
+                        addMemberToGroup($groupId, $targetMemberId);
+                    }
+                }
+                
                 redirect($basePath . 'members.php');
             } catch (PDOException $e) {
                 $errors[] = 'Errore nel salvataggio: ' . $e->getMessage();
@@ -304,6 +344,35 @@ include __DIR__ . '/inc/header.php';
                 <label class="form-label">Note</label>
                 <textarea name="notes" class="form-control" rows="3"><?php echo e($member['notes']); ?></textarea>
             </div>
+        </div>
+    </div>
+    
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Gruppi</h5>
+        </div>
+        <div class="card-body">
+            <?php if (empty($allGroups)): ?>
+                <p class="text-muted">Nessun gruppo disponibile. <a href="member_groups.php">Crea un gruppo</a></p>
+            <?php else: ?>
+                <div class="row">
+                    <?php foreach ($allGroups as $group): ?>
+                        <div class="col-md-4 mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" 
+                                       name="groups[]" 
+                                       value="<?php echo $group['id']; ?>" 
+                                       id="group_<?php echo $group['id']; ?>"
+                                       <?php echo in_array($group['id'], $memberGroupIds) ? 'checked' : ''; ?>>
+                                <label class="form-check-label" for="group_<?php echo $group['id']; ?>">
+                                    <span class="badge" style="background-color: <?php echo h($group['color']); ?>; width: 12px; height: 12px; display: inline-block; border-radius: 2px;"></span>
+                                    <?php echo h($group['name']); ?>
+                                </label>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
     
