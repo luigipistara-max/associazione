@@ -13,7 +13,6 @@ requireMemberLogin();
 
 $memberId = getCurrentMemberId();
 $member = getCurrentMember();
-$config = require __DIR__ . '/../../src/config.php';
 $basePath = $config['app']['base_path'];
 $pageTitle = 'Notizie';
 
