@@ -286,6 +286,63 @@ include __DIR__ . '/inc/header.php';
             </div>
         </div>
         
+        <!-- Event Responses (Admin View) -->
+        <?php if (isAdmin()): ?>
+        <?php 
+        $responses = getEventResponses($eventId);
+        $responseCounts = countEventResponses($eventId);
+        ?>
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-calendar-check"></i> Disponibilità Soci</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span><i class="bi bi-check-circle text-success"></i> Parteciperò</span>
+                        <span class="badge bg-success"><?php echo $responseCounts['yes']; ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span><i class="bi bi-question-circle text-warning"></i> Forse</span>
+                        <span class="badge bg-warning"><?php echo $responseCounts['maybe']; ?></span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span><i class="bi bi-x-circle text-danger"></i> Non parteciperò</span>
+                        <span class="badge bg-danger"><?php echo $responseCounts['no']; ?></span>
+                    </div>
+                </div>
+                
+                <?php if (!empty($responses)): ?>
+                <hr>
+                <h6 class="mb-2">Risposte (<?php echo count($responses); ?>)</h6>
+                <div class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
+                    <?php foreach ($responses as $response): ?>
+                        <div class="list-group-item px-0 py-2">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <strong><?php echo h($response['first_name'] . ' ' . $response['last_name']); ?></strong>
+                                    <?php if ($response['response'] === 'yes'): ?>
+                                        <span class="badge bg-success ms-2">Sì</span>
+                                    <?php elseif ($response['response'] === 'maybe'): ?>
+                                        <span class="badge bg-warning ms-2">Forse</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-danger ms-2">No</span>
+                                    <?php endif; ?>
+                                    <?php if ($response['notes']): ?>
+                                        <br>
+                                        <small class="text-muted"><?php echo h($response['notes']); ?></small>
+                                    <?php endif; ?>
+                                </div>
+                                <small class="text-muted"><?php echo formatDate($response['responded_at']); ?></small>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+        
         <!-- Admin Actions -->
         <?php if (isAdmin()): ?>
         <div class="card">

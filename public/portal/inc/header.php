@@ -99,6 +99,30 @@ $siteName = $assocInfo['name'] ?? 'Associazione';
                             <i class="bi bi-card-heading"></i> Tesserino
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'events.php' ? 'active' : ''; ?>" 
+                           href="<?php echo h($basePath); ?>portal/events.php">
+                            <i class="bi bi-calendar-event"></i> Eventi
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'groups.php' ? 'active' : ''; ?>" 
+                           href="<?php echo h($basePath); ?>portal/groups.php">
+                            <i class="bi bi-people"></i> Gruppi
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'payments.php' ? 'active' : ''; ?>" 
+                           href="<?php echo h($basePath); ?>portal/payments.php">
+                            <i class="bi bi-credit-card"></i> Pagamenti
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'receipts.php' ? 'active' : ''; ?>" 
+                           href="<?php echo h($basePath); ?>portal/receipts.php">
+                            <i class="bi bi-receipt"></i> Ricevute
+                        </a>
+                    </li>
                 </ul>
                 
                 <ul class="navbar-nav">
