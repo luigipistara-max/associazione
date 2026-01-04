@@ -4,9 +4,10 @@
  * Display news visible to the logged-in member
  */
 
-require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/../../src/config.php';
 require_once __DIR__ . '/../../src/db.php';
 require_once __DIR__ . '/../../src/functions.php';
+require_once __DIR__ . '/inc/auth.php';
 
 requireMemberLogin();
 

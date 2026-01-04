@@ -4,8 +4,10 @@
  * Confirm offline (bank transfer) payments
  */
 
-require_once __DIR__ . '/../src/auth.php';
+require_once __DIR__ . '/../src/config.php';
+require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/functions.php';
+require_once __DIR__ . '/../src/auth.php';
 
 requireLogin();
 $config = require __DIR__ . '/../src/config.php';
