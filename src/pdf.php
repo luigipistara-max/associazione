@@ -92,13 +92,15 @@ function generateReceiptHTML($feeId) {
         $fee['receipt_generated_at'] = date('Y-m-d H:i:s');
     }
     
-    // Configurazione associazione
-    $appName = $config['app']['name'] ?? 'Associazione';
+    // Get association information from settings
+    $assocInfo = getAssociationInfo();
+    $bankDetails = getBankDetails();
+    $appName = $assocInfo['name'] ?? $config['app']['name'] ?? 'Associazione';
     
     // Importo in lettere
     $amountInWords = numberToWords($fee['amount']);
     
-    // Costruisci indirizzo completo
+    // Costruisci indirizzo completo socio
     $address = trim($fee['address'] ?? '');
     if ($fee['city']) {
         $address .= ($address ? ', ' : '') . $fee['city'];
@@ -264,6 +266,14 @@ function generateReceiptHTML($feeId) {
                 <div class="info-label">Nome:</div>
                 <div class="info-value">' . h($appName) . '</div>
             </div>
+            ' . ($assocInfo['address'] ? '<div class="info-row">
+                <div class="info-label">Sede:</div>
+                <div class="info-value">' . nl2br(h($assocInfo['address'])) . '</div>
+            </div>' : '') . '
+            ' . ($assocInfo['email'] ? '<div class="info-row">
+                <div class="info-label">Email:</div>
+                <div class="info-value">' . h($assocInfo['email']) . '</div>
+            </div>' : '') . '
         </div>
         
         <div class="section">
@@ -311,6 +321,28 @@ function generateReceiptHTML($feeId) {
             <div class="amount">' . formatCurrency($fee['amount']) . '</div>
             <div class="amount-words">' . h($amountInWords) . '</div>
         </div>
+        
+        ' . ($bankDetails['iban'] || $assocInfo['fiscal_cf'] || $assocInfo['fiscal_piva'] ? '
+        <div class="section">
+            <div class="section-title">Dati Fiscali e Bancari</div>
+            ' . ($assocInfo['fiscal_cf'] ? '<div class="info-row">
+                <div class="info-label">Codice Fiscale:</div>
+                <div class="info-value">' . h($assocInfo['fiscal_cf']) . '</div>
+            </div>' : '') . '
+            ' . ($assocInfo['fiscal_piva'] ? '<div class="info-row">
+                <div class="info-label">Partita IVA:</div>
+                <div class="info-value">' . h($assocInfo['fiscal_piva']) . '</div>
+            </div>' : '') . '
+            ' . ($bankDetails['iban'] ? '<div class="info-row">
+                <div class="info-label">IBAN:</div>
+                <div class="info-value">' . h($bankDetails['iban']) . '</div>
+            </div>' : '') . '
+            ' . ($bankDetails['bank_name'] ? '<div class="info-row">
+                <div class="info-label">Banca:</div>
+                <div class="info-value">' . h($bankDetails['bank_name']) . '</div>
+            </div>' : '') . '
+        </div>
+        ' : '') . '
         
         <div class="legal-notice">
             <strong>Nota:</strong> La presente ricevuta attesta il pagamento della quota associativa. 

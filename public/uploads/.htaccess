@@ -1,0 +1,11 @@
+# Allow only images to be displayed
+<FilesMatch "\.(jpg|jpeg|png|gif)$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>
+
+# Deny access to PHP files for security
+<FilesMatch "\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
