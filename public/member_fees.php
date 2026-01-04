@@ -61,13 +61,17 @@ if ($action === 'mark_paid' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') 
     $oldFee = $stmt->fetch();
     
     if ($oldFee && $oldFee['status'] !== 'paid') {
-        // Update fee status
+        // Get payment method from form or default to cash
+        $paymentMethod = $_POST['payment_method'] ?? 'cash';
+        $paymentDetails = $_POST['payment_details'] ?? null;
+        
+        // Update fee status and payment method
         $stmt = $pdo->prepare("
             UPDATE " . table('member_fees') . " 
-            SET status = 'paid', paid_date = CURDATE() 
+            SET status = 'paid', paid_date = CURDATE(), payment_method = ?
             WHERE id = ?
         ");
-        $stmt->execute([$feeId]);
+        $stmt->execute([$paymentMethod, $feeId]);
         
         // Create income movement using helper function
         $feeData = [
@@ -76,9 +80,12 @@ if ($action === 'mark_paid' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') 
             'social_year_id' => $oldFee['social_year_id'],
             'amount' => $oldFee['amount'],
             'paid_date' => date('Y-m-d'),
-            'payment_method' => $oldFee['payment_method']
+            'payment_method' => $paymentMethod
         ];
         createIncomeFromFee($feeData);
+        
+        // Generate receipt automatically
+        $receiptId = generateReceipt($feeId, $paymentMethod, $paymentDetails, $_SESSION['user_id']);
         
         // Log audit
         logUpdate('fee', $feeId, "Quota ID {$feeId}", 
@@ -86,7 +93,11 @@ if ($action === 'mark_paid' && $feeId && $_SERVER['REQUEST_METHOD'] === 'POST') 
             ['status' => 'paid', 'paid_date' => date('Y-m-d')]
         );
         
-        setFlashMessage('Quota registrata come pagata e movimento creato');
+        if ($receiptId) {
+            setFlashMessage('Quota registrata come pagata, movimento creato e ricevuta generata automaticamente!');
+        } else {
+            setFlashMessage('Quota registrata come pagata e movimento creato', 'warning');
+        }
     } else {
         setFlashMessage('Quota già registrata come pagata', 'warning');
     }
@@ -376,12 +387,11 @@ include __DIR__ . '/inc/header.php';
                                         <i class="bi bi-printer"></i>
                                     </a>
                                     <?php else: ?>
-                                    <form method="POST" action="?action=mark_paid&id=<?php echo $f['id']; ?>" class="d-inline">
-                                        <?php echo csrfField(); ?>
-                                        <button type="submit" class="btn btn-success" title="Segna come pagato">
-                                            <i class="bi bi-check"></i>
-                                        </button>
-                                    </form>
+                                    <button type="button" class="btn btn-success" 
+                                            onclick="openPaymentModal(<?php echo $f['id']; ?>)" 
+                                            title="Segna come pagato">
+                                        <i class="bi bi-check"></i>
+                                    </button>
                                     <?php endif; ?>
                                     <button type="button" class="btn btn-primary" onclick="editFee(<?php echo htmlspecialchars(json_encode($f)); ?>)">
                                         <i class="bi bi-pencil"></i>
@@ -508,7 +518,63 @@ include __DIR__ . '/inc/header.php';
     </div>
 </div>
 
+<!-- Payment Method Modal -->
+<div class="modal fade" id="paymentMethodModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" id="markPaidForm">
+                <?php echo csrfField(); ?>
+                <input type="hidden" name="fee_id_paid" id="fee_id_paid">
+                
+                <div class="modal-header">
+                    <h5 class="modal-title">Segna come Pagato</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Metodo di Pagamento <span class="text-danger">*</span></label>
+                        <select name="payment_method" id="payment_method_select" class="form-select" required>
+                            <option value="cash">In contanti presso la sede sociale</option>
+                            <option value="bank_transfer">Bonifico bancario</option>
+                            <option value="card">Pagamento con carta</option>
+                            <option value="paypal">PayPal</option>
+                            <option value="other">Altro</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Dettagli Pagamento (opzionale)</label>
+                        <input type="text" name="payment_details" id="payment_details" class="form-control" 
+                               placeholder="Es: Numero transazione, riferimento bonifico, ecc.">
+                        <small class="text-muted">Se lasciato vuoto, verrà utilizzato il testo di default per il metodo selezionato</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        La ricevuta verrà generata automaticamente in formato ANNO/NNNN
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check"></i> Conferma Pagamento
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+function openPaymentModal(feeId) {
+    document.getElementById('markPaidForm').action = '?action=mark_paid&id=' + feeId;
+    document.getElementById('fee_id_paid').value = feeId;
+    var modal = new bootstrap.Modal(document.getElementById('paymentMethodModal'));
+    modal.show();
+}
+
 function resetFeeForm() {
     document.getElementById('feeForm').action = '?action=add';
     document.getElementById('feeModalTitle').textContent = 'Nuova Quota';

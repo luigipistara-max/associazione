@@ -15,18 +15,8 @@ $basePath = $config['app']['base_path'];
 
 $success = isset($_GET['success']) && $_GET['success'] == '1';
 
-// Get member's receipts (paid fees with receipt number)
-$stmt = $pdo->prepare("
-    SELECT f.*, sy.name as year_name
-    FROM " . table('member_fees') . " f
-    LEFT JOIN " . table('social_years') . " sy ON f.social_year_id = sy.id
-    WHERE f.member_id = ? 
-      AND f.status = 'paid' 
-      AND f.receipt_number IS NOT NULL
-    ORDER BY f.paid_date DESC
-");
-$stmt->execute([$member['id']]);
-$receipts = $stmt->fetchAll();
+// Get member's receipts using new function
+$receipts = getMemberReceipts($member['id']);
 
 $pageTitle = 'Ricevute';
 require_once __DIR__ . '/inc/header.php';
@@ -49,7 +39,7 @@ require_once __DIR__ . '/inc/header.php';
         <?php if (empty($receipts)): ?>
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i> 
-                Non hai ancora ricevute. Le ricevute verranno generate automaticamente dopo il pagamento delle quote.
+                Non hai ancora ricevute disponibili.
             </div>
         <?php else: ?>
             <div class="card">
@@ -58,11 +48,11 @@ require_once __DIR__ . '/inc/header.php';
                         <table class="table table-hover">
                             <thead>
                                 <tr>
-                                    <th>Numero ricevuta</th>
-                                    <th>Anno sociale</th>
+                                    <th>N. Ricevuta</th>
+                                    <th>Data</th>
+                                    <th>Descrizione</th>
                                     <th>Importo</th>
-                                    <th>Data pagamento</th>
-                                    <th>Metodo</th>
+                                    <th>Pagamento</th>
                                     <th>Azioni</th>
                                 </tr>
                             </thead>
@@ -72,30 +62,15 @@ require_once __DIR__ . '/inc/header.php';
                                         <td>
                                             <strong><?php echo h($receipt['receipt_number']); ?></strong>
                                         </td>
-                                        <td><?php echo h($receipt['year_name']); ?></td>
-                                        <td><?php echo formatAmount($receipt['amount']); ?></td>
-                                        <td><?php echo formatDate($receipt['paid_date']); ?></td>
+                                        <td><?php echo formatDate($receipt['issue_date']); ?></td>
+                                        <td><?php echo h($receipt['description']); ?></td>
+                                        <td>€ <?php echo number_format($receipt['amount'], 2, ',', '.'); ?></td>
+                                        <td><?php echo h($receipt['payment_method_details']); ?></td>
                                         <td>
-                                            <?php if ($receipt['payment_method']): ?>
-                                                <span class="badge bg-secondary">
-                                                    <?php echo h($receipt['payment_method']); ?>
-                                                </span>
-                                            <?php else: ?>
-                                                <span class="text-muted">-</span>
-                                            <?php endif; ?>
-                                            
-                                            <?php if ($receipt['paypal_transaction_id']): ?>
-                                                <br>
-                                                <small class="text-muted">
-                                                    PayPal: <?php echo h(substr($receipt['paypal_transaction_id'], 0, 20)); ?>...
-                                                </small>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <a href="<?php echo h($basePath); ?>receipt.php?id=<?php echo $receipt['id']; ?>&token=<?php echo h(generateReceiptToken($receipt['id'], $member['id'])); ?>" 
+                                            <a href="receipt_pdf.php?id=<?php echo $receipt['id']; ?>" 
                                                class="btn btn-sm btn-primary" 
                                                target="_blank">
-                                                <i class="bi bi-file-pdf"></i> Visualizza PDF
+                                                <i class="bi bi-download"></i> Scarica PDF
                                             </a>
                                         </td>
                                     </tr>

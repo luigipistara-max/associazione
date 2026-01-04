@@ -3710,3 +3710,165 @@ function sendEventNotification($eventId) {
     
     return $sentCount;
 }
+
+/**
+ * =============================================================================
+ * RECEIPT FUNCTIONS
+ * =============================================================================
+ */
+
+/**
+ * Get next receipt number for current year
+ * Format: YYYY/NNNN (es. 2026/0001)
+ * 
+ * @return string Next receipt number
+ */
+function getNextReceiptNumber() {
+    global $pdo;
+    
+    $year = date('Y');
+    $prefix = $year . '/';
+    
+    $stmt = $pdo->prepare("
+        SELECT receipt_number 
+        FROM " . table('receipts') . " 
+        WHERE receipt_number LIKE ? 
+        ORDER BY receipt_number DESC 
+        LIMIT 1
+    ");
+    $stmt->execute([$prefix . '%']);
+    $last = $stmt->fetchColumn();
+    
+    if ($last) {
+        $lastNumber = (int) substr($last, strlen($prefix));
+        $nextNumber = $lastNumber + 1;
+    } else {
+        $nextNumber = 1;
+    }
+    
+    return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+}
+
+/**
+ * Generate receipt for a paid fee
+ * 
+ * @param int $memberFeeId Member fee ID
+ * @param string $paymentMethod Payment method (cash, bank_transfer, card, paypal, other)
+ * @param string|null $paymentDetails Payment method details (optional)
+ * @param int|null $createdBy User ID who created the receipt (optional)
+ * @return int|false Receipt ID on success, false on failure
+ */
+function generateReceipt($memberFeeId, $paymentMethod = 'cash', $paymentDetails = null, $createdBy = null) {
+    global $pdo;
+    
+    // Get fee details
+    $stmt = $pdo->prepare("
+        SELECT mf.*, m.first_name, m.last_name, m.fiscal_code, m.address, m.city,
+               sy.name as year_name
+        FROM " . table('member_fees') . " mf
+        JOIN " . table('members') . " m ON mf.member_id = m.id
+        LEFT JOIN " . table('social_years') . " sy ON mf.social_year_id = sy.id
+        WHERE mf.id = ?
+    ");
+    $stmt->execute([$memberFeeId]);
+    $fee = $stmt->fetch();
+    
+    if (!$fee) {
+        return false;
+    }
+    
+    // Check if receipt already exists
+    $stmt = $pdo->prepare("SELECT id FROM " . table('receipts') . " WHERE member_fee_id = ?");
+    $stmt->execute([$memberFeeId]);
+    if ($stmt->fetch()) {
+        return false; // Receipt already exists
+    }
+    
+    // Default payment details
+    if ($paymentDetails === null) {
+        switch ($paymentMethod) {
+            case 'cash':
+                $paymentDetails = 'In contanti presso la sede sociale';
+                break;
+            case 'bank_transfer':
+                $paymentDetails = 'Bonifico bancario';
+                break;
+            case 'card':
+                $paymentDetails = 'Pagamento con carta';
+                break;
+            case 'paypal':
+                $paymentDetails = 'Pagamento PayPal';
+                break;
+            default:
+                $paymentDetails = 'Altro metodo di pagamento';
+        }
+    }
+    
+    // Build description
+    $description = 'Quota associativa';
+    if (!empty($fee['year_name'])) {
+        $description .= ' - Anno sociale ' . $fee['year_name'];
+    }
+    
+    // Generate receipt
+    $receiptNumber = getNextReceiptNumber();
+    
+    $stmt = $pdo->prepare("
+        INSERT INTO " . table('receipts') . " 
+        (receipt_number, member_id, member_fee_id, amount, description, payment_method, payment_method_details, issue_date, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURDATE(), ?)
+    ");
+    
+    $stmt->execute([
+        $receiptNumber,
+        $fee['member_id'],
+        $memberFeeId,
+        $fee['amount'],
+        $description,
+        $paymentMethod,
+        $paymentDetails,
+        $createdBy
+    ]);
+    
+    return $pdo->lastInsertId();
+}
+
+/**
+ * Get receipts for a member
+ * 
+ * @param int $memberId Member ID
+ * @return array Array of receipts
+ */
+function getMemberReceipts($memberId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT r.*, m.first_name, m.last_name
+        FROM " . table('receipts') . " r
+        JOIN " . table('members') . " m ON r.member_id = m.id
+        WHERE r.member_id = ?
+        ORDER BY r.issue_date DESC, r.id DESC
+    ");
+    $stmt->execute([$memberId]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get single receipt by ID
+ * 
+ * @param int $receiptId Receipt ID
+ * @return array|false Receipt data or false if not found
+ */
+function getReceipt($receiptId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("
+        SELECT r.*, 
+               m.first_name, m.last_name, m.fiscal_code, m.address, m.city, m.postal_code, m.email
+        FROM " . table('receipts') . " r
+        JOIN " . table('members') . " m ON r.member_id = m.id
+        WHERE r.id = ?
+    ");
+    $stmt->execute([$receiptId]);
+    return $stmt->fetch();
+}
