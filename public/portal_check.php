@@ -4,11 +4,9 @@
  * Verifica che tutte le componenti del portale siano installate correttamente
  */
 
-require_once __DIR__ . '/../src/config.php';
+$config = require_once __DIR__ . '/../src/config.php';
 require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/functions.php';
-
-$config = require __DIR__ . '/../src/config.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
