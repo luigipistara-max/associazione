@@ -240,11 +240,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                     
-                    // Reload page after a short delay to show updated registration status
-                    // This ensures the registration status section is properly displayed
+                    // Reload page after brief delay to show updated registration status
+                    // This ensures member sees current approval status from admin
                     setTimeout(() => {
                         window.location.reload();
-                    }, 1000);
+                    }, 500);
                 } else {
                     messageDiv.innerHTML = '<small class="text-danger"><i class="bi bi-x-circle"></i> ' + data.message + '</small>';
                 }
