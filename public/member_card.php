@@ -76,6 +76,9 @@ $assocInfo = getAssociationInfo();
 // Get logo URL
 $logoUrl = getLogoUrl($assocInfo['logo'] ?? null, $basePath);
 
+// Validate photo URL to prevent XSS
+$photoUrl = validateImageUrl($member['photo_url'] ?? null);
+
 // Build verification URL
 $verifyUrl = '';
 if ($member['card_token']) {
@@ -311,11 +314,7 @@ $pageTitle = 'Tessera Socio - ' . $member['first_name'] . ' ' . $member['last_na
                 <div class="card-title">TESSERA SOCIO</div>
                 
                 <div class="card-photo">
-                    <?php 
-                    // Validate photo URL to prevent XSS
-                    $photoUrl = validateImageUrl($member['photo_url'] ?? null);
-                    if ($photoUrl): 
-                    ?>
+                    <?php if ($photoUrl): ?>
                         <img src="<?php echo h($photoUrl); ?>" alt="Foto">
                     <?php else: ?>
                         <div class="card-photo-placeholder">

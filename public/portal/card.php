@@ -46,6 +46,9 @@ $assocInfo = getAssociationInfo();
 // Get logo URL
 $logoUrl = getLogoUrl($assocInfo['logo'] ?? null, $basePath);
 
+// Validate photo URL to prevent XSS
+$photoUrl = validateImageUrl($member['photo_url'] ?? null);
+
 include __DIR__ . '/inc/header.php';
 ?>
 
@@ -173,11 +176,7 @@ include __DIR__ . '/inc/header.php';
                 
                 <div class="card-body-section">
                     <div class="card-photo">
-                        <?php 
-                        // Validate photo URL to prevent XSS
-                        $photoUrl = validateImageUrl($member['photo_url'] ?? null);
-                        if ($photoUrl): 
-                        ?>
+                        <?php if ($photoUrl): ?>
                             <img src="<?php echo h($photoUrl); ?>" alt="Foto" class="member-photo">
                         <?php else: ?>
                             <div class="member-photo-placeholder">

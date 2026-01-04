@@ -3042,19 +3042,34 @@ function validateImageUrl($url) {
     
     // Check for valid HTTP/HTTPS URLs
     if (preg_match('/^https?:\/\//i', $url)) {
-        // Additional validation: ensure it's a proper URL
-        if (filter_var($url, FILTER_VALIDATE_URL)) {
-            return $url;
+        // Validate URL format
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return null;
         }
-        return null;
+        
+        // Parse and verify scheme is http or https only
+        $parsed = parse_url($url);
+        if (!isset($parsed['scheme']) || !in_array(strtolower($parsed['scheme']), ['http', 'https'], true)) {
+            return null;
+        }
+        
+        return $url;
     }
     
     // Check for local paths (must start with / and not contain scheme-like patterns)
     if (preg_match('/^\/[^:]*$/i', $url)) {
-        // Ensure no encoded slashes or suspicious patterns
-        if (strpos($url, '%2f') === false && strpos($url, '%2F') === false) {
-            return $url;
+        // Decode URL to check for malicious patterns
+        $decoded = urldecode($url);
+        
+        // Reject if decoded version contains suspicious patterns
+        if (strpos($decoded, '..') !== false || // Directory traversal
+            strpos($decoded, "\0") !== false || // Null bytes
+            strpos($decoded, "\n") !== false || // Newlines
+            strpos($decoded, "\r") !== false) { // Carriage returns
+            return null;
         }
+        
+        return $url;
     }
     
     // Reject everything else (javascript:, data:, etc.)
