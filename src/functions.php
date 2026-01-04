@@ -105,6 +105,29 @@ function getSocialYears() {
 }
 
 /**
+ * Get fee amount for a social year
+ */
+function getSocialYearFeeAmount($yearId) {
+    global $pdo;
+    
+    $stmt = $pdo->prepare("SELECT fee_amount FROM " . table('social_years') . " WHERE id = ?");
+    $stmt->execute([$yearId]);
+    $result = $stmt->fetch();
+    
+    return $result ? floatval($result['fee_amount']) : 0;
+}
+
+/**
+ * Get current social year with fee amount
+ */
+function getCurrentSocialYearWithFee() {
+    global $pdo;
+    
+    $stmt = $pdo->query("SELECT * FROM " . table('social_years') . " WHERE is_current = 1 LIMIT 1");
+    return $stmt->fetch();
+}
+
+/**
  * Get income categories
  */
 function getIncomeCategories($activeOnly = true) {

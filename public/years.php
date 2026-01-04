@@ -54,6 +54,7 @@ if ($canEdit && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])
         $name = trim($_POST['name'] ?? '');
         $startDate = $_POST['start_date'] ?? '';
         $endDate = $_POST['end_date'] ?? '';
+        $feeAmount = floatval($_POST['fee_amount'] ?? 0);
         $isCurrent = isset($_POST['is_current']) ? 1 : 0;
         $yearId = $_POST['year_id'] ?? null;
         
@@ -68,12 +69,12 @@ if ($canEdit && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])
                 }
                 
                 if ($yearId) {
-                    $stmt = $pdo->prepare("UPDATE " . table('social_years') . " SET name = ?, start_date = ?, end_date = ?, is_current = ? WHERE id = ?");
-                    $stmt->execute([$name, $startDate, $endDate, $isCurrent, $yearId]);
+                    $stmt = $pdo->prepare("UPDATE " . table('social_years') . " SET name = ?, start_date = ?, end_date = ?, fee_amount = ?, is_current = ? WHERE id = ?");
+                    $stmt->execute([$name, $startDate, $endDate, $feeAmount, $isCurrent, $yearId]);
                     setFlashMessage('Anno sociale aggiornato con successo');
                 } else {
-                    $stmt = $pdo->prepare("INSERT INTO " . table('social_years') . " (name, start_date, end_date, is_current) VALUES (?, ?, ?, ?)");
-                    $stmt->execute([$name, $startDate, $endDate, $isCurrent]);
+                    $stmt = $pdo->prepare("INSERT INTO " . table('social_years') . " (name, start_date, end_date, fee_amount, is_current) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->execute([$name, $startDate, $endDate, $feeAmount, $isCurrent]);
                     setFlashMessage('Anno sociale creato con successo');
                 }
                 redirect($basePath . 'years.php');
@@ -122,6 +123,7 @@ include __DIR__ . '/inc/header.php';
                             <th>Nome</th>
                             <th>Data Inizio</th>
                             <th>Data Fine</th>
+                            <th>Quota</th>
                             <th>Stato</th>
                             <th class="text-end">Azioni</th>
                         </tr>
@@ -134,6 +136,7 @@ include __DIR__ . '/inc/header.php';
                             </td>
                             <td><?php echo formatDate($year['start_date']); ?></td>
                             <td><?php echo formatDate($year['end_date']); ?></td>
+                            <td><?php echo $year['fee_amount'] ? formatAmount($year['fee_amount']) : '-'; ?></td>
                             <td>
                                 <?php if ($year['is_current']): ?>
                                     <span class="badge bg-success">Corrente</span>
@@ -196,6 +199,13 @@ include __DIR__ . '/inc/header.php';
                         <input type="date" name="end_date" id="endDate" class="form-control" required>
                     </div>
                     
+                    <div class="mb-3">
+                        <label class="form-label">Importo Quota Associativa (€)</label>
+                        <input type="number" name="fee_amount" id="feeAmount" class="form-control" 
+                               step="0.01" min="0" placeholder="Es: 30.00">
+                        <div class="form-text">Importo standard della quota per questo anno sociale</div>
+                    </div>
+                    
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="is_current" id="isCurrent">
                         <label class="form-check-label" for="isCurrent">
@@ -242,6 +252,7 @@ function resetYearForm() {
     document.getElementById('name').value = '';
     document.getElementById('startDate').value = '';
     document.getElementById('endDate').value = '';
+    document.getElementById('feeAmount').value = '';
     document.getElementById('isCurrent').checked = false;
 }
 
@@ -251,6 +262,7 @@ function editYear(year) {
     document.getElementById('name').value = year.name;
     document.getElementById('startDate').value = year.start_date;
     document.getElementById('endDate').value = year.end_date;
+    document.getElementById('feeAmount').value = year.fee_amount || '';
     document.getElementById('isCurrent').checked = year.is_current == 1;
     new bootstrap.Modal(document.getElementById('yearModal')).show();
 }

@@ -436,7 +436,9 @@ include __DIR__ . '/inc/header.php';
                             <select name="social_year_id" id="social_year_id" class="form-select" required>
                                 <option value="">Seleziona anno...</option>
                                 <?php foreach ($socialYears as $year): ?>
-                                    <option value="<?php echo $year['id']; ?>" <?php echo $year['is_current'] ? 'selected' : ''; ?>>
+                                    <option value="<?php echo $year['id']; ?>" 
+                                            data-fee-amount="<?php echo $year['fee_amount'] ?? 0; ?>"
+                                            <?php echo $year['is_current'] ? 'selected' : ''; ?>>
                                         <?php echo h($year['name']); ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -532,6 +534,17 @@ function editFee(fee) {
     var modal = new bootstrap.Modal(document.getElementById('feeModal'));
     modal.show();
 }
+
+// Add event listener to social year select to pre-populate amount
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('social_year_id').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const feeAmount = selectedOption.getAttribute('data-fee-amount');
+        if (feeAmount && feeAmount > 0) {
+            document.getElementById('amount').value = feeAmount;
+        }
+    });
+});
 </script>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>
