@@ -19,6 +19,23 @@ if (!$event) {
     redirect($basePath . 'events.php');
 }
 
+// Handle remove response action (admin only)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && isAdmin()) {
+    if ($_POST['action'] === 'remove_response' && isset($_POST['response_id'])) {
+        $token = $_POST['csrf_token'] ?? '';
+        
+        if (verifyCsrfToken($token)) {
+            $responseId = (int)$_POST['response_id'];
+            if (deleteEventResponse($responseId)) {
+                setFlashMessage('Risposta rimossa con successo');
+            } else {
+                setFlashMessage('Errore nella rimozione della risposta', 'danger');
+            }
+            redirect($basePath . 'event_view.php?id=' . $eventId);
+        }
+    }
+}
+
 $pageTitle = $event['title'];
 $currentUser = getCurrentUser();
 $currentMemberId = null;
@@ -314,29 +331,45 @@ include __DIR__ . '/inc/header.php';
                 
                 <?php if (!empty($responses)): ?>
                 <hr>
-                <h6 class="mb-2">Risposte (<?php echo count($responses); ?>)</h6>
-                <div class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
-                    <?php foreach ($responses as $response): ?>
-                        <div class="list-group-item px-0 py-2">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div class="flex-grow-1">
-                                    <strong><?php echo h($response['first_name'] . ' ' . $response['last_name']); ?></strong>
+                <h6 class="mb-3">Risposte (<?php echo count($responses); ?>)</h6>
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-sm table-hover">
+                        <thead class="sticky-top bg-white">
+                            <tr>
+                                <th>Socio</th>
+                                <th>Risposta</th>
+                                <th>Data</th>
+                                <th>Note</th>
+                                <th class="text-end">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($responses as $response): ?>
+                            <tr>
+                                <td><?php echo h($response['first_name'] . ' ' . $response['last_name']); ?></td>
+                                <td>
                                     <?php if ($response['response'] === 'yes'): ?>
-                                        <span class="badge bg-success ms-2">Sì</span>
+                                        <span class="badge bg-success">Sì</span>
                                     <?php elseif ($response['response'] === 'maybe'): ?>
-                                        <span class="badge bg-warning ms-2">Forse</span>
+                                        <span class="badge bg-warning">Forse</span>
                                     <?php else: ?>
-                                        <span class="badge bg-danger ms-2">No</span>
+                                        <span class="badge bg-danger">No</span>
                                     <?php endif; ?>
-                                    <?php if ($response['notes']): ?>
-                                        <br>
-                                        <small class="text-muted"><?php echo h($response['notes']); ?></small>
-                                    <?php endif; ?>
-                                </div>
-                                <small class="text-muted"><?php echo formatDate($response['responded_at']); ?></small>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
+                                </td>
+                                <td><?php echo formatDate($response['responded_at']); ?></td>
+                                <td><?php echo h($response['notes'] ?? '-'); ?></td>
+                                <td class="text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#removeResponseModal<?php echo $response['id']; ?>"
+                                            title="Rimuovi risposta">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
                 <?php endif; ?>
             </div>
@@ -370,5 +403,50 @@ include __DIR__ . '/inc/header.php';
         <?php endif; ?>
     </div>
 </div>
+
+<!-- Modals for removing responses -->
+<?php if (isAdmin() && !empty($responses)): ?>
+    <?php foreach ($responses as $response): ?>
+    <!-- Modal conferma rimozione per risposta ID <?php echo $response['id']; ?> -->
+    <div class="modal fade" id="removeResponseModal<?php echo $response['id']; ?>" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                    <input type="hidden" name="action" value="remove_response">
+                    <input type="hidden" name="response_id" value="<?php echo $response['id']; ?>">
+                    
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">Conferma rimozione</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Sei sicuro di voler rimuovere la risposta di 
+                           <strong><?php echo h($response['first_name'] . ' ' . $response['last_name']); ?></strong>
+                           da questo evento?</p>
+                        <p class="text-muted mb-0">
+                            <small>Risposta: 
+                                <?php if ($response['response'] === 'yes'): ?>
+                                    <span class="badge bg-success">Sì</span>
+                                <?php elseif ($response['response'] === 'maybe'): ?>
+                                    <span class="badge bg-warning">Forse</span>
+                                <?php else: ?>
+                                    <span class="badge bg-danger">No</span>
+                                <?php endif; ?>
+                            </small>
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Rimuovi
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+<?php endif; ?>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>
