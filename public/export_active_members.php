@@ -10,6 +10,7 @@ require_once __DIR__ . '/../src/audit.php';
 
 requireLogin();
 
+$config = require __DIR__ . '/../src/config.php';
 $pageTitle = 'Export Soci Attivi';
 $basePath = $config['app']['base_path'];
 

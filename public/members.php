@@ -6,6 +6,7 @@ require_once __DIR__ . '/../src/audit.php';
 
 requireLogin();
 
+$config = require __DIR__ . '/../src/config.php';
 $pageTitle = 'Gestione Soci';
 
 // Get base path from config

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../src/email.php';
 
 requireLogin();
 
+$config = require __DIR__ . '/../src/config.php';
 $basePath = $config['app']['base_path'];
 
 $memberId = $_GET['id'] ?? null;

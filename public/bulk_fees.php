@@ -11,6 +11,7 @@ require_once __DIR__ . '/../src/audit.php';
 
 requireAdmin();
 
+$config = require __DIR__ . '/../src/config.php';
 $pageTitle = 'Rinnovo Massivo Quote';
 $step = $_GET['step'] ?? 1;
 
