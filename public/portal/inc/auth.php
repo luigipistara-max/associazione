@@ -68,8 +68,9 @@ function portalLogin($email, $password) {
         return ['success' => false, 'error' => 'Password non corretta'];
     }
     
-    // Set session
+    // Set session (both old and new variable names for compatibility)
     $_SESSION['portal_member_id'] = $member['id'];
+    $_SESSION['member_id'] = $member['id']; // For src/auth.php compatibility
     $_SESSION['portal_member_name'] = $member['first_name'] . ' ' . $member['last_name'];
     $_SESSION['portal_login_time'] = time();
     
@@ -85,6 +86,7 @@ function portalLogin($email, $password) {
  */
 function portalLogout() {
     unset($_SESSION['portal_member_id']);
+    unset($_SESSION['member_id']); // Also unset new variable name
     unset($_SESSION['portal_member_name']);
     unset($_SESSION['portal_login_time']);
 }

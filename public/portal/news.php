@@ -7,11 +7,14 @@
 require_once __DIR__ . '/../../src/config.php';
 require_once __DIR__ . '/../../src/db.php';
 require_once __DIR__ . '/../../src/functions.php';
-require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/../../src/auth.php';
 
-requirePortalLogin();
+requireMemberLogin();
 
-$memberId = $_SESSION['portal_member_id'];
+$memberId = getCurrentMemberId();
+$member = getCurrentMember();
+$config = require __DIR__ . '/../../src/config.php';
+$basePath = $config['app']['base_path'];
 $pageTitle = 'Notizie';
 
 // Pagination
