@@ -3653,7 +3653,7 @@ function sendEventNotification($eventId) {
     
     // Build email
     $assocInfo = getAssociationInfo();
-    $assocName = $assocInfo['name'] ?? 'Associazione';
+    $assocName = h($assocInfo['name'] ?? 'Associazione');
     $baseUrl = getBaseUrl();
     $eventUrl = $baseUrl . 'portal/events.php';
     
@@ -3673,15 +3673,15 @@ function sendEventNotification($eventId) {
                 <h1 style='color: #333; margin-top: 0;'>📅 Nuovo Evento</h1>
                 
                 <div style='background: white; padding: 20px; border-radius: 8px; margin: 20px 0;'>
-                    <h2 style='color: #667eea; margin-top: 0;'>" . htmlspecialchars($event['title']) . "</h2>
+                    <h2 style='color: #667eea; margin-top: 0;'>" . h($event['title']) . "</h2>
                     
                     <p style='color: #333;'>
                         <strong>📆 Data:</strong> {$eventDate}" . ($eventTime ? " alle {$eventTime}" : "") . "
                     </p>
                     
-                    " . (!empty($event['location']) ? "<p style='color: #333;'><strong>📍 Luogo:</strong> " . htmlspecialchars($event['location']) . "</p>" : "") . "
+                    " . (!empty($event['location']) ? "<p style='color: #333;'><strong>📍 Luogo:</strong> " . h($event['location']) . "</p>" : "") . "
                     
-                    " . (!empty($event['description']) ? "<p style='color: #666; line-height: 1.6;'>" . nl2br(htmlspecialchars(substr($event['description'], 0, 300))) . (strlen($event['description']) > 300 ? '...' : '') . "</p>" : "") . "
+                    " . (!empty($event['description']) ? "<p style='color: #666; line-height: 1.6;'>" . nl2br(h(substr($event['description'], 0, 300))) . (strlen($event['description']) > 300 ? '...' : '') . "</p>" : "") . "
                 </div>
                 
                 <div style='text-align: center; margin-top: 30px;'>
