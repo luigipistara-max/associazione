@@ -4281,9 +4281,9 @@ function calculateControlChar($code) {
     $sum = 0;
     for ($i = 0; $i < 15; $i++) {
         $char = strtoupper($code[$i]);
-        if (($i + 1) % 2 === 1) { // Posizione dispari
+        if ($i % 2 === 0) { // Posizione dispari (1, 3, 5, 7, 9, 11, 13, 15)
             $sum += $oddValues[$char] ?? 0;
-        } else { // Posizione pari
+        } else { // Posizione pari (2, 4, 6, 8, 10, 12, 14)
             $sum += $evenValues[$char] ?? 0;
         }
     }
