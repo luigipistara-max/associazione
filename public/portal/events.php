@@ -9,6 +9,11 @@ require_once __DIR__ . '/../../src/db.php';
 require_once __DIR__ . '/../../src/functions.php';
 require_once __DIR__ . '/inc/auth.php';
 
+// Prevent caching to ensure fresh event data in PWA
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 session_start();
 $member = requirePortalLogin();
 $config = require __DIR__ . '/../../src/config.php';

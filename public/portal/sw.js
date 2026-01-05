@@ -1,4 +1,4 @@
-const CACHE_NAME = 'portale-soci-v1';
+const CACHE_NAME = 'portale-soci-v2';
 const OFFLINE_URL = '/portal/offline.html';
 
 // Files to cache immediately on install
@@ -64,6 +64,44 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // For events.php, always fetch from network first (network-first strategy)
+  if (event.request.url.includes('/portal/events.php')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          // Cache the fresh response
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch((error) => {
+          // Network failed, try cache as fallback
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // Return offline page for navigation requests
+            if (event.request.mode === 'navigate') {
+              return caches.match(OFFLINE_URL);
+            }
+            return new Response('Offline', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({
+                'Content-Type': 'text/plain'
+              })
+            });
+          });
+        })
+    );
+    return;
+  }
+
+  // Default cache-first strategy for other requests
   event.respondWith(
     caches.match(event.request)
       .then((cachedResponse) => {
