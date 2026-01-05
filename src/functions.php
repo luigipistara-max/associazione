@@ -1486,14 +1486,14 @@ function getMassEmailRecipients($filter, $params = []) {
             break;
             
         case 'overdue':
-            // Members with overdue fees
+            // Members with overdue fees (morosi - including pending and overdue)
             $currentYear = getCurrentSocialYear();
             if ($currentYear) {
                 $sql .= " AND EXISTS (
                     SELECT 1 FROM " . table('member_fees') . " mf 
                     WHERE mf.member_id = m.id 
                     AND mf.social_year_id = ? 
-                    AND mf.status = 'overdue'
+                    AND mf.status IN ('pending', 'overdue')
                 )";
                 $queryParams[] = $currentYear['id'];
             }
@@ -1519,6 +1519,19 @@ function getMassEmailRecipients($filter, $params = []) {
                     SELECT 1 FROM " . table('event_registrations') . " er 
                     WHERE er.member_id = m.id 
                     AND er.event_id = ?
+                )";
+                $queryParams[] = $params['event_id'];
+            }
+            break;
+            
+        case 'event_approved':
+            // Members with approved registration for specific event
+            if (!empty($params['event_id'])) {
+                $sql .= " AND EXISTS (
+                    SELECT 1 FROM " . table('event_responses') . " er 
+                    WHERE er.member_id = m.id 
+                    AND er.event_id = ?
+                    AND er.registration_status = 'approved'
                 )";
                 $queryParams[] = $params['event_id'];
             }

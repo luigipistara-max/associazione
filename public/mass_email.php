@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($errors)) {
             // Get recipients
             $params = [];
-            if ($filterType === 'event_registered' && $eventId) {
+            if (($filterType === 'event_registered' || $filterType === 'event_approved') && $eventId) {
                 $params['event_id'] = $eventId;
             }
             
@@ -101,6 +101,7 @@ include __DIR__ . '/inc/header.php';
                     <option value="overdue">Soci morosi (quota scaduta)</option>
                     <option value="no_fee_current_year">Soci senza quota anno corrente</option>
                     <option value="event_registered">Iscritti a evento specifico</option>
+                    <option value="event_approved">Iscritti approvati a evento specifico</option>
                 </select>
             </div>
             
@@ -200,7 +201,8 @@ include __DIR__ . '/inc/header.php';
 // Show/hide event selector
 document.getElementById('filter_type').addEventListener('change', function() {
     const eventSelector = document.getElementById('event_selector');
-    eventSelector.style.display = (this.value === 'event_registered') ? 'block' : 'none';
+    const filterValue = this.value;
+    eventSelector.style.display = (filterValue === 'event_registered' || filterValue === 'event_approved') ? 'block' : 'none';
     updateRecipientCount();
 });
 

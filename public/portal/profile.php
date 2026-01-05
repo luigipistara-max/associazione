@@ -25,7 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     $phone = trim($_POST['phone'] ?? '');
     $address = trim($_POST['address'] ?? '');
     $city = trim($_POST['city'] ?? '');
-    $province = trim($_POST['province'] ?? '');
+    $birthProvince = strtoupper(trim($_POST['birth_province'] ?? ''));
+    $residenceProvince = strtoupper(trim($_POST['residence_province'] ?? ''));
     $postalCode = trim($_POST['postal_code'] ?? '');
     
     // Validate email
@@ -41,10 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
             // Update profile
             $stmt = $pdo->prepare("
                 UPDATE " . table('members') . " 
-                SET email = ?, phone = ?, address = ?, city = ?, province = ?, postal_code = ?
+                SET email = ?, phone = ?, address = ?, city = ?, birth_province = ?, residence_province = ?, postal_code = ?
                 WHERE id = ?
             ");
-            if ($stmt->execute([$email, $phone, $address, $city, $province, $postalCode, $member['id']])) {
+            if ($stmt->execute([$email, $phone, $address, $city, $birthProvince, $residenceProvince, $postalCode, $member['id']])) {
                 $success = 'Profilo aggiornato con successo!';
                 // Reload member data
                 $member = getMember($member['id']);
@@ -125,7 +126,13 @@ include __DIR__ . '/inc/header.php';
                 </p>
                 <p class="mb-2">
                     <strong>Luogo di Nascita:</strong><br>
-                    <?php echo h($member['birth_place'] ?? 'N/A'); ?>
+                    <?php 
+                    $birthLocation = h($member['birth_place'] ?? 'N/A');
+                    if (!empty($member['birth_province'])) {
+                        $birthLocation .= ' (' . h($member['birth_province']) . ')';
+                    }
+                    echo $birthLocation;
+                    ?>
                 </p>
                 <p class="mb-2">
                     <strong>Iscritto dal:</strong><br>
@@ -167,6 +174,20 @@ include __DIR__ . '/inc/header.php';
                         </div>
                     </div>
                     
+                    <div class="row mb-3">
+                        <div class="col-md-9">
+                            <label class="form-label">Luogo di Nascita</label>
+                            <input type="text" class="form-control" value="<?php echo h($member['birth_place']); ?>" disabled>
+                            <small class="text-muted">Non modificabile</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Provincia di Nascita</label>
+                            <input type="text" name="birth_province" class="form-control text-uppercase" 
+                                   value="<?php echo h($member['birth_province']); ?>" 
+                                   maxlength="2" placeholder="MI">
+                        </div>
+                    </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Email *</label>
                         <input type="email" name="email" class="form-control" 
@@ -192,9 +213,10 @@ include __DIR__ . '/inc/header.php';
                                    value="<?php echo h($member['city']); ?>">
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="form-label">Provincia</label>
-                            <input type="text" name="province" class="form-control" 
-                                   value="<?php echo h($member['province']); ?>" maxlength="2">
+                            <label class="form-label">Provincia Residenza</label>
+                            <input type="text" name="residence_province" class="form-control text-uppercase" 
+                                   value="<?php echo h($member['residence_province']); ?>" 
+                                   maxlength="2" placeholder="RM">
                         </div>
                         <div class="col-md-3 mb-3">
                             <label class="form-label">CAP</label>
