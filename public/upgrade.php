@@ -217,6 +217,14 @@ $upgrades = [
             addColumnIfNotExists($table, 'rejection_reason', 'VARCHAR(500) NULL');
         }
     ],
+    5 => [
+        'description' => 'Aggiunta colonne province (nascita e residenza) alla tabella members',
+        'execute' => function() {
+            $table = table('members');
+            addColumnIfNotExists($table, 'birth_province', 'VARCHAR(2) NULL');
+            addColumnIfNotExists($table, 'province', 'VARCHAR(2) NULL');
+        }
+    ],
     // Aggiungi altri aggiornamenti qui...
 ];
 
