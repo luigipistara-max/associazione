@@ -26,23 +26,59 @@ if ($yearId) {
 // Log export
 logExport('movements', "Export Excel movimenti ({$yearName})");
 
-// Get all movements
-$stmt = $pdo->query("
-    SELECT m.*, 
-           CASE 
-               WHEN m.type = 'income' THEN ic.name
-               WHEN m.type = 'expense' THEN ec.name
-           END as category_name,
-           sy.name as year_name,
-           mem.first_name, mem.last_name, mem.tax_code
-    FROM movements m
-    LEFT JOIN " . table('income_categories') . " ic ON m.type = 'income' AND m.category_id = ic.id
-    LEFT JOIN " . table('expense_categories') . " ec ON m.type = 'expense' AND m.category_id = ec.id
-    LEFT JOIN " . table('social_years') . " sy ON m.social_year_id = sy.id
-    LEFT JOIN " . table('members') . " mem ON m.member_id = mem.id
+// Get all movements (UNION of income and expenses)
+$query = "
+    SELECT 
+        i.id,
+        'income' as type,
+        i.category_id,
+        ic.name as category_name,
+        i.amount,
+        i.transaction_date as paid_at,
+        i.payment_method,
+        i.receipt_number,
+        i.notes,
+        i.social_year_id,
+        sy.name as year_name,
+        i.member_id,
+        mem.first_name,
+        mem.last_name,
+        mem.tax_code,
+        NULL as description
+    FROM " . table('income') . " i
+    LEFT JOIN " . table('income_categories') . " ic ON i.category_id = ic.id
+    LEFT JOIN " . table('social_years') . " sy ON i.social_year_id = sy.id
+    LEFT JOIN " . table('members') . " mem ON i.member_id = mem.id
     WHERE 1=1 $yearFilter
-    ORDER BY m.paid_at DESC, m.id DESC
-");
+    
+    UNION ALL
+    
+    SELECT 
+        e.id,
+        'expense' as type,
+        e.category_id,
+        ec.name as category_name,
+        e.amount,
+        e.transaction_date as paid_at,
+        e.payment_method,
+        e.receipt_number,
+        e.notes,
+        e.social_year_id,
+        sy.name as year_name,
+        NULL as member_id,
+        NULL as first_name,
+        NULL as last_name,
+        NULL as tax_code,
+        e.description
+    FROM " . table('expenses') . " e
+    LEFT JOIN " . table('expense_categories') . " ec ON e.category_id = ec.id
+    LEFT JOIN " . table('social_years') . " sy ON e.social_year_id = sy.id
+    WHERE 1=1 $yearFilter
+    
+    ORDER BY paid_at DESC, id DESC
+";
+
+$stmt = $pdo->query($query);
 $movements = $stmt->fetchAll();
 
 // Set headers for Excel download
@@ -132,7 +168,7 @@ echo "\xEF\xBB\xBF";
                 <td><?php echo date('d/m/Y', strtotime($mov['paid_at'])); ?></td>
                 <td><?php echo $mov['type'] === 'income' ? 'Entrata' : 'Uscita'; ?></td>
                 <td><?php echo htmlspecialchars($mov['category_name']); ?></td>
-                <td><?php echo htmlspecialchars($mov['description']); ?></td>
+                <td><?php echo htmlspecialchars($mov['description'] ?? ''); ?></td>
                 <td class="amount"><?php echo number_format($mov['amount'], 2, ',', '.'); ?></td>
                 <td><?php echo htmlspecialchars($mov['year_name'] ?? ''); ?></td>
                 <td>

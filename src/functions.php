@@ -2562,6 +2562,18 @@ function deleteEventResponse($responseId) {
 function approveEventRegistration($responseId, $userId = null) {
     global $pdo;
     
+    // Get registration details before updating
+    $stmt = $pdo->prepare("
+        SELECT er.*, e.*, m.email, m.first_name, m.last_name
+        FROM " . table('event_responses') . " er
+        JOIN " . table('events') . " e ON er.event_id = e.id
+        JOIN " . table('members') . " m ON er.member_id = m.id
+        WHERE er.id = ?
+    ");
+    $stmt->execute([$responseId]);
+    $registration = $stmt->fetch();
+    
+    // Update registration status
     $stmt = $pdo->prepare("
         UPDATE " . table('event_responses') . "
         SET registration_status = 'approved', 
@@ -2569,7 +2581,38 @@ function approveEventRegistration($responseId, $userId = null) {
             approved_at = NOW()
         WHERE id = ?
     ");
-    return $stmt->execute([$userId, $responseId]);
+    $result = $stmt->execute([$userId, $responseId]);
+    
+    // Send email with meeting link for online/hybrid events
+    if ($result && $registration && in_array($registration['event_mode'], ['online', 'hybrid'])) {
+        require_once __DIR__ . '/email.php';
+        
+        $passwordInfo = '';
+        if ($registration['online_password']) {
+            $passwordInfo = '<p><strong>Password:</strong> ' . h($registration['online_password']) . '</p>';
+        }
+        
+        $instructions = '';
+        if ($registration['online_instructions']) {
+            $instructions = '<p><strong>Istruzioni:</strong><br>' . nl2br(h($registration['online_instructions'])) . '</p>';
+        }
+        
+        $variables = [
+            'nome' => $registration['first_name'],
+            'cognome' => $registration['last_name'],
+            'titolo' => $registration['title'],
+            'data' => formatDate($registration['event_date']),
+            'ora' => $registration['event_time'] ? substr($registration['event_time'], 0, 5) : 'TBD',
+            'piattaforma' => $registration['online_platform'] ?? 'Piattaforma Online',
+            'link' => $registration['online_link'] ?? '',
+            'password_info' => $passwordInfo,
+            'istruzioni' => $instructions
+        ];
+        
+        sendEmailFromTemplate($registration['email'], 'event_online_link', $variables);
+    }
+    
+    return $result;
 }
 
 /**
@@ -2595,6 +2638,22 @@ function rejectEventRegistration($responseId, $userId = null, $reason = null) {
 function approveAllEventRegistrations($eventId, $userId = null) {
     global $pdo;
     
+    // Get event details first to check if it's online/hybrid
+    $event = getEvent($eventId);
+    
+    // Get pending registrations before updating
+    $stmt = $pdo->prepare("
+        SELECT er.*, m.email, m.first_name, m.last_name
+        FROM " . table('event_responses') . " er
+        JOIN " . table('members') . " m ON er.member_id = m.id
+        WHERE er.event_id = ? 
+        AND er.response = 'yes' 
+        AND er.registration_status = 'pending'
+    ");
+    $stmt->execute([$eventId]);
+    $pendingRegistrations = $stmt->fetchAll();
+    
+    // Update all pending registrations
     $stmt = $pdo->prepare("
         UPDATE " . table('event_responses') . "
         SET registration_status = 'approved', 
@@ -2605,7 +2664,42 @@ function approveAllEventRegistrations($eventId, $userId = null) {
         AND registration_status = 'pending'
     ");
     $stmt->execute([$userId, $eventId]);
-    return $stmt->rowCount();
+    $count = $stmt->rowCount();
+    
+    // Send emails with meeting link for online/hybrid events
+    if ($count > 0 && $event && in_array($event['event_mode'], ['online', 'hybrid'])) {
+        require_once __DIR__ . '/email.php';
+        
+        $passwordInfo = '';
+        if ($event['online_password']) {
+            $passwordInfo = '<p><strong>Password:</strong> ' . h($event['online_password']) . '</p>';
+        }
+        
+        $instructions = '';
+        if ($event['online_instructions']) {
+            $instructions = '<p><strong>Istruzioni:</strong><br>' . nl2br(h($event['online_instructions'])) . '</p>';
+        }
+        
+        foreach ($pendingRegistrations as $reg) {
+            if (!$reg['email']) continue;
+            
+            $variables = [
+                'nome' => $reg['first_name'],
+                'cognome' => $reg['last_name'],
+                'titolo' => $event['title'],
+                'data' => formatDate($event['event_date']),
+                'ora' => $event['event_time'] ? substr($event['event_time'], 0, 5) : 'TBD',
+                'piattaforma' => $event['online_platform'] ?? 'Piattaforma Online',
+                'link' => $event['online_link'] ?? '',
+                'password_info' => $passwordInfo,
+                'istruzioni' => $instructions
+            ];
+            
+            sendEmailFromTemplate($reg['email'], 'event_online_link', $variables);
+        }
+    }
+    
+    return $count;
 }
 
 /**
