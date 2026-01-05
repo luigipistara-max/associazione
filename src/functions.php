@@ -3769,6 +3769,7 @@ function sendEventNotification($eventId) {
  * Get next receipt number for current year
  * Format: RIC-YYYY-NNNNN (es. RIC-2026-00001)
  * Uses SELECT FOR UPDATE to prevent race conditions
+ * Checks both new receipts table and legacy member_fees table to avoid conflicts
  * 
  * @return string Next receipt number
  */
@@ -3782,6 +3783,7 @@ function getNextReceiptNumber() {
     $pdo->beginTransaction();
     
     try {
+        // Check new receipts table
         $stmt = $pdo->prepare("
             SELECT receipt_number 
             FROM " . table('receipts') . " 
@@ -3791,14 +3793,32 @@ function getNextReceiptNumber() {
             FOR UPDATE
         ");
         $stmt->execute([$prefix . '%']);
-        $last = $stmt->fetchColumn();
+        $lastNew = $stmt->fetchColumn();
         
-        if ($last) {
-            $lastNumber = (int) substr($last, strlen($prefix));
-            $nextNumber = $lastNumber + 1;
-        } else {
-            $nextNumber = 1;
+        // Check legacy member_fees table
+        $stmt = $pdo->prepare("
+            SELECT receipt_number 
+            FROM " . table('member_fees') . " 
+            WHERE receipt_number LIKE ? 
+            ORDER BY receipt_number DESC 
+            LIMIT 1
+        ");
+        $stmt->execute([$prefix . '%']);
+        $lastLegacy = $stmt->fetchColumn();
+        
+        // Get the highest number from both tables
+        $lastNumberNew = 0;
+        $lastNumberLegacy = 0;
+        
+        if ($lastNew) {
+            $lastNumberNew = (int) substr($lastNew, strlen($prefix));
         }
+        
+        if ($lastLegacy) {
+            $lastNumberLegacy = (int) substr($lastLegacy, strlen($prefix));
+        }
+        
+        $nextNumber = max($lastNumberNew, $lastNumberLegacy) + 1;
         
         $receiptNumber = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
         
