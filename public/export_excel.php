@@ -43,7 +43,7 @@ $query = "
         i.member_id,
         mem.first_name,
         mem.last_name,
-        mem.tax_code,
+        mem.fiscal_code,
         NULL as description
     FROM " . table('income') . " i
     LEFT JOIN " . table('income_categories') . " ic ON i.category_id = ic.id
@@ -68,7 +68,7 @@ $query = "
         NULL as member_id,
         NULL as first_name,
         NULL as last_name,
-        NULL as tax_code,
+        NULL as fiscal_code,
         e.description
     FROM " . table('expenses') . " e
     LEFT JOIN " . table('expense_categories') . " ec ON e.category_id = ec.id
@@ -178,7 +178,7 @@ echo "\xEF\xBB\xBF";
                     }
                     ?>
                 </td>
-                <td><?php echo htmlspecialchars($mov['tax_code'] ?? ''); ?></td>
+                <td><?php echo htmlspecialchars($mov['fiscal_code'] ?? ''); ?></td>
                 <td><?php echo htmlspecialchars($mov['payment_method'] ?? ''); ?></td>
                 <td><?php echo htmlspecialchars($mov['receipt_number'] ?? ''); ?></td>
                 <td><?php echo htmlspecialchars($mov['notes'] ?? ''); ?></td>
