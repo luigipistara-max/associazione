@@ -11,7 +11,8 @@ if (file_exists($auditFile)) {
 
 // Fallback se logAudit non esiste
 if (!function_exists('logAudit')) {
-    function logAudit($action, $details = '', $userId = null) {
+    function logAudit($action, $entityType = null, $entityId = null, $entityName = null, $oldValues = null, $newValues = null) {
+        $details = $entityName ?? $entityType ?? '';
         error_log("AUDIT: $action - $details");
         return true;
     }
