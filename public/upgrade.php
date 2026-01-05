@@ -33,46 +33,92 @@ function setDbVersion($version) {
     return $stmt->execute([$version, $version]);
 }
 
+/**
+ * Check if a column exists in a table
+ */
+function columnExists($table, $column) {
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM $table LIKE ?");
+        $stmt->execute([$column]);
+        return $stmt->rowCount() > 0;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+/**
+ * Check if a table exists
+ */
+function tableExists($table) {
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+        $stmt->execute([$table]);
+        return $stmt->rowCount() > 0;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+/**
+ * Safely add column if it doesn't exist
+ */
+function addColumnIfNotExists($table, $column, $definition) {
+    global $pdo;
+    if (!columnExists($table, $column)) {
+        $sql = "ALTER TABLE $table ADD COLUMN $column $definition";
+        $pdo->exec($sql);
+        return true;
+    }
+    return false;
+}
+
 // Definizione aggiornamenti
 $upgrades = [
     1 => [
         'description' => 'Aggiunta colonna meeting_link alla tabella events',
-        'sql' => [
-            "ALTER TABLE " . table('events') . " ADD COLUMN IF NOT EXISTS meeting_link VARCHAR(500) NULL",
-        ]
+        'execute' => function() {
+            addColumnIfNotExists(table('events'), 'meeting_link', 'VARCHAR(500) NULL');
+        }
     ],
     2 => [
         'description' => 'Aggiunta tabella email_log',
-        'sql' => [
-            "CREATE TABLE IF NOT EXISTS " . table('email_log') . " (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                recipient VARCHAR(255) NOT NULL,
-                subject VARCHAR(255) NOT NULL,
-                method VARCHAR(50) NOT NULL,
-                status VARCHAR(50) NOT NULL,
-                sent_at DATETIME NOT NULL,
-                INDEX idx_recipient (recipient),
-                INDEX idx_sent_at (sent_at)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
-        ]
+        'execute' => function() {
+            global $pdo;
+            if (!tableExists(table('email_log'))) {
+                $pdo->exec("
+                    CREATE TABLE " . table('email_log') . " (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        recipient VARCHAR(255) NOT NULL,
+                        subject VARCHAR(255) NOT NULL,
+                        method VARCHAR(50) NOT NULL,
+                        status VARCHAR(50) NOT NULL,
+                        sent_at DATETIME NOT NULL,
+                        INDEX idx_recipient (recipient),
+                        INDEX idx_sent_at (sent_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                ");
+            }
+        }
     ],
     3 => [
         'description' => 'Aggiunta colonne online per eventi',
-        'sql' => [
-            "ALTER TABLE " . table('events') . " ADD COLUMN IF NOT EXISTS online_platform VARCHAR(100) NULL",
-            "ALTER TABLE " . table('events') . " ADD COLUMN IF NOT EXISTS online_link VARCHAR(500) NULL",
-            "ALTER TABLE " . table('events') . " ADD COLUMN IF NOT EXISTS online_password VARCHAR(100) NULL",
-            "ALTER TABLE " . table('events') . " ADD COLUMN IF NOT EXISTS online_instructions TEXT NULL",
-        ]
+        'execute' => function() {
+            addColumnIfNotExists(table('events'), 'online_platform', 'VARCHAR(100) NULL');
+            addColumnIfNotExists(table('events'), 'online_link', 'VARCHAR(500) NULL');
+            addColumnIfNotExists(table('events'), 'online_password', 'VARCHAR(100) NULL');
+            addColumnIfNotExists(table('events'), 'online_instructions', 'TEXT NULL');
+        }
     ],
     4 => [
         'description' => 'Aggiunta colonna registration_status a event_responses',
-        'sql' => [
-            "ALTER TABLE " . table('event_responses') . " ADD COLUMN IF NOT EXISTS registration_status ENUM('pending', 'approved', 'rejected', 'revoked') DEFAULT 'pending'",
-            "ALTER TABLE " . table('event_responses') . " ADD COLUMN IF NOT EXISTS approved_by INT NULL",
-            "ALTER TABLE " . table('event_responses') . " ADD COLUMN IF NOT EXISTS approved_at DATETIME NULL",
-            "ALTER TABLE " . table('event_responses') . " ADD COLUMN IF NOT EXISTS rejection_reason VARCHAR(500) NULL",
-        ]
+        'execute' => function() {
+            addColumnIfNotExists(table('event_responses'), 'registration_status', "ENUM('pending', 'approved', 'rejected', 'revoked') DEFAULT 'pending'");
+            addColumnIfNotExists(table('event_responses'), 'approved_by', 'INT NULL');
+            addColumnIfNotExists(table('event_responses'), 'approved_at', 'DATETIME NULL');
+            addColumnIfNotExists(table('event_responses'), 'rejection_reason', 'VARCHAR(500) NULL');
+        }
     ],
     // Aggiungi altri aggiornamenti qui...
 ];
@@ -95,8 +141,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['run_upgrade'])) {
             try {
                 $pdo->beginTransaction();
                 
-                foreach ($upgrade['sql'] as $sql) {
-                    $pdo->exec($sql);
+                // Esegui la funzione di upgrade
+                if (isset($upgrade['execute']) && is_callable($upgrade['execute'])) {
+                    $upgrade['execute']();
+                } elseif (isset($upgrade['sql'])) {
+                    // Fallback per SQL diretto (legacy)
+                    foreach ($upgrade['sql'] as $sql) {
+                        $pdo->exec($sql);
+                    }
                 }
                 
                 setDbVersion($version);
@@ -112,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['run_upgrade'])) {
             }
         }
         
-        // Aggiorna versione corrente
+        // Aggiorna versione corrente dopo gli upgrade
         $currentVersion = getCurrentDbVersion();
         $pendingUpgrades = array_filter($upgrades, function($key) use ($currentVersion) {
             return $key > $currentVersion;
