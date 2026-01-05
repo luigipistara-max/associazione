@@ -2824,6 +2824,27 @@ function getMemberEventRegistrationStatus($eventId, $memberId) {
 }
 
 /**
+ * Get display-friendly registration status for portal
+ * Maps database registration_status to user-friendly text
+ * 
+ * @param string $dbStatus Database status (pending, approved, rejected, revoked)
+ * @return string Display status for portal members
+ */
+function getDisplayStatus($dbStatus) {
+    switch ($dbStatus) {
+        case 'revoked':
+            return 'In attesa';  // Revoked shows as "In attesa" (as if never approved)
+        case 'rejected':
+            return 'Rifiutata';
+        case 'approved':
+            return 'Accettata';
+        case 'pending':
+        default:
+            return 'In attesa';
+    }
+}
+
+/**
  * Get members NOT in a specific group (for add dropdown)
  * 
  * @param int $groupId Group ID
