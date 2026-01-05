@@ -12,25 +12,14 @@ $pageTitle = 'Aggiornamento Database';
 
 // Versione corrente del database
 function getCurrentDbVersion() {
-    global $pdo;
-    try {
-        $stmt = $pdo->query("SELECT value FROM " . table('settings') . " WHERE key_name = 'db_version'");
-        $result = $stmt->fetch();
-        return $result ? (int)$result['value'] : 0;
-    } catch (Exception $e) {
-        return 0;
-    }
+    // Usa la funzione esistente del progetto con i nomi colonna corretti
+    return (int) getSetting('db_version', 0);
 }
 
 // Imposta versione database
 function setDbVersion($version) {
-    global $pdo;
-    $stmt = $pdo->prepare("
-        INSERT INTO " . table('settings') . " (key_name, value) 
-        VALUES ('db_version', ?) 
-        ON DUPLICATE KEY UPDATE value = ?
-    ");
-    return $stmt->execute([$version, $version]);
+    // Usa la funzione esistente del progetto con i nomi colonna corretti
+    return setSetting('db_version', $version);
 }
 
 /**
