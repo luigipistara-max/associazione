@@ -56,7 +56,9 @@ function columnExists($table, $column) {
     } catch (Exception $e) {
         // Fallback: prova con SHOW COLUMNS
         try {
-            $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE ?");
+            // Escape table name for safe interpolation
+            $escapedTable = '`' . str_replace('`', '``', $table) . '`';
+            $stmt = $pdo->prepare("SHOW COLUMNS FROM $escapedTable LIKE ?");
             $stmt->execute([$column]);
             return $stmt->rowCount() > 0;
         } catch (Exception $e2) {
@@ -108,11 +110,19 @@ function addColumnIfNotExists($table, $column, $definition) {
     
     // Colonna non esiste, aggiungila
     try {
-        $sql = "ALTER TABLE `$table` ADD COLUMN `$column` $definition";
+        // Escape table and column names for safe interpolation
+        $escapedTable = '`' . str_replace('`', '``', $table) . '`';
+        $escapedColumn = '`' . str_replace('`', '``', $column) . '`';
+        $sql = "ALTER TABLE $escapedTable ADD COLUMN $escapedColumn $definition";
         $pdo->exec($sql);
         return true;
     } catch (PDOException $e) {
         // Se errore è "column already exists", ignora (race condition)
+        // MySQL error code 1060 = ER_DUP_FIELDNAME
+        if (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1060) {
+            return true; // OK, già esiste
+        }
+        // Fallback to string matching for compatibility
         if (strpos($e->getMessage(), '1060') !== false || 
             strpos($e->getMessage(), 'Duplicate column') !== false) {
             return true; // OK, già esiste
@@ -137,6 +147,11 @@ function createTableIfNotExists($table, $sql) {
         return true;
     } catch (PDOException $e) {
         // Se tabella già esiste, ignora
+        // MySQL error code 1050 = ER_TABLE_EXISTS_ERROR
+        if (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1050) {
+            return true;
+        }
+        // Fallback to string matching for compatibility
         if (strpos($e->getMessage(), '1050') !== false || 
             strpos($e->getMessage(), 'already exists') !== false) {
             return true;
@@ -161,8 +176,10 @@ $upgrades = [
             $table = table('email_log');
             
             if (!tableExists($table)) {
+                // Escape table name for safe interpolation
+                $escapedTable = '`' . str_replace('`', '``', $table) . '`';
                 $pdo->exec("
-                    CREATE TABLE `$table` (
+                    CREATE TABLE $escapedTable (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         recipient VARCHAR(255) NOT NULL,
                         subject VARCHAR(255) NOT NULL,
