@@ -35,49 +35,114 @@ function setDbVersion($version) {
 
 /**
  * Check if a column exists in a table
+ * Compatibile con MySQL su Altervista
  */
 function columnExists($table, $column) {
     global $pdo;
     try {
-        // Escape table name with backticks for safety
-        $escapedTable = '`' . str_replace('`', '``', $table) . '`';
-        $stmt = $pdo->prepare("SHOW COLUMNS FROM $escapedTable LIKE ?");
-        $stmt->execute([$column]);
-        return $stmt->rowCount() > 0;
+        // Rimuovi eventuale prefisso per ottenere nome tabella pulito
+        $cleanTable = $table;
+        
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as cnt
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = ? 
+            AND COLUMN_NAME = ?
+        ");
+        $stmt->execute([$cleanTable, $column]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return ($result && $result['cnt'] > 0);
     } catch (Exception $e) {
-        return false;
+        // Fallback: prova con SHOW COLUMNS
+        try {
+            $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE ?");
+            $stmt->execute([$column]);
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e2) {
+            return false;
+        }
     }
 }
 
 /**
  * Check if a table exists
+ * Compatibile con MySQL su Altervista
  */
 function tableExists($table) {
     global $pdo;
     try {
-        // Use prepared statement parameter for table name in SHOW TABLES LIKE
-        $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) as cnt
+            FROM INFORMATION_SCHEMA.TABLES 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = ?
+        ");
         $stmt->execute([$table]);
-        return $stmt->rowCount() > 0;
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return ($result && $result['cnt'] > 0);
     } catch (Exception $e) {
-        return false;
+        // Fallback: prova con SHOW TABLES
+        try {
+            $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+            $stmt->execute([$table]);
+            return $stmt->rowCount() > 0;
+        } catch (Exception $e2) {
+            return false;
+        }
     }
 }
 
 /**
  * Safely add column if it doesn't exist
+ * Compatibile con MySQL su Altervista
  */
 function addColumnIfNotExists($table, $column, $definition) {
     global $pdo;
-    if (!columnExists($table, $column)) {
-        // Escape table and column names with backticks for safety
-        $escapedTable = '`' . str_replace('`', '``', $table) . '`';
-        $escapedColumn = '`' . str_replace('`', '``', $column) . '`';
-        $sql = "ALTER TABLE $escapedTable ADD COLUMN $escapedColumn $definition";
-        $pdo->exec($sql);
+    
+    // Verifica PRIMA se la colonna esiste già
+    if (columnExists($table, $column)) {
+        // Colonna già esiste, skip silenzioso
         return true;
     }
-    return false;
+    
+    // Colonna non esiste, aggiungila
+    try {
+        $sql = "ALTER TABLE `$table` ADD COLUMN `$column` $definition";
+        $pdo->exec($sql);
+        return true;
+    } catch (PDOException $e) {
+        // Se errore è "column already exists", ignora (race condition)
+        if (strpos($e->getMessage(), '1060') !== false || 
+            strpos($e->getMessage(), 'Duplicate column') !== false) {
+            return true; // OK, già esiste
+        }
+        throw $e; // Altro errore, rilancia
+    }
+}
+
+/**
+ * Safely create table if it doesn't exist
+ * Compatibile con MySQL su Altervista
+ */
+function createTableIfNotExists($table, $sql) {
+    global $pdo;
+    
+    if (tableExists($table)) {
+        return true; // Già esiste
+    }
+    
+    try {
+        $pdo->exec($sql);
+        return true;
+    } catch (PDOException $e) {
+        // Se tabella già esiste, ignora
+        if (strpos($e->getMessage(), '1050') !== false || 
+            strpos($e->getMessage(), 'already exists') !== false) {
+            return true;
+        }
+        throw $e;
+    }
 }
 
 // Definizione aggiornamenti
@@ -85,16 +150,19 @@ $upgrades = [
     1 => [
         'description' => 'Aggiunta colonna meeting_link alla tabella events',
         'execute' => function() {
-            addColumnIfNotExists(table('events'), 'meeting_link', 'VARCHAR(500) NULL');
+            $table = table('events');
+            addColumnIfNotExists($table, 'meeting_link', 'VARCHAR(500) NULL');
         }
     ],
     2 => [
         'description' => 'Aggiunta tabella email_log',
         'execute' => function() {
             global $pdo;
-            if (!tableExists(table('email_log'))) {
+            $table = table('email_log');
+            
+            if (!tableExists($table)) {
                 $pdo->exec("
-                    CREATE TABLE " . table('email_log') . " (
+                    CREATE TABLE `$table` (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         recipient VARCHAR(255) NOT NULL,
                         subject VARCHAR(255) NOT NULL,
@@ -111,19 +179,21 @@ $upgrades = [
     3 => [
         'description' => 'Aggiunta colonne online per eventi',
         'execute' => function() {
-            addColumnIfNotExists(table('events'), 'online_platform', 'VARCHAR(100) NULL');
-            addColumnIfNotExists(table('events'), 'online_link', 'VARCHAR(500) NULL');
-            addColumnIfNotExists(table('events'), 'online_password', 'VARCHAR(100) NULL');
-            addColumnIfNotExists(table('events'), 'online_instructions', 'TEXT NULL');
+            $table = table('events');
+            addColumnIfNotExists($table, 'online_platform', 'VARCHAR(100) NULL');
+            addColumnIfNotExists($table, 'online_link', 'VARCHAR(500) NULL');
+            addColumnIfNotExists($table, 'online_password', 'VARCHAR(100) NULL');
+            addColumnIfNotExists($table, 'online_instructions', 'TEXT NULL');
         }
     ],
     4 => [
         'description' => 'Aggiunta colonna registration_status a event_responses',
         'execute' => function() {
-            addColumnIfNotExists(table('event_responses'), 'registration_status', "ENUM('pending', 'approved', 'rejected', 'revoked') DEFAULT 'pending'");
-            addColumnIfNotExists(table('event_responses'), 'approved_by', 'INT NULL');
-            addColumnIfNotExists(table('event_responses'), 'approved_at', 'DATETIME NULL');
-            addColumnIfNotExists(table('event_responses'), 'rejection_reason', 'VARCHAR(500) NULL');
+            $table = table('event_responses');
+            addColumnIfNotExists($table, 'registration_status', "ENUM('pending', 'approved', 'rejected', 'revoked') DEFAULT 'pending'");
+            addColumnIfNotExists($table, 'approved_by', 'INT NULL');
+            addColumnIfNotExists($table, 'approved_at', 'DATETIME NULL');
+            addColumnIfNotExists($table, 'rejection_reason', 'VARCHAR(500) NULL');
         }
     ],
     // Aggiungi altri aggiornamenti qui...
@@ -147,6 +217,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['run_upgrade'])) {
             try {
                 $pdo->beginTransaction();
                 
+                error_log("Upgrade v$version: Starting - " . $upgrade['description']);
+                
                 // Esegui la funzione di upgrade
                 if (isset($upgrade['execute']) && is_callable($upgrade['execute'])) {
                     $upgrade['execute']();
@@ -160,11 +232,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['run_upgrade'])) {
                 setDbVersion($version);
                 $pdo->commit();
                 
+                error_log("Upgrade v$version: Completed successfully");
                 $messages[] = "✅ Aggiornamento v$version completato: " . $upgrade['description'];
                 logAudit('db_upgrade', "Database aggiornato alla versione $version");
                 
             } catch (Exception $e) {
                 $pdo->rollBack();
+                error_log("Upgrade v$version: FAILED - " . $e->getMessage());
                 $errors[] = "❌ Errore aggiornamento v$version: " . $e->getMessage();
                 break;
             }
