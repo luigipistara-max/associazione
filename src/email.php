@@ -186,6 +186,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     // Leggi risposta iniziale
     $response = fgets($smtp, 515);
     if (substr($response, 0, 3) != '220') {
+        error_log("SMTP initial greeting failed: $response");
         fclose($smtp);
         return false;
     }
@@ -210,6 +211,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
         fputs($smtp, "STARTTLS\r\n");
         $response = fgets($smtp, 515);
         if (substr($response, 0, 3) != '220') {
+            error_log("SMTP STARTTLS command failed: $response");
             fclose($smtp);
             return false;
         }
@@ -239,6 +241,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     fputs($smtp, "AUTH LOGIN\r\n");
     $response = fgets($smtp, 515);
     if (substr($response, 0, 3) != '334') {
+        error_log("SMTP AUTH LOGIN command failed: $response");
         fclose($smtp);
         return false;
     }
@@ -246,6 +249,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     fputs($smtp, base64_encode($username) . "\r\n");
     $response = fgets($smtp, 515);
     if (substr($response, 0, 3) != '334') {
+        error_log("SMTP username rejected: $response");
         fclose($smtp);
         return false;
     }
@@ -262,6 +266,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     fputs($smtp, "MAIL FROM:<$fromEmail>\r\n");
     $response = fgets($smtp, 515);
     if (substr($response, 0, 3) != '250') {
+        error_log("SMTP MAIL FROM rejected: $response");
         fclose($smtp);
         return false;
     }
@@ -270,6 +275,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     fputs($smtp, "RCPT TO:<$to>\r\n");
     $response = fgets($smtp, 515);
     if (substr($response, 0, 3) != '250') {
+        error_log("SMTP RCPT TO rejected: $response");
         fclose($smtp);
         return false;
     }
@@ -278,6 +284,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     fputs($smtp, "DATA\r\n");
     $response = fgets($smtp, 515);
     if (substr($response, 0, 3) != '354') {
+        error_log("SMTP DATA command rejected: $response");
         fclose($smtp);
         return false;
     }
@@ -314,6 +321,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     fputs($smtp, $headers . $body . "\r\n.\r\n");
     $response = fgets($smtp, 515);
     if (substr($response, 0, 3) != '250') {
+        error_log("SMTP message send rejected: $response");
         fclose($smtp);
         return false;
     }
