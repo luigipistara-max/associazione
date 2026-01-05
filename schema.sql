@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS members (
     address VARCHAR(255),
     city VARCHAR(100),
     province VARCHAR(2),
-    residence_province VARCHAR(2),
     postal_code VARCHAR(10),
     registration_date DATE NOT NULL,
     status ENUM('attivo', 'sospeso', 'cessato') DEFAULT 'attivo',

@@ -4,5 +4,5 @@
 -- Add birth_province column after birth_place
 ALTER TABLE members ADD COLUMN birth_province VARCHAR(2) NULL AFTER birth_place;
 
--- Add residence_province column after city  
-ALTER TABLE members ADD COLUMN residence_province VARCHAR(2) NULL AFTER city;
+-- Note: The 'province' field already exists and will be used as residence_province
+-- No need to add a separate residence_province column

@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     $address = trim($_POST['address'] ?? '');
     $city = trim($_POST['city'] ?? '');
     $birthProvince = strtoupper(trim($_POST['birth_province'] ?? ''));
-    $residenceProvince = strtoupper(trim($_POST['residence_province'] ?? ''));
+    $province = strtoupper(trim($_POST['province'] ?? ''));
     $postalCode = trim($_POST['postal_code'] ?? '');
     
     // Validate email
@@ -42,10 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
             // Update profile
             $stmt = $pdo->prepare("
                 UPDATE " . table('members') . " 
-                SET email = ?, phone = ?, address = ?, city = ?, birth_province = ?, residence_province = ?, postal_code = ?
+                SET email = ?, phone = ?, address = ?, city = ?, birth_province = ?, province = ?, postal_code = ?
                 WHERE id = ?
             ");
-            if ($stmt->execute([$email, $phone, $address, $city, $birthProvince, $residenceProvince, $postalCode, $member['id']])) {
+            if ($stmt->execute([$email, $phone, $address, $city, $birthProvince, $province, $postalCode, $member['id']])) {
                 $success = 'Profilo aggiornato con successo!';
                 // Reload member data
                 $member = getMember($member['id']);
@@ -213,9 +213,9 @@ include __DIR__ . '/inc/header.php';
                                    value="<?php echo h($member['city']); ?>">
                         </div>
                         <div class="col-md-3 mb-3">
-                            <label class="form-label">Provincia Residenza</label>
-                            <input type="text" name="residence_province" class="form-control text-uppercase" 
-                                   value="<?php echo h($member['residence_province']); ?>" 
+                            <label class="form-label">Provincia</label>
+                            <input type="text" name="province" class="form-control text-uppercase" 
+                                   value="<?php echo h($member['province']); ?>" 
                                    maxlength="2" placeholder="RM">
                         </div>
                         <div class="col-md-3 mb-3">

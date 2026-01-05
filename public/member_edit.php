@@ -57,7 +57,6 @@ if ($memberId) {
         'address' => '',
         'city' => '',
         'province' => '',
-        'residence_province' => '',
         'postal_code' => '',
         'registration_date' => date('Y-m-d'),
         'status' => 'attivo',
@@ -96,7 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'address' => trim($_POST['address'] ?? ''),
             'city' => trim($_POST['city'] ?? ''),
             'province' => strtoupper(trim($_POST['province'] ?? '')),
-            'residence_province' => strtoupper(trim($_POST['residence_province'] ?? '')),
             'postal_code' => trim($_POST['postal_code'] ?? ''),
             'registration_date' => $_POST['registration_date'] ?? null,
             'status' => $_POST['status'] ?? 'attivo',
@@ -138,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         UPDATE " . table('members') . " SET
                             membership_number = ?, first_name = ?, last_name = ?, fiscal_code = ?,
                             birth_date = ?, birth_place = ?, birth_province = ?, email = ?, phone = ?,
-                            address = ?, city = ?, province = ?, residence_province = ?, postal_code = ?, registration_date = ?,
+                            address = ?, city = ?, province = ?, postal_code = ?, registration_date = ?,
                             status = ?, notes = ?
                         WHERE id = ?
                     ");
@@ -155,7 +153,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $data['address'] ?: null,
                         $data['city'] ?: null,
                         $data['province'] ?: null,
-                        $data['residence_province'] ?: null,
                         $data['postal_code'] ?: null,
                         $data['registration_date'] ?: null,
                         $data['status'],
@@ -177,9 +174,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         INSERT INTO " . table('members') . " (
                             membership_number, first_name, last_name, fiscal_code,
                             birth_date, birth_place, birth_province, email, phone,
-                            address, city, province, residence_province, postal_code, registration_date,
+                            address, city, province, postal_code, registration_date,
                             status, notes
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
                         $data['membership_number'] ?: null,
@@ -194,7 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $data['address'] ?: null,
                         $data['city'] ?: null,
                         $data['province'] ?: null,
-                        $data['residence_province'] ?: null,
                         $data['postal_code'] ?: null,
                         $data['registration_date'] ?: null,
                         $data['status'],
@@ -397,8 +393,8 @@ include __DIR__ . '/inc/header.php';
                 </div>
                 <div class="col-md-1 mb-3">
                     <label class="form-label">Prov.</label>
-                    <input type="text" name="residence_province" class="form-control text-uppercase" 
-                           value="<?php echo e($member['residence_province']); ?>" 
+                    <input type="text" name="province" class="form-control text-uppercase" 
+                           value="<?php echo e($member['province']); ?>" 
                            maxlength="2" placeholder="RM">
                 </div>
                 <div class="col-md-2 mb-3">
