@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS members (
     birth_date DATE,
     birth_place VARCHAR(100),
     birth_province VARCHAR(2),
+    gender ENUM('M', 'F') NULL,
     email VARCHAR(100),
     phone VARCHAR(20),
     address VARCHAR(255),

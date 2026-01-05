@@ -4132,3 +4132,162 @@ function getReceipt($receiptId) {
     $stmt->execute([$receiptId]);
     return $stmt->fetch();
 }
+
+/**
+ * Get next available membership number
+ * Format: YYYY-NNNN (es: 2026-0001, 2026-0002, ecc.)
+ */
+function getNextMembershipNumber() {
+    global $pdo;
+    
+    $year = date('Y');
+    $prefix = $year . '-';
+    
+    // Trova l'ultimo numero di quest'anno
+    $stmt = $pdo->prepare("
+        SELECT membership_number 
+        FROM " . table('members') . " 
+        WHERE membership_number LIKE ? 
+        ORDER BY membership_number DESC 
+        LIMIT 1
+    ");
+    $stmt->execute([$prefix . '%']);
+    $last = $stmt->fetchColumn();
+    
+    if ($last) {
+        // Estrai numero e incrementa
+        $lastNum = (int) substr($last, strlen($prefix));
+        $nextNum = $lastNum + 1;
+    } else {
+        // Primo dell'anno
+        $nextNum = 1;
+    }
+    
+    return $prefix . str_pad($nextNum, 4, '0', STR_PAD_LEFT);
+}
+
+/**
+ * Calculate Italian Fiscal Code (Codice Fiscale)
+ */
+function calculateItalianFiscalCode($lastName, $firstName, $birthDate, $birthPlace, $gender) {
+    // Estrai consonanti e vocali
+    $consonants = 'BCDFGHJKLMNPQRSTVWXYZ';
+    $vowels = 'AEIOU';
+    
+    // Cognome: 3 caratteri (consonanti poi vocali, poi X)
+    $lastNameCode = extractCodeChars($lastName, $consonants, $vowels, 3);
+    
+    // Nome: 3 caratteri (se >3 consonanti, prendi 1a, 3a, 4a)
+    $firstNameCode = extractFirstNameCode($firstName, $consonants, $vowels);
+    
+    // Data nascita e sesso
+    $date = new DateTime($birthDate);
+    $year = $date->format('y'); // 2 cifre anno
+    $monthLetters = ['A','B','C','D','E','H','L','M','P','R','S','T'];
+    $month = $monthLetters[(int)$date->format('m') - 1];
+    $day = (int)$date->format('d');
+    if (strtoupper($gender) === 'F') {
+        $day += 40;
+    }
+    $dayCode = str_pad($day, 2, '0', STR_PAD_LEFT);
+    
+    // Codice catastale (semplificato - usa placeholder o lookup)
+    $placeCode = getCatastaleCode($birthPlace);
+    
+    // Componi codice senza carattere di controllo
+    $partialCode = $lastNameCode . $firstNameCode . $year . $month . $dayCode . $placeCode;
+    
+    // Calcola carattere di controllo
+    $controlChar = calculateControlChar($partialCode);
+    
+    return $partialCode . $controlChar;
+}
+
+function extractCodeChars($name, $consonants, $vowels, $length) {
+    $name = preg_replace('/[^A-Z]/', '', strtoupper($name));
+    $cons = '';
+    $vow = '';
+    
+    for ($i = 0; $i < strlen($name); $i++) {
+        if (strpos($consonants, $name[$i]) !== false) {
+            $cons .= $name[$i];
+        } else if (strpos($vowels, $name[$i]) !== false) {
+            $vow .= $name[$i];
+        }
+    }
+    
+    $result = $cons . $vow;
+    $result = str_pad($result, $length, 'X');
+    return substr($result, 0, $length);
+}
+
+function extractFirstNameCode($name, $consonants, $vowels) {
+    $name = preg_replace('/[^A-Z]/', '', strtoupper($name));
+    $cons = '';
+    $vow = '';
+    
+    for ($i = 0; $i < strlen($name); $i++) {
+        if (strpos($consonants, $name[$i]) !== false) {
+            $cons .= $name[$i];
+        } else if (strpos($vowels, $name[$i]) !== false) {
+            $vow .= $name[$i];
+        }
+    }
+    
+    // Se più di 3 consonanti, prendi 1a, 3a, 4a
+    if (strlen($cons) > 3) {
+        return $cons[0] . $cons[2] . $cons[3];
+    }
+    
+    $result = $cons . $vow;
+    $result = str_pad($result, 3, 'X');
+    return substr($result, 0, 3);
+}
+
+function getCatastaleCode($birthPlace) {
+    global $pdo;
+    
+    // Cerca nella tabella comuni se esiste
+    try {
+        $stmt = $pdo->prepare("SELECT codice_catastale FROM " . table('comuni') . " WHERE nome LIKE ? LIMIT 1");
+        $stmt->execute(['%' . $birthPlace . '%']);
+        $result = $stmt->fetchColumn();
+        if ($result) {
+            return $result;
+        }
+    } catch (Exception $e) {
+        // Tabella non esiste, usa placeholder
+    }
+    
+    // Fallback: placeholder (l'utente può correggere manualmente)
+    return 'Z000';
+}
+
+function calculateControlChar($code) {
+    $oddValues = [
+        '0' => 1, '1' => 0, '2' => 5, '3' => 7, '4' => 9, '5' => 13, '6' => 15, '7' => 17, '8' => 19, '9' => 21,
+        'A' => 1, 'B' => 0, 'C' => 5, 'D' => 7, 'E' => 9, 'F' => 13, 'G' => 15, 'H' => 17, 'I' => 19, 'J' => 21,
+        'K' => 2, 'L' => 4, 'M' => 18, 'N' => 20, 'O' => 11, 'P' => 3, 'Q' => 6, 'R' => 8, 'S' => 12, 'T' => 14,
+        'U' => 16, 'V' => 10, 'W' => 22, 'X' => 25, 'Y' => 24, 'Z' => 23
+    ];
+    
+    $evenValues = [
+        '0' => 0, '1' => 1, '2' => 2, '3' => 3, '4' => 4, '5' => 5, '6' => 6, '7' => 7, '8' => 8, '9' => 9,
+        'A' => 0, 'B' => 1, 'C' => 2, 'D' => 3, 'E' => 4, 'F' => 5, 'G' => 6, 'H' => 7, 'I' => 8, 'J' => 9,
+        'K' => 10, 'L' => 11, 'M' => 12, 'N' => 13, 'O' => 14, 'P' => 15, 'Q' => 16, 'R' => 17, 'S' => 18, 'T' => 19,
+        'U' => 20, 'V' => 21, 'W' => 22, 'X' => 23, 'Y' => 24, 'Z' => 25
+    ];
+    
+    $sum = 0;
+    for ($i = 0; $i < 15; $i++) {
+        $char = strtoupper($code[$i]);
+        if (($i + 1) % 2 === 1) { // Posizione dispari
+            $sum += $oddValues[$char] ?? 0;
+        } else { // Posizione pari
+            $sum += $evenValues[$char] ?? 0;
+        }
+    }
+    
+    $controlIndex = $sum % 26;
+    return chr(65 + $controlIndex); // A-Z
+}
