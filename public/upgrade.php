@@ -39,7 +39,9 @@ function setDbVersion($version) {
 function columnExists($table, $column) {
     global $pdo;
     try {
-        $stmt = $pdo->prepare("SHOW COLUMNS FROM $table LIKE ?");
+        // Escape table name with backticks for safety
+        $escapedTable = '`' . str_replace('`', '``', $table) . '`';
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM $escapedTable LIKE ?");
         $stmt->execute([$column]);
         return $stmt->rowCount() > 0;
     } catch (Exception $e) {
@@ -53,6 +55,7 @@ function columnExists($table, $column) {
 function tableExists($table) {
     global $pdo;
     try {
+        // Use prepared statement parameter for table name in SHOW TABLES LIKE
         $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
         $stmt->execute([$table]);
         return $stmt->rowCount() > 0;
@@ -67,7 +70,10 @@ function tableExists($table) {
 function addColumnIfNotExists($table, $column, $definition) {
     global $pdo;
     if (!columnExists($table, $column)) {
-        $sql = "ALTER TABLE $table ADD COLUMN $column $definition";
+        // Escape table and column names with backticks for safety
+        $escapedTable = '`' . str_replace('`', '``', $table) . '`';
+        $escapedColumn = '`' . str_replace('`', '``', $column) . '`';
+        $sql = "ALTER TABLE $escapedTable ADD COLUMN $escapedColumn $definition";
         $pdo->exec($sql);
         return true;
     }
