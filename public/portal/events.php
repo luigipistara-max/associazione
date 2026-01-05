@@ -167,17 +167,29 @@ require_once __DIR__ . '/inc/header.php';
                         <?php 
                         $registrationStatus = getMemberEventRegistrationStatus($event['id'], $member['id']);
                         if ($registrationStatus && $registrationStatus['response'] === 'yes'): 
+                            $displayStatus = getDisplayStatus($registrationStatus['registration_status']);
                         ?>
                         <div class="mt-3">
                             <strong>Stato iscrizione:</strong><br>
-                            <?php if ($registrationStatus['registration_status'] === 'pending'): ?>
-                                <span class="badge bg-warning">⏳ In attesa di approvazione</span>
+                            <?php if ($registrationStatus['registration_status'] === 'pending' || $registrationStatus['registration_status'] === 'revoked'): ?>
+                                <span class="badge bg-warning">⏳ <?php echo h($displayStatus); ?></span>
                                 <small class="text-muted d-block mt-1">La tua disponibilità è stata registrata e sarà valutata dall'organizzatore.</small>
                             <?php elseif ($registrationStatus['registration_status'] === 'approved'): ?>
-                                <span class="badge bg-success">✅ Iscrizione confermata</span>
+                                <span class="badge bg-success">✅ <?php echo h($displayStatus); ?></span>
                                 <small class="text-muted d-block mt-1">La tua partecipazione è stata approvata!</small>
+                                
+                                <?php 
+                                // Show meeting button for approved registrations on online/hybrid events
+                                if (($event['event_mode'] === 'online' || $event['event_mode'] === 'hybrid') && !empty($event['online_link'])): 
+                                ?>
+                                    <div class="mt-2">
+                                        <a href="<?php echo htmlspecialchars($event['online_link']); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-success btn-sm">
+                                            <i class="bi bi-camera-video"></i> Partecipa Alla Riunione
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
                             <?php elseif ($registrationStatus['registration_status'] === 'rejected'): ?>
-                                <span class="badge bg-danger">❌ Iscrizione rifiutata</span>
+                                <span class="badge bg-danger">❌ <?php echo h($displayStatus); ?></span>
                                 <?php if ($registrationStatus['rejection_reason']): ?>
                                     <small class="text-muted d-block mt-1">Motivo: <?php echo h($registrationStatus['rejection_reason']); ?></small>
                                 <?php endif; ?>
