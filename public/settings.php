@@ -442,8 +442,8 @@ include __DIR__ . '/inc/header.php';
 
 <!-- Tab Content -->
 <div class="tab-content" id="settingsTabContent">
-
-<form method="POST" enctype="multipart/form-data">
+    
+    <form method="POST" enctype="multipart/form-data">
     
     <!-- Association Tab -->
     <div class="tab-pane fade show active" id="association" role="tabpanel">
@@ -479,10 +479,10 @@ include __DIR__ . '/inc/header.php';
                     </div>
                 <?php endif; ?>
             </div>
-        </div>
+    </div>
         
-        <!-- Legal Representative Tab -->
-        <div class="tab-pane fade" id="legal" role="tabpanel">
+    <!-- Legal Representative Tab -->
+    <div class="tab-pane fade" id="legal" role="tabpanel">
             <div class="row">
                 <div class="col-md-8">
                     <div class="mb-3">
@@ -507,10 +507,10 @@ include __DIR__ . '/inc/header.php';
                        value="<?php echo h($currentSettings['legal_representative_cf'] ?? ''); ?>" 
                        maxlength="16" pattern="[A-Z0-9]{16}">
             </div>
-        </div>
+    </div>
         
-        <!-- Address & Contacts Tab -->
-        <div class="tab-pane fade" id="address" role="tabpanel">
+    <!-- Address & Contacts Tab -->
+    <div class="tab-pane fade" id="address" role="tabpanel">
             <h5 class="mb-3">Sede Legale</h5>
             <div class="mb-3">
                 <label for="address_street" class="form-label">Indirizzo</label>
@@ -581,10 +581,10 @@ include __DIR__ . '/inc/header.php';
                     </div>
                 </div>
             </div>
-        </div>
+    </div>
         
-        <!-- Fiscal Data Tab -->
-        <div class="tab-pane fade" id="fiscal" role="tabpanel">
+    <!-- Fiscal Data Tab -->
+    <div class="tab-pane fade" id="fiscal" role="tabpanel">
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3">
@@ -617,10 +617,10 @@ include __DIR__ . '/inc/header.php';
                        placeholder="es. Iscritta al RUNTS n. 12345">
                 <div class="form-text">Informazioni sull'iscrizione al RUNTS o altri registri</div>
             </div>
-        </div>
+    </div>
         
-        <!-- Banking Tab -->
-        <div class="tab-pane fade" id="banking" role="tabpanel">
+    <!-- Banking Tab -->
+    <div class="tab-pane fade" id="banking" role="tabpanel">
             <div class="mb-3">
                 <label for="bank_iban" class="form-label">IBAN</label>
                 <input type="text" class="form-control" id="bank_iban" name="bank_iban" 
@@ -652,10 +652,10 @@ include __DIR__ . '/inc/header.php';
                     </div>
                 </div>
             </div>
-        </div>
+    </div>
         
-        <!-- PayPal Tab -->
-        <div class="tab-pane fade" id="paypal" role="tabpanel">
+    <!-- PayPal Tab -->
+    <div class="tab-pane fade" id="paypal" role="tabpanel">
             <div class="alert alert-info">
                 <i class="bi bi-info-circle"></i> Configura PayPal per ricevere donazioni o pagamenti online
             </div>
@@ -679,11 +679,10 @@ include __DIR__ . '/inc/header.php';
                     <i class="bi bi-save"></i> Salva Impostazioni Generali
                 </button>
             </div>
-        </div>
+        </form>
+    </div>
         
-    </form>
-    
-        <!-- API / Integrations Tab -->
+    <!-- API / Integrations Tab -->
         <div class="tab-pane fade" id="api" role="tabpanel">
             <form method="POST" action="settings.php">
                 <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
@@ -1163,7 +1162,7 @@ include __DIR__ . '/inc/header.php';
                 <i class="bi bi-save"></i> Salva Impostazioni Sicurezza
             </button>
         </div>
-        </form>
+    </form>
     </div>
     
 </div><!-- End of tab-content -->
