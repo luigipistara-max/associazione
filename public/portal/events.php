@@ -183,7 +183,7 @@ require_once __DIR__ . '/inc/header.php';
                                 if (($event['event_mode'] === 'online' || $event['event_mode'] === 'hybrid') && !empty($event['online_link'])): 
                                 ?>
                                     <div class="mt-2">
-                                        <a href="<?php echo htmlspecialchars($event['online_link']); ?>" target="_blank" class="btn btn-success btn-sm">
+                                        <a href="<?php echo htmlspecialchars($event['online_link']); ?>" target="_blank" rel="noopener noreferrer" class="btn btn-success btn-sm">
                                             <i class="bi bi-camera-video"></i> Partecipa Alla Riunione
                                         </a>
                                     </div>

@@ -465,7 +465,7 @@ CREATE TABLE IF NOT EXISTS event_responses (
     event_id INT NOT NULL,
     member_id INT NOT NULL,
     response ENUM('yes', 'no', 'maybe') NOT NULL,
-    registration_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    registration_status ENUM('pending', 'approved', 'rejected', 'revoked') DEFAULT 'pending',
     approved_by INT NULL,
     approved_at DATETIME NULL,
     rejection_reason VARCHAR(255) NULL,

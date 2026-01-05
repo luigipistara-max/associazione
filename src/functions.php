@@ -2777,14 +2777,14 @@ function getRejectedEventRegistrations($eventId) {
 }
 
 /**
- * Revoke an approved registration (back to pending)
+ * Revoke an approved registration
  */
 function revokeEventRegistration($responseId) {
     global $pdo;
     
     $stmt = $pdo->prepare("
         UPDATE " . table('event_responses') . "
-        SET registration_status = 'pending', 
+        SET registration_status = 'revoked', 
             approved_by = NULL,
             approved_at = NULL,
             rejection_reason = NULL
@@ -2829,6 +2829,11 @@ function getMemberEventRegistrationStatus($eventId, $memberId) {
  * 
  * @param string $dbStatus Database status (pending, approved, rejected, revoked)
  * @return string Display status for portal members
+ * 
+ * Note: 'revoked' is displayed as 'In attesa' to provide a consistent user experience.
+ * When an admin revokes a previously approved registration, the member sees it as if
+ * the approval never happened, allowing them to understand they need to wait for
+ * re-evaluation rather than being confused about a "revoked" state.
  */
 function getDisplayStatus($dbStatus) {
     switch ($dbStatus) {
