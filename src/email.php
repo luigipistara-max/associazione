@@ -613,9 +613,9 @@ function logEmailError($to, $subject, $errorMessage, $method = 'mail') {
     try {
         $stmt = $pdo->prepare("
             INSERT INTO " . table('email_log') . " (to_email, subject, status, method, error_message)
-            VALUES (?, ?, 'failed', ?, ?)
+            VALUES (?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$to, $subject, $method, $errorMessage]);
+        $stmt->execute([$to, $subject, 'failed', $method, $errorMessage]);
     } catch (PDOException $e) {
         error_log("Errore log email: " . $e->getMessage());
     }
