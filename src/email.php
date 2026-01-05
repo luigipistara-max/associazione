@@ -58,13 +58,13 @@ function sendEmail($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = null
     
     // Validazione email destinatario
     if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        logEmailError($to, $subject, 'Email destinatario non valida');
+        logEmailError($to, $subject, 'Email destinatario non valida', 'validation');
         return false;
     }
     
     // Verifica rate limiting
     if (!checkEmailRateLimit()) {
-        logEmailError($to, $subject, 'Rate limit giornaliero raggiunto');
+        logEmailError($to, $subject, 'Rate limit giornaliero raggiunto', 'ratelimit');
         return false;
     }
     
@@ -77,17 +77,37 @@ function sendEmail($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = null
             return sendEmailAlterVista($to, $subject, $bodyHtml);
         }
         
-        if ($smtpEnabled) {
-            // Invio tramite SMTP
-            return sendEmailSmtp($to, $subject, $bodyHtml, $bodyText, $fromEmail, $fromName);
-        } else {
-            // Fallback a mail()
-            return sendEmailNative($to, $subject, $bodyHtml, $bodyText, $fromEmail, $fromName);
+        // Prova prima SMTP se abilitato
+        if ($smtpEnabled && isSmtpConfigured()) {
+            $result = sendEmailSmtp($to, $subject, $bodyHtml, $bodyText, $fromEmail, $fromName);
+            
+            // Se SMTP ha successo, ritorna
+            if ($result) {
+                return true;
+            }
+            
+            // Se SMTP fallisce, prova fallback a mail()
+            error_log("SMTP failed for {$to}, attempting mail() fallback");
+            logEmailError($to, $subject, 'SMTP failed - trying mail() fallback', 'smtp');
         }
+        
+        // Fallback a mail() nativa (o se SMTP non configurato/abilitato)
+        return sendEmailNative($to, $subject, $bodyHtml, $bodyText, $fromEmail, $fromName);
     } catch (Exception $e) {
-        logEmailError($to, $subject, $e->getMessage());
+        logEmailError($to, $subject, $e->getMessage(), 'exception');
         return false;
     }
+}
+
+/**
+ * Verifica se SMTP è configurato correttamente
+ * 
+ * @return bool True se SMTP ha host e username configurati
+ */
+function isSmtpConfigured() {
+    $host = getSetting('smtp_host', '');
+    $user = getSetting('smtp_username', '');
+    return !empty($host) && !empty($user);
 }
 
 /**
@@ -112,9 +132,9 @@ function sendEmailAlterVista($to, $subject, $bodyHtml) {
     $success = @mail($to, $subject, $bodyHtml, $headers);
     
     if ($success) {
-        logEmailSuccess($to, $subject);
+        logEmailSuccess($to, $subject, 'altervista');
     } else {
-        logEmailError($to, $subject, 'Invio mail() su AlterVista fallito');
+        logEmailError($to, $subject, 'Invio mail() su AlterVista fallito', 'altervista');
     }
     
     return $success;
@@ -302,7 +322,7 @@ function sendEmailSmtp($to, $subject, $bodyHtml, $bodyText = null, $fromEmail = 
     fputs($smtp, "QUIT\r\n");
     fclose($smtp);
     
-    logEmailSuccess($to, $subject);
+    logEmailSuccess($to, $subject, 'smtp');
     return true;
 }
 
@@ -345,9 +365,9 @@ function sendEmailNative($to, $subject, $bodyHtml, $bodyText = null, $fromEmail 
     $success = @mail($to, $subject, $message, $headers);
     
     if ($success) {
-        logEmailSuccess($to, $subject);
+        logEmailSuccess($to, $subject, 'mail');
     } else {
-        logEmailError($to, $subject, 'Funzione mail() non disponibile o fallita');
+        logEmailError($to, $subject, 'Funzione mail() non disponibile o fallita', 'mail');
     }
     
     return $success;
@@ -370,7 +390,7 @@ function sendEmailFromTemplate($to, $templateCode, $variables = []) {
     $template = $stmt->fetch();
     
     if (!$template) {
-        logEmailError($to, 'Template non trovato: ' . $templateCode, 'Template non esistente o disabilitato');
+        logEmailError($to, 'Template non trovato: ' . $templateCode, 'Template non esistente o disabilitato', 'template');
         return false;
     }
     
@@ -552,16 +572,20 @@ function processEmailQueue($limit = 10) {
 
 /**
  * Log email inviata con successo
+ * 
+ * @param string $to Destinatario
+ * @param string $subject Oggetto
+ * @param string $method Metodo usato (smtp, mail, altervista)
  */
-function logEmailSuccess($to, $subject) {
+function logEmailSuccess($to, $subject, $method = 'mail') {
     global $pdo;
     
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO " . table('email_log') . " (to_email, subject, status)
-            VALUES (?, ?, 'sent')
+            INSERT INTO " . table('email_log') . " (to_email, subject, status, method)
+            VALUES (?, ?, 'sent', ?)
         ");
-        $stmt->execute([$to, $subject]);
+        $stmt->execute([$to, $subject, $method]);
     } catch (PDOException $e) {
         error_log("Errore log email: " . $e->getMessage());
     }
@@ -569,16 +593,21 @@ function logEmailSuccess($to, $subject) {
 
 /**
  * Log email fallita
+ * 
+ * @param string $to Destinatario
+ * @param string $subject Oggetto
+ * @param string $errorMessage Messaggio di errore
+ * @param string $method Metodo usato (smtp, mail, altervista, validation, etc)
  */
-function logEmailError($to, $subject, $errorMessage) {
+function logEmailError($to, $subject, $errorMessage, $method = 'mail') {
     global $pdo;
     
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO " . table('email_log') . " (to_email, subject, status, error_message)
-            VALUES (?, ?, 'failed', ?)
+            INSERT INTO " . table('email_log') . " (to_email, subject, status, method, error_message)
+            VALUES (?, ?, 'failed', ?, ?)
         ");
-        $stmt->execute([$to, $subject, $errorMessage]);
+        $stmt->execute([$to, $subject, $method, $errorMessage]);
     } catch (PDOException $e) {
         error_log("Errore log email: " . $e->getMessage());
     }
