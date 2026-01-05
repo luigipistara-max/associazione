@@ -237,10 +237,12 @@ CREATE TABLE IF NOT EXISTS email_log (
     to_email VARCHAR(255) NOT NULL,
     subject VARCHAR(255) NOT NULL,
     status ENUM('sent','failed') NOT NULL,
+    method VARCHAR(20) DEFAULT 'mail',
     error_message TEXT,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_to_email (to_email),
-    INDEX idx_sent_at (sent_at)
+    INDEX idx_sent_at (sent_at),
+    INDEX idx_method (method)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Audit log table
@@ -310,9 +312,9 @@ INSERT INTO email_templates (code, name, subject, body_html, body_text, variable
 'Gentile {nome} {cognome},\n\nTi ricordiamo che l\\'evento {titolo} si terrà:\n\nData: {data}\nOra: {ora}\n{dettagli_modalita}\n\nTi aspettiamo!\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "titolo", "data", "ora", "dettagli_modalita", "app_name"]'),
 
-('event_online_link', 'Link Evento Online', 'Link per partecipare: {titolo}',
-'<p>Gentile <strong>{nome} {cognome}</strong>,</p><p>Ecco le informazioni per partecipare all\\'evento online <strong>{titolo}</strong>:</p><p><strong>Data:</strong> {data}<br><strong>Ora:</strong> {ora}<br><strong>Piattaforma:</strong> {piattaforma}</p><p><strong>Link di accesso:</strong><br><a href="{link}">{link}</a></p>{password_info}{istruzioni}<p>Ti aspettiamo online!</p><p>Cordiali saluti,<br>{app_name}</p>',
-'Gentile {nome} {cognome},\n\nEcco le informazioni per partecipare all\\'evento online {titolo}:\n\nData: {data}\nOra: {ora}\nPiattaforma: {piattaforma}\n\nLink di accesso:\n{link}\n{password_info}{istruzioni}\n\nTi aspettiamo online!\n\nCordiali saluti,\n{app_name}',
+('event_online_link', 'Link Evento Online', 'La tua iscrizione è stata approvata! - {titolo}',
+'<h2>La tua iscrizione è stata approvata!</h2><p>Ciao <strong>{nome}</strong>,</p><p>La tua partecipazione all\\'evento <strong>{titolo}</strong> è stata confermata!</p><h3>Dettagli Evento</h3><ul><li><strong>Data:</strong> {data}</li><li><strong>Ora:</strong> {ora}</li><li><strong>Piattaforma:</strong> {piattaforma}</li></ul><h3>Come Partecipare</h3><p>Clicca sul pulsante qui sotto per accedere alla riunione:</p><p style="text-align: center; margin: 20px 0;"><a href="{link}" style="background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">🎥 Partecipa Alla Riunione</a></p>{password_info}{istruzioni}<p>Ti aspettiamo!</p>',
+'Gentile {nome} {cognome},\n\nLa tua iscrizione è stata approvata!\n\nLa tua partecipazione all\\'evento {titolo} è stata confermata!\n\nDettagli Evento:\n- Data: {data}\n- Ora: {ora}\n- Piattaforma: {piattaforma}\n\nLink di accesso:\n{link}\n{password_info}{istruzioni}\n\nTi aspettiamo!\n\nCordiali saluti,\n{app_name}',
 '["nome", "cognome", "titolo", "data", "ora", "piattaforma", "link", "password_info", "istruzioni", "app_name"]'),
 
 ('event_cancelled', 'Evento Annullato', 'Annullamento Evento: {titolo}',

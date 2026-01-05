@@ -2609,7 +2609,16 @@ function approveEventRegistration($responseId, $userId = null) {
             'istruzioni' => $instructions
         ];
         
-        sendEmailFromTemplate($registration['email'], 'event_online_link', $variables);
+        // Log invio email per debug
+        error_log("Sending meeting link email to {$registration['email']} for event '{$registration['title']}'");
+        
+        $emailResult = sendEmailFromTemplate($registration['email'], 'event_online_link', $variables);
+        
+        if ($emailResult) {
+            error_log("Meeting link email sent successfully to {$registration['email']}");
+        } else {
+            error_log("Failed to send meeting link email to {$registration['email']}");
+        }
     }
     
     return $result;
@@ -2695,7 +2704,16 @@ function approveAllEventRegistrations($eventId, $userId = null) {
                 'istruzioni' => $instructions
             ];
             
-            sendEmailFromTemplate($reg['email'], 'event_online_link', $variables);
+            // Log invio email per debug
+            error_log("Sending meeting link email to {$reg['email']} for event '{$event['title']}'");
+            
+            $emailResult = sendEmailFromTemplate($reg['email'], 'event_online_link', $variables);
+            
+            if ($emailResult) {
+                error_log("Meeting link email sent successfully to {$reg['email']}");
+            } else {
+                error_log("Failed to send meeting link email to {$reg['email']}");
+            }
         }
     }
     
