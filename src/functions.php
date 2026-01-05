@@ -3767,7 +3767,7 @@ function sendEventNotification($eventId) {
 
 /**
  * Get next receipt number for current year
- * Format: YYYY/NNNN (es. 2026/0001)
+ * Format: RIC-YYYY-NNNNN (es. RIC-2026-00001)
  * Uses SELECT FOR UPDATE to prevent race conditions
  * 
  * @return string Next receipt number
@@ -3776,7 +3776,7 @@ function getNextReceiptNumber() {
     global $pdo;
     
     $year = date('Y');
-    $prefix = $year . '/';
+    $prefix = 'RIC-' . $year . '-';
     
     // Use transaction with FOR UPDATE to prevent race conditions
     $pdo->beginTransaction();
@@ -3800,14 +3800,14 @@ function getNextReceiptNumber() {
             $nextNumber = 1;
         }
         
-        $receiptNumber = $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        $receiptNumber = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
         
         $pdo->commit();
         return $receiptNumber;
     } catch (Exception $e) {
         $pdo->rollBack();
         error_log("Error generating receipt number: " . $e->getMessage());
-        return $prefix . '0001'; // Fallback to first number
+        return $prefix . '00001'; // Fallback to first number
     }
 }
 
