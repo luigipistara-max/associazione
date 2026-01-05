@@ -1098,21 +1098,42 @@ function deleteEvent($eventId) {
     global $pdo;
     require_once __DIR__ . '/audit.php';
     
-    $event = getEvent($eventId);
-    
-    // Delete registrations first
-    $stmt = $pdo->prepare("DELETE FROM " . table('event_registrations') . " WHERE event_id = ?");
-    $stmt->execute([$eventId]);
-    
-    // Delete event
-    $stmt = $pdo->prepare("DELETE FROM " . table('events') . " WHERE id = ?");
-    $result = $stmt->execute([$eventId]);
-    
-    if ($event) {
+    try {
+        $pdo->beginTransaction();
+        
+        $event = getEvent($eventId);
+        if (!$event) {
+            $pdo->rollBack();
+            return false;
+        }
+        
+        // Delete event responses (availability responses)
+        $stmt = $pdo->prepare("DELETE FROM " . table('event_responses') . " WHERE event_id = ?");
+        $stmt->execute([$eventId]);
+        
+        // Delete event registrations (older registration system)
+        $stmt = $pdo->prepare("DELETE FROM " . table('event_registrations') . " WHERE event_id = ?");
+        $stmt->execute([$eventId]);
+        
+        // Delete event target groups
+        $stmt = $pdo->prepare("DELETE FROM " . table('event_target_groups') . " WHERE event_id = ?");
+        $stmt->execute([$eventId]);
+        
+        // Delete event itself
+        $stmt = $pdo->prepare("DELETE FROM " . table('events') . " WHERE id = ?");
+        $stmt->execute([$eventId]);
+        
+        $pdo->commit();
+        
+        // Log deletion
         logDelete('event', $eventId, $event['title'], $event);
+        
+        return true;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Error deleting event $eventId: " . $e->getMessage());
+        return false;
     }
-    
-    return $result;
 }
 
 /**

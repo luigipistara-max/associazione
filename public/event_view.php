@@ -38,6 +38,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && isAdmin(
     }
 }
 
+// Handle event deletion (admin only)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'delete' && isAdmin()) {
+    $token = $_POST['csrf_token'] ?? '';
+    
+    if (verifyCsrfToken($token)) {
+        if (deleteEvent($eventId)) {
+            setFlashMessage('Evento eliminato con successo');
+            redirect($basePath . 'events.php');
+        } else {
+            setFlashMessage('Errore nell\'eliminazione dell\'evento', 'danger');
+        }
+    }
+}
+
 // Handle registration approval/rejection
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['registration_action']) && isAdmin()) {
     $token = $_POST['csrf_token'] ?? '';
@@ -581,9 +595,13 @@ include __DIR__ . '/inc/header.php';
                 </a>
                 <?php endif; ?>
                 
-                <a href="<?php echo h($basePath); ?>event_edit.php?id=<?php echo $event['id']; ?>" class="btn btn-secondary w-100">
+                <a href="<?php echo h($basePath); ?>event_edit.php?id=<?php echo $event['id']; ?>" class="btn btn-secondary w-100 mb-2">
                     <i class="bi bi-pencil"></i> Modifica Evento
                 </a>
+                
+                <button type="button" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#deleteEventModal">
+                    <i class="bi bi-trash"></i> Elimina Evento
+                </button>
             </div>
         </div>
         <?php endif; ?>
@@ -730,6 +748,35 @@ include __DIR__ . '/inc/header.php';
         </div>
     </div>
     <?php endforeach; ?>
+<?php endif; ?>
+
+<!-- Delete Event Modal -->
+<?php if (isAdmin()): ?>
+<div class="modal fade" id="deleteEventModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Conferma Eliminazione</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Sei sicuro di voler eliminare questo evento?</p>
+                <p class="text-danger"><strong>Attenzione:</strong> Verranno eliminate anche tutte le iscrizioni collegate!</p>
+                <p class="mb-0"><strong>Evento:</strong> <?php echo h($event['title']); ?></p>
+            </div>
+            <div class="modal-footer">
+                <form method="POST">
+                    <input type="hidden" name="csrf_token" value="<?php echo generateCsrfToken(); ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Elimina Evento
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 <?php endif; ?>
 
 <?php include __DIR__ . '/inc/footer.php'; ?>
