@@ -16,8 +16,8 @@ $birthDate = $input['birth_date'] ?? '';
 $birthPlace = $input['birth_place'] ?? '';
 $gender = $input['gender'] ?? '';
 
-if (empty($lastName) || empty($firstName) || empty($birthDate) || empty($gender)) {
-    echo json_encode(['success' => false, 'error' => 'Dati mancanti']);
+if (empty($lastName) || empty($firstName) || empty($birthDate) || empty($birthPlace) || empty($gender)) {
+    echo json_encode(['success' => false, 'error' => 'Dati mancanti: compilare Cognome, Nome, Data di nascita, Luogo di nascita e Sesso']);
     exit;
 }
 
