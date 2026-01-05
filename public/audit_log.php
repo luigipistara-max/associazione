@@ -36,6 +36,20 @@ if (isset($_GET['date_to']) && !empty($_GET['date_to'])) {
     $filters['date_to'] = $_GET['date_to'];
 }
 
+// Purge logs older than 30 days
+if (isset($_POST['purge_logs'])) {
+    $stmt = $pdo->prepare("
+        DELETE FROM " . table('audit_log') . " 
+        WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+    ");
+    $stmt->execute();
+    $deleted = $stmt->rowCount();
+    
+    logAudit('delete', 'audit_log', null, "Purga log più vecchi di 30 giorni ($deleted record eliminati)");
+    setFlashMessage("Eliminati $deleted log più vecchi di 30 giorni", 'success');
+    redirect('audit_log.php');
+}
+
 // Export CSV
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $logs = getAuditLog($filters, 10000, 0); // Max 10000 record per export
@@ -153,6 +167,11 @@ include __DIR__ . '/inc/header.php';
                class="btn btn-success btn-sm">
                 <i class="bi bi-download"></i> Esporta CSV
             </a>
+            <form method="POST" style="display: inline;" onsubmit="return confirm('Sei sicuro di voler eliminare tutti i log più vecchi di 30 giorni? Questa azione non può essere annullata.');">
+                <button type="submit" name="purge_logs" value="1" class="btn btn-danger btn-sm">
+                    <i class="bi bi-trash"></i> Purga log (&gt;30 giorni)
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -191,15 +210,27 @@ include __DIR__ . '/inc/header.php';
                                 </td>
                                 <td>
                                     <?php 
-                                    $actionClass = match($log['action']) {
-                                        'login' => 'success',
-                                        'logout' => 'secondary',
-                                        'create' => 'primary',
-                                        'update' => 'warning',
-                                        'delete' => 'danger',
-                                        'export' => 'info',
-                                        default => 'secondary'
-                                    };
+                                    $actionClass = 'secondary';
+                                    switch($log['action']) {
+                                        case 'login':
+                                            $actionClass = 'success';
+                                            break;
+                                        case 'logout':
+                                            $actionClass = 'secondary';
+                                            break;
+                                        case 'create':
+                                            $actionClass = 'primary';
+                                            break;
+                                        case 'update':
+                                            $actionClass = 'warning';
+                                            break;
+                                        case 'delete':
+                                            $actionClass = 'danger';
+                                            break;
+                                        case 'export':
+                                            $actionClass = 'info';
+                                            break;
+                                    }
                                     ?>
                                     <span class="badge bg-<?php echo $actionClass; ?>">
                                         <?php echo translateAction($log['action']); ?>
