@@ -31,14 +31,14 @@
 **Expected Results:**
 - Fee status changes to "Pagato"
 - A new receipt is created in the receipts table
-- Receipt number format is YYYY/NNNN (e.g., 2026/0001)
+- Receipt number format is RIC-YYYY-NNNNN (e.g., RIC-2026-00001)
 - Income movement is created in the income table
 
 **SQL Verification:**
 ```sql
 SELECT * FROM receipts ORDER BY id DESC LIMIT 5;
 -- Should show the newly created receipt with:
--- - receipt_number in format 2026/0001
+-- - receipt_number in format RIC-2026-00001
 -- - member_id matching the fee
 -- - amount matching the fee
 -- - payment_method matching selection
@@ -55,7 +55,7 @@ SELECT * FROM receipts ORDER BY id DESC LIMIT 5;
 **Expected Results:**
 - Receipt list shows all member's receipts
 - Each receipt displays:
-  - Receipt number (YYYY/NNNN format)
+  - Receipt number (RIC-YYYY-NNNNN format)
   - Issue date
   - Description
   - Amount (formatted as € XX,XX)
@@ -101,9 +101,9 @@ SELECT * FROM receipts ORDER BY id DESC LIMIT 5;
 2. Check receipt numbers generated
 
 **Expected Results:**
-- First receipt: 2026/0001
-- Second receipt: 2026/0002
-- Third receipt: 2026/0003
+- First receipt: RIC-2026-00001
+- Second receipt: RIC-2026-00002
+- Third receipt: RIC-2026-00003
 - No duplicates
 - Sequential numbering within the year
 
@@ -188,7 +188,8 @@ JOIN members m ON r.member_id = m.id;
 
 ## Notes
 
-- All new receipts use the YYYY/NNNN format as specified
-- The old RIC-YYYY-NNNNN format is still in use by the legacy system
+- All new receipts use the RIC-YYYY-NNNNN format (e.g., RIC-2026-00001)
+- The legacy system in `public/receipt.php` also uses the same RIC-YYYY-NNNNN format
+- The new receipt system checks both tables to ensure no duplicate receipt numbers
 - Payment methods are stored as ENUM values but displayed with friendly Italian text
 - Receipt generation is automatic when marking a fee as paid through the admin interface
