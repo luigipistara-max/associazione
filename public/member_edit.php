@@ -51,10 +51,12 @@ if ($memberId) {
         'fiscal_code' => '',
         'birth_date' => '',
         'birth_place' => '',
+        'birth_province' => '',
         'email' => '',
         'phone' => '',
         'address' => '',
         'city' => '',
+        'province' => '',
         'postal_code' => '',
         'registration_date' => date('Y-m-d'),
         'status' => 'attivo',
@@ -87,10 +89,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'fiscal_code' => strtoupper(trim($_POST['fiscal_code'] ?? '')),
             'birth_date' => $_POST['birth_date'] ?? null,
             'birth_place' => trim($_POST['birth_place'] ?? ''),
+            'birth_province' => strtoupper(trim($_POST['birth_province'] ?? '')),
             'email' => trim($_POST['email'] ?? ''),
             'phone' => trim($_POST['phone'] ?? ''),
             'address' => trim($_POST['address'] ?? ''),
             'city' => trim($_POST['city'] ?? ''),
+            'province' => strtoupper(trim($_POST['province'] ?? '')),
             'postal_code' => trim($_POST['postal_code'] ?? ''),
             'registration_date' => $_POST['registration_date'] ?? null,
             'status' => $_POST['status'] ?? 'attivo',
@@ -131,8 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare("
                         UPDATE " . table('members') . " SET
                             membership_number = ?, first_name = ?, last_name = ?, fiscal_code = ?,
-                            birth_date = ?, birth_place = ?, email = ?, phone = ?,
-                            address = ?, city = ?, postal_code = ?, registration_date = ?,
+                            birth_date = ?, birth_place = ?, birth_province = ?, email = ?, phone = ?,
+                            address = ?, city = ?, province = ?, postal_code = ?, registration_date = ?,
                             status = ?, notes = ?
                         WHERE id = ?
                     ");
@@ -143,10 +147,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $data['fiscal_code'],
                         $data['birth_date'] ?: null,
                         $data['birth_place'] ?: null,
+                        $data['birth_province'] ?: null,
                         $data['email'] ?: null,
                         $data['phone'] ?: null,
                         $data['address'] ?: null,
                         $data['city'] ?: null,
+                        $data['province'] ?: null,
                         $data['postal_code'] ?: null,
                         $data['registration_date'] ?: null,
                         $data['status'],
@@ -167,10 +173,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $pdo->prepare("
                         INSERT INTO " . table('members') . " (
                             membership_number, first_name, last_name, fiscal_code,
-                            birth_date, birth_place, email, phone,
-                            address, city, postal_code, registration_date,
+                            birth_date, birth_place, birth_province, email, phone,
+                            address, city, province, postal_code, registration_date,
                             status, notes
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ");
                     $stmt->execute([
                         $data['membership_number'] ?: null,
@@ -179,10 +185,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $data['fiscal_code'],
                         $data['birth_date'] ?: null,
                         $data['birth_place'] ?: null,
+                        $data['birth_province'] ?: null,
                         $data['email'] ?: null,
                         $data['phone'] ?: null,
                         $data['address'] ?: null,
                         $data['city'] ?: null,
+                        $data['province'] ?: null,
                         $data['postal_code'] ?: null,
                         $data['registration_date'] ?: null,
                         $data['status'],
@@ -344,9 +352,15 @@ include __DIR__ . '/inc/header.php';
                     <label class="form-label">Data di Nascita</label>
                     <input type="date" name="birth_date" class="form-control" value="<?php echo e($member['birth_date']); ?>">
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Luogo di Nascita</label>
                     <input type="text" name="birth_place" class="form-control" value="<?php echo e($member['birth_place']); ?>">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Prov.</label>
+                    <input type="text" name="birth_province" class="form-control text-uppercase" 
+                           value="<?php echo e($member['birth_province']); ?>" 
+                           maxlength="2" placeholder="MI">
                 </div>
             </div>
         </div>
@@ -373,9 +387,15 @@ include __DIR__ . '/inc/header.php';
                     <label class="form-label">Indirizzo</label>
                     <input type="text" name="address" class="form-control" value="<?php echo e($member['address']); ?>">
                 </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-3 mb-3">
                     <label class="form-label">Città</label>
                     <input type="text" name="city" class="form-control" value="<?php echo e($member['city']); ?>">
+                </div>
+                <div class="col-md-1 mb-3">
+                    <label class="form-label">Prov.</label>
+                    <input type="text" name="province" class="form-control text-uppercase" 
+                           value="<?php echo e($member['province']); ?>" 
+                           maxlength="2" placeholder="RM">
                 </div>
                 <div class="col-md-2 mb-3">
                     <label class="form-label">CAP</label>

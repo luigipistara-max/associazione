@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS members (
     fiscal_code VARCHAR(16) UNIQUE NOT NULL,
     birth_date DATE,
     birth_place VARCHAR(100),
+    birth_province VARCHAR(2),
     email VARCHAR(100),
     phone VARCHAR(20),
     address VARCHAR(255),
