@@ -3795,13 +3795,14 @@ function getNextReceiptNumber() {
         $stmt->execute([$prefix . '%']);
         $lastNew = $stmt->fetchColumn();
         
-        // Check legacy member_fees table
+        // Check legacy member_fees table (also lock to prevent race conditions)
         $stmt = $pdo->prepare("
             SELECT receipt_number 
             FROM " . table('member_fees') . " 
             WHERE receipt_number LIKE ? 
             ORDER BY receipt_number DESC 
             LIMIT 1
+            FOR UPDATE
         ");
         $stmt->execute([$prefix . '%']);
         $lastLegacy = $stmt->fetchColumn();
