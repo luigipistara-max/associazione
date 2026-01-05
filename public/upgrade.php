@@ -3,6 +3,20 @@ require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/functions.php';
 require_once __DIR__ . '/../src/db.php';
 
+// Includi audit.php se esiste
+$auditFile = __DIR__ . '/../src/audit.php';
+if (file_exists($auditFile)) {
+    require_once $auditFile;
+}
+
+// Fallback se logAudit non esiste
+if (!function_exists('logAudit')) {
+    function logAudit($action, $details = '', $userId = null) {
+        error_log("AUDIT: $action - $details");
+        return true;
+    }
+}
+
 requireLogin();
 requireAdmin();
 
